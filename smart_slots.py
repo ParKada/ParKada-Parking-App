@@ -224,7 +224,7 @@ print("Warmup complete!")
 
 # Camera RTSP Stream (Or use 0 for webcam testing)
 video_path = "rtsp://admincam:admin123@10.21.49.127:554/stream1" 
-cap = RTSPStream(video_path) 
+cap = RTSPStream(0) 
 
 print("Waiting for stream to stabilize...")
 time.sleep(2)
