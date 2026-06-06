@@ -1,8 +1,3 @@
-/*
- * iParkBayan — MobileLayout
- * Design: Civic Tech / Filipino Urban Identity
- * Bottom navigation shell for driver app
- */
 import { useLocation } from "wouter";
 import { Home, Map, BookOpen, Bell, User } from "lucide-react";
 import { cn } from "@/lib/utils";

@@ -1,11 +1,3 @@
-/*
- * iParkBayan — ParkingSlotGrid
- * Changes:
- *   1. Legend is now a vertical list (no sideways scroll)
- *   2. "Unmapped" is hidden from the legend and the grid for drivers/users
- *   3. Optional `isAdmin` prop — pass true to show unmapped slots (admin view)
- */
-
 import { cn } from "@/lib/utils";
 import type { ParkingSlot } from "@/lib/data";
 import { Car, X, Accessibility } from "lucide-react";
@@ -58,16 +50,16 @@ export default function ParkingSlotGrid({
   const visibleSlots = isAdmin
     ? slots
     : slots.filter((s) => {
-        const status =
-          s.status === "NULL / NOT DRAWN" || !s.status ? "unmapped" : s.status;
-        return status !== "unmapped";
-      });
+      const status =
+        s.status === "NULL / NOT DRAWN" || !s.status ? "unmapped" : s.status;
+      return status !== "unmapped";
+    });
 
-  const totalSlots    = visibleSlots.length;
+  const totalSlots = visibleSlots.length;
   const availableSlots = visibleSlots.filter((s) => s.status === "available").length;
-  const occupiedSlots  = visibleSlots.filter((s) => s.status === "occupied").length;
-  const reservedSlots  = visibleSlots.filter((s) => s.status === "reserved").length;
-  const pwdSlots       = visibleSlots.filter(
+  const occupiedSlots = visibleSlots.filter((s) => s.status === "occupied").length;
+  const reservedSlots = visibleSlots.filter((s) => s.status === "reserved").length;
+  const pwdSlots = visibleSlots.filter(
     (s) => (s as any).is_pwd === true || String((s as any).is_pwd) === "true"
   ).length;
 
@@ -82,48 +74,48 @@ export default function ParkingSlotGrid({
     <div className="space-y-4 w-full">
 
       {/* LEGEND — 2-column grid with grey title */}
-<div className="w-full">
-  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-    Legend
-  </p>
-  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold text-slate-800">
+      <div className="w-full">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+          Legend
+        </p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold text-slate-800">
 
-    <div className="flex items-center gap-2">
-      <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-emerald-500" />
-      <span>Available</span>
-    </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-emerald-500" />
+            <span>Available</span>
+          </div>
 
-    <div className="flex items-center gap-2">
-      <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-rose-500" />
-      <span>Occupied</span>
-    </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-rose-500" />
+            <span>Occupied</span>
+          </div>
 
-    <div className="flex items-center gap-2">
-      <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-amber-500" />
-      <span>Reserved</span>
-    </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-amber-500" />
+            <span>Reserved</span>
+          </div>
 
-    <div className="flex items-center gap-2 text-blue-600">
-      <Accessibility size={14} className="shrink-0" />
-      <span>PWD</span>
-    </div>
+          <div className="flex items-center gap-2 text-blue-600">
+            <Accessibility size={14} className="shrink-0" />
+            <span>PWD</span>
+          </div>
 
-    <div className="flex items-center gap-2">
-      <span className="w-2.5 h-2.5 rounded-sm bg-primary/20 border border-primary shrink-0" />
-      <span>Selected</span>
-    </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-sm bg-primary/20 border border-primary shrink-0" />
+            <span>Selected</span>
+          </div>
 
-    {isAdmin && (
-      <div className="flex items-center gap-2">
-        <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-slate-400 border border-dashed border-slate-400" />
-        <span className="text-slate-500">Unmapped</span>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-slate-400 border border-dashed border-slate-400" />
+              <span className="text-slate-500">Unmapped</span>
+            </div>
+          )}
+
+        </div>
       </div>
-    )}
 
-  </div>
-</div>
-
-{/* STATS SUMMARY */}
+      {/* STATS SUMMARY */}
       <div className="bg-white border rounded-xl py-2 mb-2 shadow-sm">
         <div className="flex flex-nowrap items-stretch text-center">
           <div className="flex-1 flex flex-col items-center">

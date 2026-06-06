@@ -1,7 +1,3 @@
-/*
- * iParkBayan — AdminLayout
- * Fix: Profile button non-clickable, notifications clickable (mark as read + navigate).
- */
 import { useLocation } from "wouter";
 import { useState, useEffect, useCallback } from "react";
 import { 

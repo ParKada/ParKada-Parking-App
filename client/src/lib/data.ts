@@ -1,6 +1,3 @@
-// iParkBayan — Mock data and types
-// Design: Civic Tech / Modern Filipino Urban Identity
-
 export type SlotStatus = "available" | "occupied" | "reserved" | "unmapped" | 'NULL / NOT DRAWN';
 
 export interface ParkingSlot {

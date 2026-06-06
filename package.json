@@ -51,7 +51,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
-    "expo": "^56.0.9",
+    "expo": "^46.0.21",
     "expo-constants": "^56.0.17",
     "expo-linking": "^56.0.13",
     "expo-status-bar": "~1.4.0",
