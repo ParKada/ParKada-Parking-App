@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Vite uses import.meta.env, NOT process.env
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Support both Expo and Vite environment variables during migration
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // This prevents the "Uncaught Error" white screen
 if (!supabaseUrl || !supabaseAnonKey) {
