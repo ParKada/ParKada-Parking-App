@@ -93,7 +93,7 @@ export default function ReservationConfirmPage() {
       const { data, error } = await supabase.functions.invoke("reserve-slot", {
         body: {
           slot_id: slotId,
-          user_id: user.id,
+          profile_id: user.id,
           lot_id: lotId,
           plate_number: plateNumber?.toUpperCase(),
           start_time: startTimeISO,
@@ -116,7 +116,6 @@ export default function ReservationConfirmPage() {
         .from("receipts")
         .insert({
           reservation_id: newRes.id,
-          user_id: user.id,
           reference_no: refNo,
           amount_paid: parseFloat(totalAmount || "40"),
           payment_method: paymentMethod || "Unknown"

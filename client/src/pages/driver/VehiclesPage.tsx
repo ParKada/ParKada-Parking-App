@@ -48,7 +48,7 @@ export default function VehiclesPage() {
       const { data, error } = await supabase
         .from("vehicles")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("profile_id", user.id)
         .eq("is_active", true) 
         .order("created_at", { ascending: false });
 
@@ -109,7 +109,7 @@ export default function VehiclesPage() {
       const { count, error: countError } = await supabase
         .from("vehicles")
         .select("*", { count: 'exact', head: true })
-        .eq("user_id", user.id)
+        .eq("profile_id", user.id)
         .eq("is_active", true);
 
       if (countError) throw countError;
@@ -128,7 +128,7 @@ export default function VehiclesPage() {
       const { error: insertError } = await supabase
         .from("vehicles")
         .insert([{
-          user_id: user.id,
+          profile_id: user.id,
           plate: sanitizedPlate,
           model: fullModel,
           color: form.color.trim(),

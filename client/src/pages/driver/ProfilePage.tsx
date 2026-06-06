@@ -75,9 +75,9 @@ export default function ProfilePage() {
       });
 
       const [resCount, completeCount, vehCount] = await Promise.all([
-        supabase.from("reservations").select("*", { count: 'exact', head: true }).eq("user_id", user.id),
-        supabase.from("reservations").select("*", { count: 'exact', head: true }).eq("user_id", user.id).eq("status", "completed"),
-        supabase.from("vehicles").select("*", { count: 'exact', head: true }).eq("user_id", user.id).eq("is_active", true)
+        supabase.from("reservations").select("*", { count: 'exact', head: true }).eq("profile_id", user.id),
+        supabase.from("reservations").select("*", { count: 'exact', head: true }).eq("profile_id", user.id).eq("status", "completed"),
+        supabase.from("vehicles").select("*", { count: 'exact', head: true }).eq("profile_id", user.id).eq("is_active", true)
       ]);
 
       setStats({

@@ -46,7 +46,7 @@ serve(async (req) => {
     // Insert into admin_profiles with status 'Invited' (instead of 'Active')
     const { error: profileError } = await supabaseAdmin
       .from("admin_profiles")
-      .insert({ id: userId, role: role, lot_id: lot_id, status: "Invited" });
+      .insert({ id: userId, role: role, assigned_lot_id: lot_id, status: "Invited" });
     if (profileError) throw profileError;
 
     return new Response(

@@ -119,7 +119,7 @@ export default function ParkingLotPage() {
       // 1. Kunin ang reviews ng parking lot na ito mula sa parking_reviews
       const { data: reviewsData, error: reviewsError } = await supabase
         .from("parking_reviews")
-        .select("id, rating, review, created_at, user_id")
+        .select("id, rating, review, created_at, profile_id")
         .eq("lot_id", params.id)
         .order("created_at", { ascending: false }); // newest first
 
@@ -130,8 +130,8 @@ export default function ParkingLotPage() {
         return;
       }
 
-      // 2. Kunin ang lahat ng natatanging user_id para makuha ang pangalan
-      const userIds = [...new Set(reviewsData.map(r => r.user_id).filter(Boolean))];
+      // 2. Kunin ang lahat ng natatanging profile_id para makuha ang pangalan
+      const userIds = [...new Set(reviewsData.map(r => r.profile_id).filter(Boolean))];
       let userMap = new Map();
 
       if (userIds.length > 0) {
@@ -164,7 +164,7 @@ export default function ParkingLotPage() {
         rating: r.rating,
         comment: r.review,
         created_at: r.created_at,
-        user_name: userMap.get(r.user_id) || "Anonymous",
+        user_name: userMap.get(r.profile_id) || "Anonymous",
       }));
       setReviews(formatted);
     } catch (error) {

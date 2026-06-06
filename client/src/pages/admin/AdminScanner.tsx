@@ -76,7 +76,7 @@ export default function AdminScanner() {
     try {
       const { data: expectedRaw, error } = await supabase
         .from("reservations")
-        .select("id, plate_number, start_time, end_time, status, user_id")
+        .select("id, plate_number, start_time, end_time, status, profile_id")
         .eq("lot_id", managerLotId)
         .in("status", ["booked", "reserved"])
         .order("start_time", { ascending: true });
@@ -84,7 +84,7 @@ export default function AdminScanner() {
 
       let expectedWithNames: any[] = [];
       if (expectedRaw && expectedRaw.length > 0) {
-        const userIds = [...new Set(expectedRaw.map(r => r.user_id).filter(Boolean))];
+        const userIds = [...new Set(expectedRaw.map(r => r.profile_id).filter(Boolean))];
         let userMap = new Map();
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
@@ -95,7 +95,7 @@ export default function AdminScanner() {
         }
         expectedWithNames = expectedRaw.map(r => ({
           ...r,
-          profiles: { full_name: userMap.get(r.user_id) || "Guest" }
+          profiles: { full_name: userMap.get(r.profile_id) || "Guest" }
         }));
       }
       setExpectedList(expectedWithNames);
@@ -110,7 +110,7 @@ export default function AdminScanner() {
     try {
       const { data: parkedRaw, error } = await supabase
         .from("reservations")
-        .select("id, plate_number, start_time, end_time, status, user_id")
+        .select("id, plate_number, start_time, end_time, status, profile_id")
         .eq("lot_id", managerLotId)
         .eq("status", "active")
         .order("start_time", { ascending: true });
@@ -118,7 +118,7 @@ export default function AdminScanner() {
 
       let parkedWithNames: any[] = [];
       if (parkedRaw && parkedRaw.length > 0) {
-        const userIds = [...new Set(parkedRaw.map(r => r.user_id).filter(Boolean))];
+        const userIds = [...new Set(parkedRaw.map(r => r.profile_id).filter(Boolean))];
         let userMap = new Map();
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
@@ -129,7 +129,7 @@ export default function AdminScanner() {
         }
         parkedWithNames = parkedRaw.map(r => ({
           ...r,
-          profiles: { full_name: userMap.get(r.user_id) || "Guest" }
+          profiles: { full_name: userMap.get(r.profile_id) || "Guest" }
         }));
       }
       setParkedList(parkedWithNames);
@@ -144,7 +144,7 @@ export default function AdminScanner() {
     try {
       const { data: historyRaw, error } = await supabase
         .from("reservations")
-        .select("id, plate_number, start_time, end_time, status, created_at, user_id")
+        .select("id, plate_number, start_time, end_time, status, created_at, profile_id")
         .eq("lot_id", managerLotId)
         .eq("status", "completed")
         .order("created_at", { ascending: false })
@@ -153,7 +153,7 @@ export default function AdminScanner() {
 
       let historyWithNames: any[] = [];
       if (historyRaw && historyRaw.length > 0) {
-        const userIds = [...new Set(historyRaw.map(r => r.user_id).filter(Boolean))];
+        const userIds = [...new Set(historyRaw.map(r => r.profile_id).filter(Boolean))];
         let userMap = new Map();
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
@@ -164,7 +164,7 @@ export default function AdminScanner() {
         }
         historyWithNames = historyRaw.map(r => ({
           ...r,
-          profiles: { full_name: userMap.get(r.user_id) || "Guest" }
+          profiles: { full_name: userMap.get(r.profile_id) || "Guest" }
         }));
       }
       setHistoryList(historyWithNames);

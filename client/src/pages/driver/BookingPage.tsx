@@ -84,7 +84,7 @@ export default function MyReservationsPage() {
             parking_slots (label),
             review:parking_reviews!parking_reviews_reservation_id_fkey (id)
           `)
-          .eq("user_id", user.id)
+          .eq("profile_id", user.id)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -131,7 +131,7 @@ export default function MyReservationsPage() {
         .from("parking_reviews")
         .insert({
           lot_id: selectedReservation.lot_id,
-          user_id: user.id,
+          profile_id: user.id,
           reservation_id: selectedReservation.id,
           rating,
           review: reviewText.trim() || null

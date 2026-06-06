@@ -176,7 +176,7 @@ export default function DriverHome() {
       const { data: reservations } = await supabase
         .from("reservations")
         .select("id, slot_id, start_time, end_time, created_at")
-        .eq("user_id", userId)
+        .eq("profile_id", userId)
         .in("status", activeStatuses);
       if (!reservations || reservations.length === 0) return;
       const now = new Date();
@@ -248,7 +248,7 @@ export default function DriverHome() {
                            is_accredited, average_rating, total_reviews ),
             parking_slots ( label )
           `)
-          .eq("user_id", user.id)
+          .eq("profile_id", user.id)
           .in("status", activeStatuses)
           .order("created_at", { ascending: false });
 
@@ -275,7 +275,7 @@ export default function DriverHome() {
             const vehicleModel = vehicleMap.get(rawRes.plate_number) || rawRes.plate_number;
             return {
               id: rawRes.id,
-              user_id: rawRes.user_id,
+              profile_id: rawRes.profile_id,
               total_amount: rawRes.total_amount,
               lotName: lotData?.name || "Parking Lot",
               lot_id: rawRes.lot_id,
@@ -519,7 +519,7 @@ export default function DriverHome() {
                   <ActiveReservationTimer
                     reservation={{
                       id: selectedReservation.id,
-                      user_id: selectedReservation.user_id,
+                      profile_id: selectedReservation.profile_id,
                       total_amount: selectedReservation.total_amount,
                       lot_id: selectedReservation.lot_id,
                       end_time: selectedReservation.end_time,

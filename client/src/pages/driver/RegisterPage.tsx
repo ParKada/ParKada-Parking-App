@@ -309,7 +309,7 @@ export default function RegisterPage() {
 
       await supabase.from("vehicles").insert([
         {
-          user_id: userId,
+          profile_id: userId,
           plate: plateNumber.toUpperCase(),
           model: fullVehicleModel,
           color: vehicleColor,

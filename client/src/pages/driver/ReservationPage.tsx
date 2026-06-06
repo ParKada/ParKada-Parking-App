@@ -194,7 +194,7 @@ export default function ReservationPage() {
           const { data: vehiclesData } = await supabase
             .from("vehicles")
             .select("*")
-            .eq("user_id", user.id)
+            .eq("profile_id", user.id)
             .eq("is_active", true);  // ✅ Added filter for active vehicles only
 
           setUserVehicles(vehiclesData || []);
@@ -203,7 +203,7 @@ export default function ReservationPage() {
             .from("reservations")
             .select("*")
             .in("status", ["active", "booked", "reserved"])
-            .eq("user_id", user.id);
+            .eq("profile_id", user.id);
             
           if (activeResData && activeResData.length > 0) {
             const platesInUse = activeResData.map(res => res.plate_number);
@@ -281,7 +281,7 @@ export default function ReservationPage() {
     isBookingCutoff ||
     isExceedingCloseTime;
 
-  const isMyBooking = activeReservation?.user_id === userId;
+  const isMyBooking = activeReservation?.profile_id === userId;
 
   // ========== UPDATED: Show "Coming Soon" toast instead of navigation ==========
   const handleComingSoon = () => {
@@ -304,7 +304,7 @@ export default function ReservationPage() {
     }
 
     if (isWalkInOnly) {
-      const msg = (slot?.is_pwd === true || String(slot?.is_pwd) === "true")
+      const msg = (slot?.slot_type === 'pwd')
         ? "Ang PWD slot ay para sa walk-in lamang."
         : "Ang slot na ito ay para sa mga walk-in customers lamang.";
       return alert(msg);
@@ -485,19 +485,19 @@ export default function ReservationPage() {
         {isWalkInOnly && (slot?.label === "C1" || slot?.is_reservable === false) && (
           <div className={cn(
             "text-white p-5 rounded-2xl shadow-lg border-2",
-            (slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "bg-blue-600 border-blue-400" : "bg-gray-500 border-gray-400"
+            (slot?.slot_type === 'pwd') ? "bg-blue-600 border-blue-400" : "bg-gray-500 border-gray-400"
           )}>
             <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
-              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? <Accessibility size={12}/> : <AlertCircle size={12}/>} 
+              {(slot?.slot_type === 'pwd') ? <Accessibility size={12}/> : <AlertCircle size={12}/>} 
               Walk-in Only
             </p>
             <h3 className="font-black text-lg leading-tight">
-              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") 
+              {(slot?.slot_type === 'pwd') 
                 ? "PWD Reserved (Walk-in Only)" 
                 : "Hindi pwedeng i-reserve ang slot na ito."}
             </h3>
             <p className="text-xs opacity-90 mt-1">
-              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true")
+              {(slot?.slot_type === 'pwd')
                 ? "Ang slot na ito ay nakalaan para sa mga PWD walk-in customers lamang."
                 : "Ang pwestong ito ay nakalaan lamang para sa mga walk-in customers."}
             </p>
@@ -520,7 +520,7 @@ export default function ReservationPage() {
               <p className="opacity-70 text-[10px] font-bold uppercase tracking-widest">{lot?.name}</p>
               <div className="flex items-center gap-2">
                 <h2 className="text-2xl font-black mt-0.5">Slot {slot?.label}</h2>
-                {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") && (
+                {(slot?.slot_type === 'pwd') && (
                    <Accessibility size={20} className="opacity-80" />
                 )}
               </div>
@@ -744,7 +744,7 @@ export default function ReservationPage() {
           ) : isBookingCutoff ? (
             "Booking Cutoff Reached"
           ) : isWalkInOnly ? (
-            (slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "PWD Walk-in Only" : "Walk-in Only Slot"
+            (slot?.slot_type === 'pwd') ? "PWD Walk-in Only" : "Walk-in Only Slot"
           ) : isBlocked ? 
             "Action Not Allowed" : 
             isExceedingCloseTime ?

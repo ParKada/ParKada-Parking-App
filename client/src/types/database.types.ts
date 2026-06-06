@@ -44,28 +44,31 @@ export interface Database {
       admin_profiles: {
         Row: {
           id: string
-          role: 'super_admin' | 'admin' | 'lot_owner' | 'staff' | 'guard'
+          role: 'super_admin' | 'admin' | 'manager' | 'lot_owner' | 'staff' | 'guard'
           email: string | null
           full_name: string | null
           status: string
+          assigned_lot_id: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id: string
-          role: 'super_admin' | 'admin' | 'lot_owner' | 'staff' | 'guard'
+          role: 'super_admin' | 'admin' | 'manager' | 'lot_owner' | 'staff' | 'guard'
           email?: string | null
           full_name?: string | null
           status?: string
+          assigned_lot_id?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
-          role?: 'super_admin' | 'admin' | 'lot_owner' | 'staff' | 'guard'
+          role?: 'super_admin' | 'admin' | 'manager' | 'lot_owner' | 'staff' | 'guard'
           email?: string | null
           full_name?: string | null
           status?: string
+          assigned_lot_id?: string | null
           created_at?: string
           updated_at?: string
         }
