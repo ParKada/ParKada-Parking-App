@@ -3,6 +3,7 @@
     "name": "parkada-mobile",
     "slug": "parkada-mobile",
     "version": "1.0.0",
+    "scheme": "parkada",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

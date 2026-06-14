@@ -1,7 +1,7 @@
 {
   "name": "parkada-mobile",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -9,14 +9,16 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "2.2.0",
     "@parkada/shared": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-picker/picker": "2.4.2",
     "@supabase/supabase-js": "^2.107.0",
     "axios": "^1.17.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "expo": "^46.0.21",
     "expo-camera": "~56.0.7",
+    "expo-checkbox": "~2.2.2",
     "expo-constants": "~56.0.17",
     "expo-linking": "~56.0.13",
     "expo-location": "~56.0.16",
