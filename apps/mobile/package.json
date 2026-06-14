@@ -11,6 +11,7 @@
   "dependencies": {
     "@parkada/shared": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "9.3.0",
     "@react-native-picker/picker": "2.4.2",
     "@supabase/supabase-js": "^2.107.0",
     "axios": "^1.17.0",
