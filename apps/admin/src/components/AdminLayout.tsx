@@ -1,0 +1,336 @@
+import { useLocation } from "wouter";
+import { useState, useEffect, useCallback } from "react";
+import { 
+  LayoutDashboard, ParkingSquare, BookOpen, BarChart3, 
+  Settings, LogOut, Bell, User, MapPin, 
+  CheckCircle2, Users, QrCode, Clock,
+  ShieldCheck, DollarSign 
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { supabase } from "@parkada/shared";
+import DarkVeil from "@/components/ui/dark-veil"; 
+
+interface AdminLayoutProps {
+  children: React.ReactNode;
+  title: string;
+}
+
+const allNavItems = [
+  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["superadmin", "manager"] },
+  { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["superadmin"] },
+  { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager", "guard"] },
+  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["superadmin", "manager", "guard"] },
+  { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["superadmin"] }, 
+  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["superadmin"] }, 
+  { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "guard"] },
+  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["superadmin", "manager"] },
+  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["superadmin", "manager"] },
+  { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager"] },
+  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["superadmin", "manager"] }, 
+];
+
+export default function AdminLayout({ children, title }: AdminLayoutProps) {
+  const [location, setLocation] = useLocation();
+  const [adminEmail, setAdminEmail] = useState<string>("Loading...");
+  const [initials, setInitials] = useState<string>("A");
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifs, setShowNotifs] = useState(false);
+  
+  const adminRole = localStorage.getItem("admin_role") || "manager"; 
+  const adminLotId = localStorage.getItem("admin_lot_id");
+
+  const closeDropdowns = () => {
+    setShowNotifs(false);
+  };
+
+  const fetchNotifications = useCallback(async () => {
+    let query = supabase
+      .from('notifications')
+      .select('*')
+      .eq('recipient_role', 'admin') 
+      .order('created_at', { ascending: false });
+
+    if (adminRole === "manager" && adminLotId) {
+      query = query.or(`lot_id.eq.${adminLotId},lot_id.is.null`);
+    }
+
+    const { data } = await query.limit(15);
+    if (data) setNotifications(data);
+  }, [adminRole, adminLotId]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setAdminEmail(user.email);
+        setInitials(user.email.charAt(0).toUpperCase());
+        setUserId(user.id);
+      }
+    };
+
+    fetchUser();
+    fetchNotifications();
+
+    const notifChannel = supabase
+      .channel('admin-notifs-stream')
+      .on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'notifications',
+          filter: `recipient_role=eq.admin` 
+        }, 
+        (payload) => {
+          const newN = payload.new;
+          if (adminRole === "superadmin" || !newN.lot_id || newN.lot_id === adminLotId) {
+            setNotifications(prev => [newN, ...prev]);
+            toast.info(`🔔 ${newN.title}`, { 
+              description: newN.message,
+              action: { label: "View", onClick: () => setShowNotifs(true) }
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(notifChannel); };
+  }, [adminRole, adminLotId, fetchNotifications]);
+
+  // Mark single notification as read and navigate
+  const handleNotificationClick = async (notif: any) => {
+    // Mark as read if not already read
+    if (!notif.read) {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notif.id);
+      if (!error) {
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+      }
+    }
+    // Navigate based on notification type or related_id
+    if (notif.type === 'reservation_confirmed' || notif.type === 'reservation_started' || notif.type === 'reservation_completed') {
+      setLocation('/admin/reservations');
+    } else if (notif.type === 'vehicle_added' || notif.type === 'walkin_recorded') {
+      setLocation('/admin/walkin');
+    } else if (notif.type === 'session_expiring' || notif.type === 'overtime_fee') {
+      setLocation('/admin/reservations');
+    } else if (notif.related_id) {
+      // Fallback: try to go to reservations page
+      setLocation('/admin/reservations');
+    } else {
+      setLocation('/admin/dashboard');
+    }
+    setShowNotifs(false);
+  };
+
+  const markAllAsRead = async () => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true }) 
+      .eq('recipient_role', 'admin')
+      .eq('read', false);
+
+    if (!error) {
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      toast.success("All notifications marked as read");
+    }
+  };
+
+  useEffect(() => {
+    if (!userId) return;
+    const subscription = supabase
+      .channel('admin-status-kicker')
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'admin_profiles', filter: `id=eq.${userId}` },
+        async (payload: any) => {
+          if (payload.new.status === 'Suspended') {
+            toast.error("⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde.", { duration: 8000 });
+            await supabase.auth.signOut();
+            localStorage.clear();
+            setTimeout(() => { setLocation("/admin"); }, 2000);
+          }
+        }
+      ).subscribe();
+    return () => { supabase.removeChannel(subscription); };
+  }, [userId, setLocation]);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      localStorage.clear();
+      toast.success("Successfully logged out");
+      setLocation("/admin");
+    } catch (error) {
+      toast.error("Error logging out");
+    }
+  };
+
+  const filteredNavItems = allNavItems.filter(item => item.allowedRoles.includes(adminRole));
+  const unreadCount = notifications.filter(n => n.read === false).length;
+
+  return (
+    <div className="flex h-screen bg-background overflow-hidden relative">
+      
+      {/* Sidebar (unchanged) */}
+      <aside className="w-64 flex flex-col shrink-0 z-20 relative overflow-hidden bg-black text-white border-r border-border/50">
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <DarkVeil
+            speed={1.5}
+            noiseIntensity={0.05}
+            scanlineIntensity={0.3}
+            scanlineFrequency={800}
+            hueShift={10}
+            warpAmount={0.3}
+            resolutionScale={1}
+          />
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+        </div>
+
+        <div className="relative z-10 flex flex-col h-full w-full">
+          <button
+            onClick={() => setLocation("/admin/dashboard")}
+            className="w-full flex items-center gap-3 px-6 py-5 border-b border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <img src="/ParKadav2.png" alt="ParKada Logo" className="w-10 h-10 object-contain drop-shadow-md" />
+            <div className="text-left">
+              <p className="font-bold text-lg text-white">ParKada</p>
+              <p className="text-xs text-white/70 capitalize">
+                {adminRole === 'superadmin' ? 'Super Admin' : 'Lot Manager'} Panel
+              </p>
+            </div>
+          </button>
+
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+            {filteredNavItems.map(({ path, icon: Icon, label }) => {
+              const isActive = location === path;
+              return (
+                <button
+                  key={path}
+                  onClick={() => setLocation(path)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-white text-slate-900 shadow-md font-bold" 
+                      : "text-white/70 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Icon size={18} />
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="px-3 py-4 border-t border-white/10 space-y-1">
+            {/* Profile section: NON-CLICKABLE (no button) */}
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white uppercase border border-white/20">
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-white capitalize truncate">
+                  {adminRole === 'superadmin' ? 'Super Admin' : 'Manager'}
+                </p>
+                <p className="text-[10px] text-white/50 truncate" title={adminEmail}>
+                  {adminEmail}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-rose-400 transition-all"
+            >
+              <LogOut size={16} />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-border shrink-0 relative z-40">
+          <h1 className="text-lg font-bold text-foreground">{title}</h1>
+          
+          <div className="flex items-center gap-3">
+            {/* NOTIFICATIONS DROPDOWN */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowNotifs(!showNotifs); }}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors relative"
+                aria-label="Notifications"
+              >
+                <Bell size={16} className="text-slate-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 border-2 border-white"></span>
+                  </span>
+                )}
+              </button>
+
+              {showNotifs && (
+                <div className="absolute right-0 mt-3 w-80 bg-white border border-border rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="bg-slate-50 border-b border-border px-4 py-2.5 flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-800">Notifications</h4>
+                    {unreadCount > 0 && <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">{unreadCount} New</span>}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length > 0 ? (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={cn(
+                            "w-full text-left px-4 py-2.5 border-b border-border flex gap-3 transition-colors cursor-pointer",
+                            n.read === false ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-slate-50 opacity-70"
+                          )}
+                        >
+                          <div className={cn("mt-0.5 p-1.5 rounded-full shrink-0", n.type === 'urgent' ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600")}>
+                            {n.type === 'urgent' ? <Bell size={12} /> : <CheckCircle2 size={12} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-bold text-slate-800 truncate">{n.title}</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{n.message}</p>
+                            <p className="text-[8px] text-slate-400 mt-1 uppercase font-medium flex items-center gap-1">
+                              <Clock size={8} /> {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center text-slate-400 text-[11px] italic">No notifications yet.</div>
+                    )}
+                  </div>
+                  <div className="bg-slate-50 border-t border-border p-1.5">
+                    <button onClick={markAllAsRead} className="w-full text-center text-[11px] text-primary font-bold hover:underline py-1">
+                      Mark all as read
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* PROFILE BUTTON – GINAWANG HINDI CLICKABLE (wala nang dropdown) */}
+            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-sm border-2 border-white ring-1 ring-slate-200 cursor-default">
+              {initials}
+            </div>
+          </div>
+        </header>
+
+        {/* OVERLAY */}
+        {showNotifs && (
+          <div className="fixed inset-0 z-30" onClick={closeDropdowns} aria-hidden="true" />
+        )}
+
+        <main className="flex-1 overflow-y-auto p-6 bg-background relative z-10 text-sm">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
