@@ -12,6 +12,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // We use an empty string fallback so the app still 'runs' (renders the UI) 
 // instead of crashing completely.
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co', 
-  supabaseAnonKey || 'placeholder-key'
+  supabaseUrl || 'https://bwhhfzhrjtvkrrsdxfbh.supabase.co', 
+  supabaseAnonKey || 'sb_publishable_Lgi26VHDjiQqHV2OM7HhmA_G9dkxdGH'
 );
