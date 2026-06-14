@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, SafeAreaView, Linking } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Car, CreditCard, Star, ShieldCheck, HelpCircle, LogOut, ChevronRight, CheckCircle2, ShieldAlert } from "lucide-react-native";
 import { supabase } from "../../lib/supabase";
@@ -35,7 +36,8 @@ export default function ProfilePage() {
       setLoading(true);
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
-        router.replace("/(auth)/login");
+        console.warn("Profile: getUser failed, ignoring signOut to prevent loops.");
+        setLoading(false);
         return;
       }
 

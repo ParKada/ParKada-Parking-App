@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Linking, ScrollView, Platform, SafeAreaView } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Linking, ScrollView, Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MapView, { Marker, Polyline, Callout } from "react-native-maps";
 import { MapPin, List, Map, Search, Navigation, Route as RouteIcon, Crosshair, Star, Heart } from "lucide-react-native";

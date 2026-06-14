@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal } from "react-native";
 import { useRouter } from "expo-router";
-import { Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react-native";
+import { Eye, EyeOff, ArrowLeft, CheckCircle2, ChevronDown } from "lucide-react-native";
 import { Picker } from '@react-native-picker/picker';
 import Checkbox from 'expo-checkbox';
 import { supabase } from "../../lib/supabase";
@@ -31,6 +31,7 @@ export default function RegisterPage() {
 
   const [plateNumber, setPlateNumber] = useState("");
   const [vehicleBrand, setVehicleBrand] = useState("");
+  const [showBrandModal, setShowBrandModal] = useState(false);
   const [vehicleModel, setVehicleModel] = useState("");
   const [vehicleColor, setVehicleColor] = useState("");
   const [agreeTc, setAgreeTc] = useState(false);
@@ -116,16 +117,19 @@ export default function RegisterPage() {
     }
   };
 
-  const handleSendOtp = async () => {
-    if (!plateNumber || !vehicleBrand || !vehicleModel || !vehicleColor) {
-      Alert.alert("Error", "Please fill in all vehicle details.");
-      return;
+  const handleSendOtp = async (skipVehicle = false) => {
+    if (!skipVehicle) {
+      if (!plateNumber || !vehicleBrand || !vehicleModel || !vehicleColor) {
+        Alert.alert("Error", "Please fill in all vehicle details or select Skip.");
+        return;
+      }
+      const plateRegex = /^[A-Z]{3}[\s-]?[0-9]{3,4}$/i;
+      if (!plateRegex.test(plateNumber.trim())) {
+        Alert.alert("Error", "Invalid Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234).");
+        return;
+      }
     }
-    const plateRegex = /^[A-Z]{3}[\s-]?[0-9]{3,4}$/i;
-    if (!plateRegex.test(plateNumber.trim())) {
-      Alert.alert("Error", "Invalid Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234).");
-      return;
-    }
+
     if (!agreeTc) {
       Alert.alert("Error", "Please agree to the Terms & Conditions and Privacy Policy.");
       return;
@@ -206,8 +210,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (otpCode.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code.");
+    if (otpCode.length !== 8) {
+      Alert.alert("Error", "Please enter the 8-digit code.");
       return;
     }
 
@@ -233,36 +237,33 @@ export default function RegisterPage() {
       const userId = verifyData.user?.id;
       if (!userId) throw new Error("Verification failed. User ID not found.");
 
-      const fullVehicleModel = `${vehicleBrand} ${vehicleModel}`;
-
       const { error: profileError } = await supabase.from("profiles").insert([{
         id: userId,
         email: email,
-        full_name: fullName,
+        first_name: fullName.split(' ')[0],
+        last_name: fullName.split(' ').slice(1).join(' '),
         phone_number: phoneNumber,
-        plate_number: plateNumber.toUpperCase(),
-        vehicle_model: fullVehicleModel,
-        vehicle_color: vehicleColor,
-        role: "driver",
-        verification_status: "unverified" 
+        user_type: "driver"
       }]);
       
       if (profileError) {
         if (profileError.code === '23505') {
-          if (profileError.message.includes("email")) throw new Error("Email is already registered.");
-          if (profileError.message.includes("phone_number")) throw new Error("Phone number is already registered.");
-          throw new Error("Account already exists.");
+          // Ignore if profile already exists
+        } else {
+          throw new Error("Failed to save profile details.");
         }
-        throw new Error("Failed to save profile details.");
       }
 
-      await supabase.from("vehicles").insert([{
-        profile_id: userId,
-        plate: plateNumber.toUpperCase(),
-        model: fullVehicleModel,
-        color: vehicleColor,
-        is_default: true
-      }]);
+      if (plateNumber) {
+        await supabase.from("vehicles").insert([{
+          profile_id: userId,
+          plate_number: plateNumber.toUpperCase(),
+          vehicle_type: "4-wheel",
+          brand: vehicleBrand,
+          color: vehicleColor,
+          is_active: true
+        }]);
+      }
 
       setStep(4);
     } catch (error: any) {
@@ -308,7 +309,7 @@ export default function RegisterPage() {
             You can verify your account later in the app settings to unlock full features.
           </Text>
           <TouchableOpacity
-            onPress={() => router.replace("/")}
+            onPress={() => router.replace("/(app)")}
             className="w-full h-14 bg-[#0A1D37] rounded-xl flex items-center justify-center"
           >
             <Text className="text-white text-base font-bold">Start Parking</Text>
@@ -359,7 +360,14 @@ export default function RegisterPage() {
                 <TextInput secureTextEntry={!showPassword} value={password} onChangeText={setPassword} placeholder="Min. 8 characters" className="w-full h-14 pl-4 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-sm" />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="absolute right-4"><Eye size={20} color="#94a3b8" /></TouchableOpacity>
               </View>
-              {password ? <Text className="mt-1 text-xs text-amber-500 font-semibold">{getPasswordStrength(password)}</Text> : null}
+              {password ? (
+                <Text className={`mt-1 text-xs font-semibold ${
+                  getPasswordStrength(password) === "Very Strong Password" ? "text-emerald-600" :
+                  getPasswordStrength(password) === "Strong Password" ? "text-amber-500" : "text-rose-500"
+                }`}>
+                  {getPasswordStrength(password)}
+                </Text>
+              ) : null}
             </View>
             <View>
               <Text className="text-sm font-bold text-slate-800 mb-1.5">Confirm Password</Text>
@@ -367,6 +375,11 @@ export default function RegisterPage() {
                 <TextInput secureTextEntry={!showConfirmPassword} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Re-type your password" className="w-full h-14 pl-4 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-sm" />
                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4"><Eye size={20} color="#94a3b8" /></TouchableOpacity>
               </View>
+              {confirmPassword ? (
+                <Text className={`mt-1 text-xs font-semibold ${password === confirmPassword ? 'text-emerald-600' : 'text-amber-500'}`}>
+                  {password === confirmPassword ? 'Passwords match' : 'Passwords do not match'}
+                </Text>
+              ) : null}
             </View>
             <TouchableOpacity onPress={handleNextStep} disabled={loading} className="w-full h-14 bg-[#0A1D37] rounded-xl flex-row items-center justify-center mt-4">
               {loading && <ActivityIndicator color="white" className="mr-2" />}
@@ -384,12 +397,15 @@ export default function RegisterPage() {
             </View>
             <View>
               <Text className="text-sm font-bold text-slate-800 mb-1.5">Car Brand</Text>
-              <View className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 justify-center">
-                <Picker selectedValue={vehicleBrand} onValueChange={setVehicleBrand} style={{ height: 50, width: '100%' }}>
-                  <Picker.Item label="Select Brand" value="" color="#94a3b8" />
-                  {ALLOWED_CAR_BRANDS.map(brand => <Picker.Item key={brand} label={brand} value={brand} />)}
-                </Picker>
-              </View>
+              <TouchableOpacity 
+                onPress={() => setShowBrandModal(true)}
+                className="w-full h-14 px-4 rounded-xl bg-slate-50 border border-slate-200 flex-row items-center justify-between"
+              >
+                <Text className={vehicleBrand ? "text-slate-800 text-sm" : "text-slate-400 text-sm"}>
+                  {vehicleBrand || "Select Brand"}
+                </Text>
+                <ChevronDown size={18} color="#94a3b8" />
+              </TouchableOpacity>
             </View>
             <View>
               <Text className="text-sm font-bold text-slate-800 mb-1.5">Specific Model</Text>
@@ -403,9 +419,13 @@ export default function RegisterPage() {
               <Checkbox value={agreeTc} onValueChange={setAgreeTc} color={agreeTc ? '#0A1D37' : undefined} />
               <Text className="text-xs text-slate-600">I agree to the <Text onPress={() => setShowTerms(true)} className="font-bold text-blue-600">Terms & Conditions</Text>.</Text>
             </View>
-            <TouchableOpacity onPress={handleSendOtp} disabled={loading} className="w-full h-14 bg-[#0A1D37] rounded-xl flex-row items-center justify-center mt-4">
+            <TouchableOpacity onPress={() => handleSendOtp(false)} disabled={loading} className="w-full h-14 bg-[#0A1D37] rounded-xl flex-row items-center justify-center mt-4">
               {loading && <ActivityIndicator color="white" className="mr-2" />}
-              <Text className="text-white font-bold">Send Code</Text>
+              <Text className="text-white font-bold">Continue</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={() => handleSendOtp(true)} disabled={loading} className="mt-4 items-center">
+              <Text className="text-slate-500 font-semibold text-sm">Skip this for now</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -414,10 +434,10 @@ export default function RegisterPage() {
           <View className="space-y-6 flex-col gap-6 items-center pt-8">
             <View className="items-center">
               <Text className="text-xl font-bold text-slate-900 mb-2">Check your email</Text>
-              <Text className="text-sm text-slate-500 text-center">We've sent a 6-digit verification code to{"\n"}<Text className="font-bold text-slate-800">{email}</Text></Text>
+              <Text className="text-sm text-slate-500 text-center">We've sent an 8-digit verification code to{"\n"}<Text className="font-bold text-slate-800">{email}</Text></Text>
             </View>
             <View className="w-full relative justify-center">
-              <TextInput value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} className="w-full h-14 text-center tracking-[10px] font-bold text-2xl bg-slate-50 border border-slate-300 rounded-xl" editable={!isLocked && !loading} />
+              <TextInput value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={8} className="w-full h-14 text-center tracking-[10px] font-bold text-2xl bg-slate-50 border border-slate-300 rounded-xl" editable={!isLocked && !loading} />
             </View>
             <View className="w-full items-center">
               {countdown > 0 ? (
@@ -428,13 +448,38 @@ export default function RegisterPage() {
                 </TouchableOpacity>
               )}
             </View>
-            <TouchableOpacity onPress={handleVerifyOtpAndSave} disabled={loading || otpCode.length !== 6 || isLocked} className="w-full h-14 bg-[#0A1D37] rounded-xl flex-row items-center justify-center mt-4 opacity-90">
+            <TouchableOpacity onPress={handleVerifyOtpAndSave} disabled={loading || otpCode.length !== 8 || isLocked} className="w-full h-14 bg-[#0A1D37] rounded-xl flex-row items-center justify-center mt-4 opacity-90">
               {loading && <ActivityIndicator color="white" className="mr-2" />}
               <Text className="text-white font-bold">Verify & Create Account</Text>
             </TouchableOpacity>
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={showBrandModal} animationType="slide" transparent={true} onRequestClose={() => setShowBrandModal(false)}>
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="bg-white rounded-t-3xl h-[60%] p-6">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-lg font-bold text-slate-900">Select Car Brand</Text>
+              <TouchableOpacity onPress={() => setShowBrandModal(false)} className="bg-slate-100 px-4 py-2 rounded-full">
+                <Text className="text-slate-500 font-bold text-xs">Close</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {ALLOWED_CAR_BRANDS.map(brand => (
+                <TouchableOpacity 
+                  key={brand} 
+                  onPress={() => { setVehicleBrand(brand); setShowBrandModal(false); }}
+                  className={`p-4 border-b border-slate-100 ${vehicleBrand === brand ? 'bg-blue-50' : ''}`}
+                >
+                  <Text className={`text-base ${vehicleBrand === brand ? 'text-blue-700 font-bold' : 'text-slate-700'}`}>{brand}</Text>
+                </TouchableOpacity>
+              ))}
+              <View className="h-10" />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

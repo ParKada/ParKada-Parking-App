@@ -58,8 +58,13 @@ export default function AppLayout() {
         }}
       />
       
-      {/* Hide the lot screens from the tabs */}
-      <Tabs.Screen name="lot" options={{ href: null }} />
+      {/* Hide these screens from the tabs */}
+      <Tabs.Screen name="lot/[id]" options={{ href: null }} />
+      <Tabs.Screen name="payment/index" options={{ href: null }} />
+      <Tabs.Screen name="payment/extension" options={{ href: null }} />
+      <Tabs.Screen name="receipt/[id]" options={{ href: null }} />
+      <Tabs.Screen name="reserve/[id]" options={{ href: null }} />
+      <Tabs.Screen name="vehicles" options={{ href: null }} />
     </Tabs>
   );
 }

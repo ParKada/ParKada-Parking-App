@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, SafeAreaView, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ShieldCheck, Wallet, CheckCircle2, ChevronLeft, Info } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";

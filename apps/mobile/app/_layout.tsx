@@ -27,13 +27,23 @@ export default function RootLayout() {
   useEffect(() => {
     if (!initialized) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const segment = segments?.[0];
+    const inAuthGroup = segment === '(auth)';
+    const inAppGroup = segment === '(app)';
+    const isRegistering = segments?.includes('register');
 
-    if (!session && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (session && inAuthGroup) {
-      router.replace('/');
-    }
+    const checkAndRedirect = async () => {
+      // Double check true session to avoid React state race conditions
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
+      if (!currentSession && inAppGroup) {
+        router.replace('/(auth)');
+      } else if (currentSession && inAuthGroup && !isRegistering) {
+        router.replace('/(app)'); // Explicitly route to (app) group
+      }
+    };
+
+    checkAndRedirect();
   }, [session, initialized, segments]);
 
   if (!initialized) {

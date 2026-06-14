@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { View, Text, Image, TouchableOpacity, ScrollView, SafeAreaView, RefreshControl } from "react-native";
+import { View, Text, Image, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { MapPin, Clock, ChevronRight, Bell, Search, RefreshCcw, Navigation, WifiOff, Star, ChevronDown } from "lucide-react-native";
 import { useNetInfo } from "@react-native-community/netinfo";
@@ -170,7 +171,13 @@ export default function DriverHome() {
 
       const { data: resData } = await supabase
         .from("reservations")
-        .select(`*, parking_lots (*), parking_slots (label)`)
+        .select(`
+          *,
+          parking_slots (
+            slot_number,
+            parking_lots (*)
+          )
+        `)
         .eq("profile_id", user.id)
         .in("status", activeStatuses)
         .order("created_at", { ascending: false });
@@ -186,14 +193,14 @@ export default function DriverHome() {
 
       if (resData && resData.length > 0) {
         const formatted = resData.map((rawRes: any) => {
-          const lotData = Array.isArray(rawRes.parking_lots) ? rawRes.parking_lots[0] : rawRes.parking_lots;
           const slotData = Array.isArray(rawRes.parking_slots) ? rawRes.parking_slots[0] : rawRes.parking_slots;
+          const lotData = slotData?.parking_lots ? (Array.isArray(slotData.parking_lots) ? slotData.parking_lots[0] : slotData.parking_lots) : null;
           const vehicleModel = vehicleMap.get(rawRes.plate_number) || rawRes.plate_number;
           return {
             ...rawRes,
             lotName: lotData?.name || "Parking Lot",
             hourly_rate: lotData?.rate_per_hour || 30,
-            slotLabel: slotData?.label || "-",
+            slotLabel: slotData?.slot_number || "-",
             vehiclePlate: rawRes.plate_number || "N/A",
             vehicleModel,
             extension_fee_setting: lotData?.extension_fee || 10,

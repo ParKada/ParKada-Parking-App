@@ -34,11 +34,12 @@ export default function LoginPage() {
       const userId = authData.user?.id;
 
       if (userId) {
+        // Fetch profile to verify role
         const { data: adminData } = await supabase
-          .from('admin_profiles')
-          .select('id')
-          .eq('id', userId)
-          .single();
+          .from("admin_profiles")
+          .select("id")
+          .eq("id", authData.user.id)
+          .maybeSingle();
 
         if (adminData) {
           await supabase.auth.signOut();
@@ -46,7 +47,6 @@ export default function LoginPage() {
         }
 
         Alert.alert("Success", "Login successful! Welcome back.");
-        router.replace("/"); 
       }
     } catch (error: any) {
       console.error("LOGIN ERROR:", error);
@@ -104,7 +104,7 @@ export default function LoginPage() {
               {view === "login" ? "Welcome to ParKada: Your Parking Buddy" : "Account Recovery"}
             </Text>
             <Text className="text-3xl font-extrabold text-white">
-              {view === "login" ? "Sign In" : "Reset Password"}
+              {view === "login" ? "Log In" : "Reset Password"}
             </Text>
           </View>
         </View>
@@ -160,7 +160,7 @@ export default function LoginPage() {
               >
                 {loading ? <ActivityIndicator color="white" className="mr-2" /> : null}
                 <Text className="text-white text-base font-bold">
-                  {loading ? "Signing in..." : "Sign In"}
+                  {loading ? "Logging in..." : "Log In"}
                 </Text>
               </TouchableOpacity>
 

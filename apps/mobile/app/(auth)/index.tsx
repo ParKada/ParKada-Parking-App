@@ -1,4 +1,5 @@
-import { View, Text, Image, TouchableOpacity, SafeAreaView, Dimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from 'expo-router';
 import { MapPin, Shield, Clock, ChevronRight } from 'lucide-react-native';
 
