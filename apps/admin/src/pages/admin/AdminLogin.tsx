@@ -100,7 +100,7 @@ export default function AdminLogin() {
       if (userId) {
         const { data: profileData, error: profileError } = await supabase
           .from("admin_profiles")
-          .select("lot_id, role, status")
+          .select("assigned_lot_id, role, status")
           .eq("id", userId)
           .single();
 
@@ -116,8 +116,8 @@ export default function AdminLogin() {
 
         localStorage.setItem("admin_role", profileData.role);
 
-        if (profileData.lot_id) {
-          localStorage.setItem("admin_lot_id", profileData.lot_id);
+        if (profileData.assigned_lot_id) {
+          localStorage.setItem("admin_lot_id", profileData.assigned_lot_id);
         } else {
           localStorage.removeItem("admin_lot_id");
         }

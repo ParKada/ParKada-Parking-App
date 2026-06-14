@@ -171,6 +171,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src"),
       "@parkada/shared": path.resolve(__dirname, "../../packages/shared"),
+      "@supabase/supabase-js": path.resolve(__dirname, "node_modules/@supabase/supabase-js"),
     },
   },
   envDir: path.resolve(__dirname),

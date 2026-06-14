@@ -59,14 +59,14 @@ export default function ManageGuards() {
       // 1. Kunin ang Lot ID at Lot Name ng Manager
       const { data: profile, error: profileError } = await supabase
         .from('admin_profiles')
-        .select('lot_id, parking_lots(name)')
+        .select('assigned_lot_id, parking_lots(name)')
         .eq('id', user.id)
         .single();
 
       if (profileError) throw profileError;
 
-      if (profile && profile.lot_id) {
-        setManagerLotId(profile.lot_id);
+      if (profile && profile.assigned_lot_id) {
+        setManagerLotId(profile.assigned_lot_id);
         
         // 🔥 FIX PARA SA TYPESCRIPT ERROR 🔥
         const lotData: any = profile.parking_lots;
@@ -78,7 +78,7 @@ export default function ManageGuards() {
           .from('admin_profiles')
           .select('id, full_name, role, status') 
           .eq('role', 'guard')
-          .eq('lot_id', profile.lot_id)
+          .eq('assigned_lot_id', profile.assigned_lot_id)
           .order('status', { ascending: true }); 
           
         if (!error && guardsData) setGuards(guardsData);
@@ -143,7 +143,7 @@ export default function ManageGuards() {
       const { error: profileError } = await supabase.from('admin_profiles').insert([{
         id: newUserId,
         full_name: guardName,
-        lot_id: managerLotId,
+        assigned_lot_id: managerLotId,
         role: 'guard',
         status: 'Active'
       }]);

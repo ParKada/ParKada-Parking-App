@@ -424,8 +424,15 @@ export default function AdminReservations() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredReservations.map((res) => {
-                  const fine = calculateFine(res);
+                {filteredReservations.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground font-medium">
+                      No records found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredReservations.map((res) => {
+                    const fine = calculateFine(res);
                   const isOverstaying = fine > 0;
                   const startTimeFormatted = format12HourTime(res.startTime);
                   const endTimeFormatted = format12HourTime(res.endTime);
@@ -476,7 +483,8 @@ export default function AdminReservations() {
                       </td>
                     </tr>
                   );
-                })}
+                })
+              )}
               </tbody>
             </table>
           </div>

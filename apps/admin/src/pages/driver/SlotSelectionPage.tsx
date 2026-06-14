@@ -18,8 +18,8 @@ export default function SlotSelectionPage({ lotId }: { lotId: string }) {
       try {
         const { data, error } = await supabase
           .from("parking_slots")
-          .select("id, label, status, parking_lot_id, is_reservable")
-          .eq("parking_lot_id", lotId)
+          .select("id, label, status, lot_id, is_reservable")
+          .eq("lot_id", lotId)
           .order("label", { ascending: true });
 
         if (error) throw error;
@@ -36,7 +36,7 @@ export default function SlotSelectionPage({ lotId }: { lotId: string }) {
     const channel = supabase
       .channel('slot-updates')
       .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'parking_slots', filter: `parking_lot_id=eq.${lotId}` },
+        { event: 'UPDATE', schema: 'public', table: 'parking_slots', filter: `lot_id=eq.${lotId}` },
         (payload) => {
           setSlots((prev) => prev.map(s => s.id === payload.new.id ? payload.new : s));
         }

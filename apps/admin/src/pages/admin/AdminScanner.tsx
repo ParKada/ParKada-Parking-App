@@ -61,10 +61,10 @@ export default function AdminScanner() {
       if (user) {
         const { data } = await supabase
           .from("admin_profiles")
-          .select("lot_id")
+          .select("assigned_lot_id")
           .eq("id", user.id)
           .single();
-        if (data) setManagerLotId(data.lot_id);
+        if (data) setManagerLotId(data.assigned_lot_id);
       }
     };
     fetchManagerData();
@@ -310,9 +310,9 @@ export default function AdminScanner() {
         .from("reservations")
         .select(`
           id, status, plate_number, total_amount, start_time, end_time,
-          created_at, payment_method, user_id,
+          created_at, payment_method, profile_id,
           parking_slots ( id, label ),
-          profiles:user_id ( full_name, phone_number )
+          profiles:profile_id ( full_name, phone_number )
         `)
         .eq("lot_id", managerLotId);
 

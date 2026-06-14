@@ -1,8 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Support both Expo and Vite environment variables during migration
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Support both Expo and Vite environment variables safely
+const getEnvVar = (expoKey: string, viteKey: string) => {
+  if (typeof process !== 'undefined' && process.env && process.env[expoKey]) {
+    return process.env[expoKey];
+  }
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[viteKey]) {
+    return import.meta.env[viteKey];
+  }
+  return undefined;
+};
+
+const supabaseUrl = getEnvVar('EXPO_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_URL');
+const supabaseAnonKey = getEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
 
 // This prevents the "Uncaught Error" white screen
 if (!supabaseUrl || !supabaseAnonKey) {

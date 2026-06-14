@@ -123,7 +123,7 @@ function App() {
       <ErrorBoundary>
         <ThemeProvider defaultTheme="light">
           <TooltipProvider>
-            <Toaster position="top-center" richColors />
+            <Toaster position="top-center" richColors visibleToasts={1} />
             <AuthCallback />
           </TooltipProvider>
         </ThemeProvider>
@@ -136,7 +136,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <Toaster position="top-center" richColors />
+          <Toaster position="top-center" richColors visibleToasts={1} />
           <AutoStatusUpdater />
           <Router />
         </TooltipProvider>

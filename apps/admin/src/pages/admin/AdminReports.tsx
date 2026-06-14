@@ -6,8 +6,8 @@
 import { useState, useEffect, useRef } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@parkada/shared";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   PieChart, Pie, Cell
 } from "recharts";
@@ -344,7 +344,7 @@ export default function AdminReports() {
   return (
     <AdminLayout title={isSuperAdmin ? "System Analytics" : "Lot Analytics"}>
       <div className="space-y-6 pb-10">
-        
+
         {/* Control Bar */}
         <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex flex-wrap items-center justify-between gap-4 print:hidden">
           <div className="flex items-center gap-3">
@@ -382,15 +382,21 @@ export default function AdminReports() {
         {showSection("composition") && (
           <div ref={compositionRef} className="bg-white rounded-2xl p-5 border shadow-sm">
             <h3 className="text-lg font-black mb-2">Revenue Composition</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={[{ name: "Online", value: composition.online }, { name: "Walk‑in", value: composition.walkin }]} dataKey="value" cx="50%" cy="50%" innerRadius={60} outerRadius={90} label>
-                  <Cell fill={COLORS[0]} />
-                  <Cell fill={COLORS[1]} />
-                </Pie>
-                <Tooltip formatter={(v) => `₱${v.toLocaleString()}`} />
-              </PieChart>
-            </ResponsiveContainer>
+            {composition.online === 0 && composition.walkin === 0 ? (
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground font-medium">
+                No analytics data available.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie data={[{ name: "Online", value: composition.online }, { name: "Walk‑in", value: composition.walkin }]} dataKey="value" cx="50%" cy="50%" innerRadius={60} outerRadius={90} label>
+                    <Cell fill={COLORS[0]} />
+                    <Cell fill={COLORS[1]} />
+                  </Pie>
+                  <Tooltip formatter={(v) => `₱${v.toLocaleString()}`} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         )}
 
@@ -400,10 +406,10 @@ export default function AdminReports() {
             <h3 className="text-lg font-black mb-2">Daily Revenue (Last 7 Days)</h3>
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={dailyRevenue}>
-                <defs><linearGradient id="dailyGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0f172a" stopOpacity={0.1}/><stop offset="95%" stopColor="#0f172a" stopOpacity={0}/></linearGradient></defs>
+                <defs><linearGradient id="dailyGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0f172a" stopOpacity={0.1} /><stop offset="95%" stopColor="#0f172a" stopOpacity={0} /></linearGradient></defs>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
-                <YAxis tickFormatter={(v) => `₱${v/1000}k`} />
+                <YAxis tickFormatter={(v) => `₱${v / 1000}k`} />
                 <Tooltip formatter={(v) => `₱${v.toLocaleString()}`} />
                 <Area type="monotone" dataKey="total" stroke="#0f172a" fill="url(#dailyGrad)" strokeWidth={2} />
               </AreaChart>
@@ -421,7 +427,7 @@ export default function AdminReports() {
                 const percent = ((lot.onlineRevenue + lot.walkinRevenue) / maxRevenue) * 100;
                 return (
                   <div key={lot.name} className="flex items-center gap-3">
-                    <span className="w-6 text-sm font-bold text-primary">{i+1}</span>
+                    <span className="w-6 text-sm font-bold text-primary">{i + 1}</span>
                     <span className="flex-1 font-medium">{lot.name}</span>
                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${percent}%` }} />
@@ -443,7 +449,7 @@ export default function AdminReports() {
               <BarChart data={stats} stackOffset="sign">
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} tickFormatter={(v) => `₱${v/1000}k`} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} tickFormatter={(v) => `₱${v / 1000}k`} />
                 <Tooltip formatter={(value, name) => [`₱${value.toLocaleString()}`, name === 'online' ? 'Online' : 'Walk‑in']} />
                 <Bar dataKey="online" name="Online" fill="#0f172a" radius={[6, 0, 0, 0]} />
                 <Bar dataKey="walkin" name="Walk‑in" fill="#10b981" radius={[0, 6, 0, 0]} />
@@ -465,7 +471,7 @@ export default function AdminReports() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} domain={[0, 100]} />
-                  <Tooltip cursor={{fill: '#f8fafc'}} />
+                  <Tooltip cursor={{ fill: '#f8fafc' }} />
                   <Bar dataKey="occupancy" fill="#0f172a" radius={[6, 6, 0, 0]} barSize={30} />
                 </BarChart>
               </ResponsiveContainer>
@@ -510,19 +516,27 @@ export default function AdminReports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {lotStats.map((lot: any) => (
-                    <tr key={lot.name} className="group hover:bg-slate-50 transition-colors">
-                      <td className="py-4 font-bold text-slate-700">{lot.name}</td>
-                      <td className="py-4">
-                        <span className="text-[10px] font-black px-2 py-1 bg-slate-100 rounded-md uppercase">{lot.type}</span>
-                      </td>
-                      <td className="py-4 text-center font-medium text-slate-600">{lot.onlineBookings}</td>
-                      <td className="py-4 text-center font-medium text-slate-600">{lot.walkinBookings}</td>
-                      <td className="py-4 text-right font-black text-emerald-600">
-                        ₱{(lot.onlineRevenue + lot.walkinRevenue).toLocaleString()}
+                  {lotStats.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-muted-foreground font-medium">
+                        No analytics data available.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    lotStats.map((lot: any) => (
+                      <tr key={lot.name} className="group hover:bg-slate-50 transition-colors">
+                        <td className="py-4 font-bold text-slate-700">{lot.name}</td>
+                        <td className="py-4">
+                          <span className="text-[10px] font-black px-2 py-1 bg-slate-100 rounded-md uppercase">{lot.type}</span>
+                        </td>
+                        <td className="py-4 text-center font-medium text-slate-600">{lot.onlineBookings}</td>
+                        <td className="py-4 text-center font-medium text-slate-600">{lot.walkinBookings}</td>
+                        <td className="py-4 text-right font-black text-emerald-600">
+                          ₱{(lot.onlineRevenue + lot.walkinRevenue).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
