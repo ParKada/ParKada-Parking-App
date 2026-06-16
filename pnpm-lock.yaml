@@ -410,7 +410,11 @@ importers:
         specifier: ~5.9.2
         version: 5.9.3
 
-  packages/shared: {}
+  packages/shared:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.0.0
+        version: 2.108.1
 
 packages:
 

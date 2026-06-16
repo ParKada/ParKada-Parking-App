@@ -37,7 +37,7 @@ export default function SlotSelectionPage({ lotId }: { lotId: string }) {
       .channel('slot-updates')
       .on('postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'parking_slots', filter: `lot_id=eq.${lotId}` },
-        (payload) => {
+        (payload: any) => {
           setSlots((prev) => prev.map(s => s.id === payload.new.id ? payload.new : s));
         }
       )

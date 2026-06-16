@@ -1,5 +1,8 @@
 {
   "name": "@parkada/shared",
   "version": "1.0.0",
-  "main": "index.ts"
+  "main": "index.ts",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  }
 }
