@@ -8,12 +8,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from dist/public (built frontend)
-app.use(express.static(path.join(__dirname, 'dist/public')));
+// Serve static files from dist (built frontend)
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // Fallback to index.html for client-side routing
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist/public/index.html'));
+  res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
 
 app.listen(PORT, () => {
