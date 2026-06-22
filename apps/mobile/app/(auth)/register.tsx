@@ -361,12 +361,31 @@ export default function RegisterPage() {
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="absolute right-4"><Eye size={20} color="#94a3b8" /></TouchableOpacity>
               </View>
               {password ? (
-                <Text className={`mt-1 text-xs font-semibold ${
-                  getPasswordStrength(password) === "Very Strong Password" ? "text-emerald-600" :
-                  getPasswordStrength(password) === "Strong Password" ? "text-amber-500" : "text-rose-500"
-                }`}>
-                  {getPasswordStrength(password)}
-                </Text>
+                <View className="mt-2">
+                  <View className="flex-row gap-1 mb-1.5">
+                    <View className={`h-1.5 flex-1 rounded-full ${
+                      getPasswordStrength(password) === "Weak Password" ? "bg-rose-500" : 
+                      getPasswordStrength(password) === "Strong Password" || getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
+                    }`} />
+                    <View className={`h-1.5 flex-1 rounded-full ${
+                      getPasswordStrength(password) === "Strong Password" || getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
+                    }`} />
+                    <View className={`h-1.5 flex-1 rounded-full ${
+                      getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
+                    }`} />
+                  </View>
+                  <Text className={`text-xs font-semibold ${
+                    getPasswordStrength(password) === "Very Strong Password" ? "text-emerald-600" :
+                    getPasswordStrength(password) === "Strong Password" ? "text-amber-500" : "text-rose-500"
+                  }`}>
+                    {getPasswordStrength(password)}
+                  </Text>
+                  {getPasswordStrength(password) !== "Very Strong Password" && (
+                    <Text className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                      Must contain 8+ chars, uppercase, lowercase, number, and special character.
+                    </Text>
+                  )}
+                </View>
               ) : null}
             </View>
             <View>
@@ -424,8 +443,13 @@ export default function RegisterPage() {
               <Text className="text-white font-bold">Continue</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity onPress={() => handleSendOtp(true)} disabled={loading} className="mt-4 items-center">
-              <Text className="text-slate-500 font-semibold text-sm">Skip this for now</Text>
+            <View className="relative flex-row items-center justify-center mt-2 mb-2">
+              <View className="absolute w-full h-[1px] bg-slate-200" />
+              <Text className="bg-white px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">OR</Text>
+            </View>
+
+            <TouchableOpacity onPress={() => handleSendOtp(true)} disabled={loading} className="w-full h-14 bg-white border-2 border-slate-200 rounded-xl flex-row items-center justify-center mb-6">
+              <Text className="text-slate-600 font-bold">Skip Vehicle Registration</Text>
             </TouchableOpacity>
           </View>
         )}
