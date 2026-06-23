@@ -249,6 +249,18 @@ export default function AdminParkingSlots() {
     );
   }
 
+  const getCameraUrl = () => {
+    const publicUrl = import.meta.env.VITE_CAMERA_PUBLIC_URL || "https://your-cloudflare-tunnel.com";
+    const lanUrl = import.meta.env.VITE_CAMERA_LAN_URL || "http://192.168.1.100:5000";
+    
+    if (userRole === "superadmin" || userRole === "manager" || userRole === "super_admin") {
+      return `${publicUrl}/video_feed`;
+    } else if (userRole === "guard") {
+      return `${lanUrl}/video_feed`;
+    }
+    return "";
+  };
+
   const activeLot = lots.find((l) => l.id === selectedLotId);
   if (!activeLot) return <AdminLayout title="Parking Slots"><p className="p-6 text-muted-foreground">No data found.</p></AdminLayout>;
 
@@ -287,7 +299,7 @@ export default function AdminParkingSlots() {
           {activeLot.name.includes("Thesis Demo") ? (
             <>
               <img 
-                src="http://127.0.0.1:5000/video_feed" 
+                src={getCameraUrl()} 
                 alt="Live Parking Stream" 
                 className="w-full h-full object-contain"
                 onError={(e) => {
@@ -345,7 +357,7 @@ export default function AdminParkingSlots() {
                 {refreshing ? "Syncing..." : "Refresh"}
               </Button>
 
-              {userRole !== 'guard' && (
+              {userRole === 'superadmin' && (
                 <Button 
                   size="sm" 
                   className="rounded-xl text-sm font-bold"
@@ -358,7 +370,7 @@ export default function AdminParkingSlots() {
             </div>
           </div>
           
-          {isAdding && userRole !== 'guard' && (
+          {isAdding && userRole === 'superadmin' && (
             <div className="mb-6 p-4 bg-muted/30 border border-border rounded-xl">
               <form onSubmit={handleAddSlot} className="flex flex-wrap items-end gap-4">
                 <div className="space-y-1">
