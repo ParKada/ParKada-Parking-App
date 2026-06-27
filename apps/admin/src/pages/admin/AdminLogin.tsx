@@ -303,12 +303,7 @@ export default function AdminLogin() {
             </p>
           </div>
 
-          <button
-            onClick={() => navigate("/")}
-            className="mt-6 text-sm text-muted-foreground hover:text-foreground transition-colors block text-center w-full"
-          >
-            ← Back to Driver App
-          </button>
+
         </div>
       </div>
     </div>

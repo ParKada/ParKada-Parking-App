@@ -53,8 +53,8 @@ import AdminWalkInRecords from "./pages/admin/AdwinWalkInRecords";
 function Router() {
   return (
     <Switch>
-      {/* 1. Splash Screen (Ang entry point ng app) */}
-      <Route path="/" component={SplashScreen} />
+      {/* 1. Admin Login (Ang entry point ng Admin Panel) */}
+      <Route path="/" component={AdminLogin} />
 
       {/* 2. AUTH PAGES */}
       <Route path="/login" component={LoginPage} />
