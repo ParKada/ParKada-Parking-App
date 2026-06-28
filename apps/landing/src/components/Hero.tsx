@@ -1,4 +1,6 @@
 import { AppStoreBadge, PlayStoreBadge } from './Badges'
+import DarkVeil from './DarkVeil'
+import TrueFocus from './TrueFocus'
 
 const stats = [
   { value: '100%', label: 'AI-Powered Detection' },
@@ -19,37 +21,27 @@ export default function Hero() {
         overflow: 'hidden',
       }}
     >
-      {/* Background grid overlay */}
-      <div aria-hidden="true" style={{
-        position: 'absolute', inset: 0,
-        backgroundImage: `
-          linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
-        `,
-        backgroundSize: '48px 48px',
-        maskImage: 'radial-gradient(ellipse 80% 80% at 50% 40%, black 40%, transparent 100%)',
-        WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 40%, black 40%, transparent 100%)',
-      }}/>
+      {/* DarkVeil Background */}
+      <div className="absolute inset-0 z-0">
+        <DarkVeil
+          speed={2.0}
+          noiseIntensity={0.05}
+          scanlineIntensity={0.3}
+          scanlineFrequency={800}
+          hueShift={10}
+          warpAmount={0.3}
+          resolutionScale={1}
+        />
+      </div>
 
-      {/* Glow blobs */}
+      {/* Semi-transparent overlay for text readability */}
       <div aria-hidden="true" style={{
-        position: 'absolute', top: '15%', left: '8%',
-        width: '420px', height: '420px',
-        background: 'radial-gradient(circle, rgba(37,99,235,0.18) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(40px)',
-        pointerEvents: 'none',
-      }}/>
-      <div aria-hidden="true" style={{
-        position: 'absolute', bottom: '10%', right: '5%',
-        width: '320px', height: '320px',
-        background: 'radial-gradient(circle, rgba(5,150,105,0.12) 0%, transparent 70%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
+        position: 'absolute', inset: 0, zIndex: 0,
+        background: 'linear-gradient(to bottom, rgba(10,29,55,0.4), rgba(10,29,55,0.7))',
         pointerEvents: 'none',
       }}/>
 
-      <div className="container" style={{ paddingTop: '100px', paddingBottom: '80px', width: '100%' }}>
+      <div className="container" style={{ paddingTop: '100px', paddingBottom: '80px', width: '100%', position: 'relative', zIndex: 10 }}>
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -87,23 +79,24 @@ export default function Hero() {
               </span>
             </div>
 
-            <h1 style={{
-              fontFamily: 'var(--font-heading)',
+            <div style={{
+              fontFamily: 'var(--font-display)',
               fontSize: 'clamp(2.5rem, 5vw, 3.75rem)',
-              fontWeight: 700,
               color: '#FFFFFF',
               lineHeight: 1.1,
               letterSpacing: '-0.02em',
               marginBottom: '20px',
             }}>
-              Smart Parking,<br/>
-              <span style={{
-                background: 'linear-gradient(90deg, #60A5FA 0%, #34D399 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}>Made Simple.</span>
-            </h1>
+              <TrueFocus 
+                sentence="Smart Parking, Made Simple."
+                manualMode={false}
+                blurAmount={4}
+                borderColor="#0df103" 
+                glowColor="rgba(13, 241, 3, 0.4)"
+                animationDuration={0.6}
+                pauseBetweenAnimations={1.5}
+              />
+            </div>
 
             <p style={{
               fontFamily: 'var(--font-body)',

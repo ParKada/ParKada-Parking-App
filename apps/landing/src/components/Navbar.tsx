@@ -76,12 +76,14 @@ export default function Navbar() {
                 transition: 'color 0.15s, background 0.15s',
               }}
               onMouseEnter={e => {
-                (e.target as HTMLAnchorElement).style.color = '#fff'
-                ;(e.target as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.08)'
+                (e.target as HTMLAnchorElement).style.color = '#0df103';
+                (e.target as HTMLAnchorElement).style.background = 'rgba(13, 241, 3, 0.08)';
+                (e.target as HTMLAnchorElement).style.boxShadow = '0 0 12px rgba(13, 241, 3, 0.15)';
               }}
               onMouseLeave={e => {
-                (e.target as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.72)'
-                ;(e.target as HTMLAnchorElement).style.background = 'transparent'
+                (e.target as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.72)';
+                (e.target as HTMLAnchorElement).style.background = 'transparent';
+                (e.target as HTMLAnchorElement).style.boxShadow = 'none';
               }}
             >
               {link.label}
@@ -110,12 +112,16 @@ export default function Navbar() {
               transition: 'background 0.15s, border-color 0.15s',
             }}
             onMouseEnter={e => {
-              (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.12)'
-              ;(e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.35)'
+              (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(13, 241, 3, 0.12)';
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(13, 241, 3, 0.35)';
+              (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 0 12px rgba(13, 241, 3, 0.2)';
+              (e.currentTarget as HTMLAnchorElement).style.color = '#0df103';
             }}
             onMouseLeave={e => {
-              (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.06)'
-              ;(e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.2)'
+              (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.06)';
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.2)';
+              (e.currentTarget as HTMLAnchorElement).style.boxShadow = 'none';
+              (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
             }}
           >
             Admin Portal
