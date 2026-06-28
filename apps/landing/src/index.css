@@ -1,0 +1,167 @@
+/* ==============================================
+   PARKADA LANDING PAGE — DESIGN SYSTEM
+   UI UX Pro Max: "Parking Finder" palette
+   Typography: Space Grotesk + DM Sans
+   ============================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* ---- Tokens ---- */
+:root {
+  /* Colors - Parking Finder palette */
+  --primary:          #2563EB;
+  --primary-hover:    #1D4FD8;
+  --primary-fg:       #FFFFFF;
+  --secondary:        #059669;
+  --accent:           #0A1D37;
+  --accent-light:     #112A4E;
+  --background:       #F0F9FF;
+  --foreground:       #0F172A;
+  --card:             #FFFFFF;
+  --card-fg:          #0F172A;
+  --muted:            #F1F5FD;
+  --muted-fg:         #64748B;
+  --border:           #E4ECFC;
+  --border-dark:      #CBD5E1;
+
+  /* Spacing */
+  --radius-card:      12px;
+  --radius-btn:       10px;
+  --radius-pill:      999px;
+  --max-width:        1200px;
+  --section-py:       96px;
+
+  /* Typography */
+  --font-heading:     'Space Grotesk', sans-serif;
+  --font-body:        'DM Sans', sans-serif;
+
+  /* Shadows */
+  --shadow-card:      0 1px 3px rgba(15,23,42,0.06), 0 4px 16px rgba(37,99,235,0.06);
+  --shadow-card-hover: 0 4px 24px rgba(37,99,235,0.14);
+  --shadow-btn:       0 2px 8px rgba(37,99,235,0.32);
+}
+
+/* ---- Base ---- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--background);
+  color: var(--foreground);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-heading);
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+/* ---- Utilities ---- */
+.container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.section {
+  padding: var(--section-py) 0;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  padding: 12px 24px;
+  border-radius: var(--radius-btn);
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: var(--shadow-btn);
+  transition: background 0.18s ease, transform 0.14s ease, box-shadow 0.18s ease;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(37,99,235,0.42);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: rgba(255,255,255,0.75);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  padding: 11px 22px;
+  border-radius: var(--radius-btn);
+  border: 1px solid rgba(255,255,255,0.2);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.08);
+  color: #FFFFFF;
+  border-color: rgba(255,255,255,0.4);
+}
+
+.section-label {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+  background: rgba(37,99,235,0.08);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(37,99,235,0.15);
+  margin-bottom: 16px;
+}
+
+/* ---- Animations ---- */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(1deg); }
+  50% { transform: translateY(-12px) rotate(-1deg); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center;  }
+}
+
+.animate-float { animation: float 5s ease-in-out infinite; }
+.animate-fade-up { animation: fadeUp 0.6s ease forwards; }
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--muted); }
+::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 999px; }
