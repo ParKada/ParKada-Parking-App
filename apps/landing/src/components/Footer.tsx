@@ -83,6 +83,12 @@ export default function Footer() {
                 <a
                   key={l.href}
                   href={l.href}
+                  onClick={(e) => {
+                    if (l.href.startsWith('#')) {
+                      e.preventDefault();
+                      document.getElementById(l.href.replace('#', ''))?.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
                   style={{
                     fontFamily: 'var(--font-body)',
                     fontSize: '0.9375rem',

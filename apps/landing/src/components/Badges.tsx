@@ -5,6 +5,7 @@ export function AppStoreBadge({ id }: { id?: string }) {
     <a
       id={id ?? 'badge-appstore'}
       href="#download"
+      onClick={(e) => e.preventDefault()}
       aria-label="Download on the App Store"
       style={{
         display: 'inline-block',
@@ -35,6 +36,7 @@ export function PlayStoreBadge({ id }: { id?: string }) {
     <a
       id={id ?? 'badge-playstore'}
       href="#download"
+      onClick={(e) => e.preventDefault()}
       aria-label="Get it on Google Play"
       style={{
         display: 'inline-block',

@@ -59,6 +59,12 @@ export default function Navbar() {
             <a
               key={link.href}
               href={link.href}
+              onClick={(e) => {
+                if (link.href.startsWith('#')) {
+                  e.preventDefault();
+                  document.getElementById(link.href.replace('#', ''))?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
               style={{
                 fontFamily: 'var(--font-body)',
                 fontWeight: 500,
@@ -148,7 +154,13 @@ export default function Navbar() {
             <a
               key={link.href}
               href={link.href}
-              onClick={() => setOpen(false)}
+              onClick={(e) => {
+                setOpen(false);
+                if (link.href.startsWith('#')) {
+                  e.preventDefault();
+                  document.getElementById(link.href.replace('#', ''))?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
               style={{
                 display: 'block',
                 padding: '12px 0',
