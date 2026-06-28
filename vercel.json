@@ -1,0 +1,5 @@
+{
+  "buildCommand": "pnpm install && pnpm --filter landing build",
+  "outputDirectory": "apps/landing/dist",
+  "installCommand": "pnpm install"
+}

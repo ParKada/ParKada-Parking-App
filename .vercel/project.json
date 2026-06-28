@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_jYKFP0NPganCdSIcRnrK2Z2tiuG0",
+  "orgId": "team_u6IfomWCF4SnEebULqpbNuzt",
+  "projectName": "landing",
+  "settings": {
+    "createdAt": 1782607241887,
+    "framework": "vite",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}
