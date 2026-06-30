@@ -8,7 +8,7 @@ export default function Footer() {
     <footer
       id="footer"
       style={{
-        background: 'var(--accent)',
+        background: 'transparent',
         color: 'rgba(255,255,255,0.6)',
         paddingTop: '72px',
         paddingBottom: '40px',
@@ -20,9 +20,10 @@ export default function Footer() {
       <div aria-hidden="true" style={{
         position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px',
         background: 'linear-gradient(90deg, transparent, rgba(37,99,235,0.5) 50%, transparent)',
+        zIndex: 0,
       }}/>
 
-      <div className="container">
+      <div className="container" style={{ position: 'relative', zIndex: 10 }}>
 
         {/* Top row: brand + nav + download */}
         <div style={{

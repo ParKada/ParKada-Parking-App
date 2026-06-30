@@ -1,6 +1,4 @@
 import { AppStoreBadge, PlayStoreBadge } from './Badges'
-import DarkVeil from './DarkVeil'
-import TrueFocus from './TrueFocus'
 
 const stats = [
   { value: '100%', label: 'AI-Powered Detection' },
@@ -13,7 +11,8 @@ export default function Hero() {
     <section
       id="home"
       style={{
-        background: 'var(--accent)',
+        background: 'transparent',
+        borderBottom: '1px solid rgba(0,0,0,0.08)',
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
@@ -21,23 +20,33 @@ export default function Hero() {
         overflow: 'hidden',
       }}
     >
-      {/* DarkVeil Background */}
-      <div className="absolute inset-0 z-0">
-        <DarkVeil
-          speed={2.0}
-          noiseIntensity={0.05}
-          scanlineIntensity={0.3}
-          scanlineFrequency={800}
-          hueShift={10}
-          warpAmount={0.3}
-          resolutionScale={1}
-        />
-      </div>
-
-      {/* Semi-transparent overlay for text readability */}
+      {/* Background grid overlay */}
       <div aria-hidden="true" style={{
-        position: 'absolute', inset: 0, zIndex: 0,
-        background: 'linear-gradient(to bottom, rgba(10,29,55,0.4), rgba(10,29,55,0.7))',
+        position: 'absolute', inset: 0,
+        backgroundImage: `
+          linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px)
+        `,
+        backgroundSize: '48px 48px',
+        maskImage: 'radial-gradient(ellipse 80% 80% at 50% 40%, black 40%, transparent 100%)',
+        WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 40%, black 40%, transparent 100%)',
+      }}/>
+
+      {/* Glow blobs */}
+      <div aria-hidden="true" style={{
+        position: 'absolute', top: '15%', left: '8%',
+        width: '420px', height: '420px',
+        background: 'radial-gradient(circle, rgba(37,99,235,0.18) 0%, transparent 70%)',
+        borderRadius: '50%',
+        filter: 'blur(40px)',
+        pointerEvents: 'none',
+      }}/>
+      <div aria-hidden="true" style={{
+        position: 'absolute', bottom: '10%', right: '5%',
+        width: '320px', height: '320px',
+        background: 'radial-gradient(circle, rgba(5,150,105,0.12) 0%, transparent 70%)',
+        borderRadius: '50%',
+        filter: 'blur(60px)',
         pointerEvents: 'none',
       }}/>
 
@@ -54,8 +63,8 @@ export default function Hero() {
             {/* Thesis badge */}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: '8px',
-              background: 'rgba(37,99,235,0.12)',
-              border: '1px solid rgba(37,99,235,0.28)',
+              background: 'rgba(37,99,235,0.08)',
+              border: '1px solid rgba(37,99,235,0.2)',
               borderRadius: '999px',
               padding: '5px 14px 5px 10px',
               marginBottom: '28px',
@@ -79,29 +88,28 @@ export default function Hero() {
               </span>
             </div>
 
-            <div style={{
-              fontFamily: 'var(--font-display)',
+            <h1 style={{
+              fontFamily: 'var(--font-heading)',
               fontSize: 'clamp(2.5rem, 5vw, 3.75rem)',
-              color: '#FFFFFF',
+              fontWeight: 700,
+              color: 'var(--foreground)',
               lineHeight: 1.1,
               letterSpacing: '-0.02em',
               marginBottom: '20px',
             }}>
-              <TrueFocus 
-                sentence="Smart Parking, Made Simple."
-                manualMode={false}
-                blurAmount={4}
-                borderColor="#0df103" 
-                glowColor="rgba(13, 241, 3, 0.4)"
-                animationDuration={0.6}
-                pauseBetweenAnimations={1.5}
-              />
-            </div>
+              Smart Parking,<br/>
+              <span style={{
+                background: 'linear-gradient(90deg, #60A5FA 0%, #34D399 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>Made Simple.</span>
+            </h1>
 
             <p style={{
               fontFamily: 'var(--font-body)',
               fontSize: '1.0625rem',
-              color: 'rgba(255,255,255,0.6)',
+              color: 'var(--muted-fg)',
               lineHeight: 1.7,
               maxWidth: '440px',
               marginBottom: '36px',
@@ -121,22 +129,28 @@ export default function Hero() {
             <div style={{
               display: 'flex', gap: '32px',
               paddingTop: '32px',
-              borderTop: '1px solid rgba(255,255,255,0.08)',
+              position: 'relative',
             }}>
+              {/* Glowy dividing line */}
+              <div aria-hidden="true" style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.15) 30%, rgba(0,0,0,0.15) 70%, transparent)',
+                boxShadow: '0 0 8px rgba(0,0,0,0.1)',
+              }}/>
               {stats.map(s => (
                 <div key={s.label}>
                   <div style={{
                     fontFamily: 'var(--font-heading)',
                     fontSize: '1.375rem',
                     fontWeight: 700,
-                    color: '#fff',
+                    color: 'var(--foreground)',
                     letterSpacing: '-0.02em',
                     marginBottom: '2px',
                   }}>{s.value}</div>
                   <div style={{
                     fontFamily: 'var(--font-body)',
                     fontSize: '0.8125rem',
-                    color: 'rgba(255,255,255,0.45)',
+                    color: 'var(--muted-fg)',
                     fontWeight: 500,
                   }}>{s.label}</div>
                 </div>
@@ -156,7 +170,7 @@ export default function Hero() {
               position: 'absolute',
               width: '340px', height: '340px',
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(37,99,235,0.22) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(37,99,235,0.12) 0%, transparent 70%)',
               filter: 'blur(24px)',
             }}/>
             <img

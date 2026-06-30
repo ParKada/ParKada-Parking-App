@@ -27,7 +27,7 @@ const team: Member[] = [
     name: 'Janna Mikhaela Alcantara',
     handle: '@jmkalcantara',
     role: 'Business Analyst & QA Engineer',
-    contributions: ['Business Analysis', 'Requirements Gathering', 'Quality Assurance', 'Client Relations'],
+    contributions: ['Business Analysis', 'Quality Assurance', 'Client Relations'],
     initials: 'JA',
     color: '#059669',
     colorBg: 'rgba(5,150,105,0.1)',
@@ -59,7 +59,7 @@ export default function Team() {
     <section
       id="team"
       className="section"
-      style={{ background: 'var(--muted)' }}
+      style={{ background: 'transparent' }}
     >
       <div className="container">
 
@@ -70,7 +70,7 @@ export default function Team() {
             fontFamily: 'var(--font-heading)',
             fontSize: 'clamp(1.875rem, 3.5vw, 2.5rem)',
             fontWeight: 700,
-            color: 'var(--foreground)',
+            color: '#ffffff',
             letterSpacing: '-0.02em',
             marginBottom: '16px',
           }}>
@@ -79,7 +79,7 @@ export default function Team() {
           <p style={{
             fontFamily: 'var(--font-body)',
             fontSize: '1.0625rem',
-            color: 'var(--muted-fg)',
+            color: 'rgba(255,255,255,0.6)',
             maxWidth: '480px',
             margin: '0 auto',
             lineHeight: 1.65,
@@ -99,11 +99,11 @@ export default function Team() {
               key={member.id}
               id={member.id}
               style={{
-                background: 'var(--card)',
-                border: '1px solid var(--border)',
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: 'var(--radius-card)',
                 padding: '28px 24px',
-                boxShadow: 'var(--shadow-card)',
+                boxShadow: 'none',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
               }}
               onMouseEnter={e => {
@@ -141,7 +141,7 @@ export default function Team() {
                 fontFamily: 'var(--font-heading)',
                 fontSize: '1rem',
                 fontWeight: 700,
-                color: 'var(--foreground)',
+                color: '#ffffff',
                 letterSpacing: '-0.01em',
                 marginBottom: '2px',
               }}>
@@ -162,7 +162,7 @@ export default function Team() {
                 fontFamily: 'var(--font-body)',
                 fontSize: '0.875rem',
                 fontWeight: 600,
-                color: 'var(--foreground)',
+                color: 'rgba(255,255,255,0.9)',
                 marginBottom: '14px',
                 lineHeight: 1.35,
               }}>
@@ -170,7 +170,7 @@ export default function Team() {
               </div>
 
               {/* Divider */}
-              <div style={{ borderTop: '1px solid var(--border)', marginBottom: '14px' }}/>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginBottom: '14px' }}/>
 
               {/* Contributions */}
               <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -185,7 +185,7 @@ export default function Team() {
                     <span style={{
                       fontFamily: 'var(--font-body)',
                       fontSize: '0.8125rem',
-                      color: 'var(--muted-fg)',
+                      color: 'rgba(255,255,255,0.6)',
                     }}>
                       {c}
                     </span>
@@ -215,25 +215,25 @@ export default function Team() {
                 fontFamily: 'var(--font-body)',
                 fontSize: '0.8125rem',
                 fontWeight: 500,
-                color: 'var(--muted-fg)',
+                color: 'rgba(255,255,255,0.6)',
                 textDecoration: 'none',
                 padding: '6px 12px',
                 borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--card)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.03)',
                 transition: 'color 0.15s, border-color 0.15s, background 0.15s',
               }}
               onMouseEnter={e => {
                 const el = e.currentTarget as HTMLAnchorElement
-                el.style.color = 'var(--foreground)'
-                el.style.borderColor = 'var(--border-dark)'
-                el.style.background = 'var(--muted)'
+                el.style.color = '#ffffff'
+                el.style.borderColor = 'rgba(255,255,255,0.25)'
+                el.style.background = 'rgba(255,255,255,0.08)'
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget as HTMLAnchorElement
-                el.style.color = 'var(--muted-fg)'
-                el.style.borderColor = 'var(--border)'
-                el.style.background = 'var(--card)'
+                el.style.color = 'rgba(255,255,255,0.6)'
+                el.style.borderColor = 'rgba(255,255,255,0.1)'
+                el.style.background = 'rgba(255,255,255,0.03)'
               }}
             >
               <Github size={13} strokeWidth={2}/>

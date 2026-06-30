@@ -519,7 +519,7 @@ export default function DriverHome() {
                   <ActiveReservationTimer
                     reservation={{
                       id: selectedReservation.id,
-                      profile_id: selectedReservation.profile_id,
+                      user_id: selectedReservation.profile_id,
                       total_amount: selectedReservation.total_amount,
                       lot_id: selectedReservation.lot_id,
                       end_time: selectedReservation.end_time,

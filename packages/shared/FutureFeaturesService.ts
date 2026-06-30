@@ -1,5 +1,5 @@
-import { supabase } from '../supabaseClient';
-import { Database } from '../types/database.types';
+import { supabase } from './supabaseClient';
+import { Database } from './database.types';
 
 // ==========================================
 // Future Feature: OCR Plate Recognition & Validation

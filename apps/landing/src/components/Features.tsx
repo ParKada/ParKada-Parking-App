@@ -41,7 +41,7 @@ const features = [
 
 export default function Features() {
   return (
-    <section id="features" className="section" style={{ background: '#fff' }}>
+    <section id="features" className="section" style={{ background: 'transparent' }}>
       <div className="container">
 
         {/* Header */}
@@ -51,7 +51,7 @@ export default function Features() {
             fontFamily: 'var(--font-heading)',
             fontSize: 'clamp(1.875rem, 3.5vw, 2.5rem)',
             fontWeight: 700,
-            color: 'var(--foreground)',
+            color: '#ffffff',
             letterSpacing: '-0.02em',
             marginBottom: '16px',
           }}>
@@ -60,7 +60,7 @@ export default function Features() {
           <p style={{
             fontFamily: 'var(--font-body)',
             fontSize: '1.0625rem',
-            color: 'var(--muted-fg)',
+            color: 'rgba(255,255,255,0.6)',
             maxWidth: '520px',
             margin: '0 auto',
             lineHeight: 1.65,
@@ -83,25 +83,25 @@ export default function Features() {
                 key={f.id}
                 id={f.id}
                 style={{
-                  background: 'var(--card)',
-                  border: '1px solid var(--border)',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 'var(--radius-card)',
                   padding: '28px',
-                  boxShadow: 'var(--shadow-card)',
+                  boxShadow: 'none',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
                   cursor: 'default',
                 }}
                 onMouseEnter={e => {
                   const el = e.currentTarget as HTMLDivElement
                   el.style.transform = 'translateY(-4px)'
-                  el.style.boxShadow = 'var(--shadow-card-hover)'
+                  el.style.boxShadow = '0 4px 24px rgba(0,0,0,0.4)'
                   el.style.borderColor = f.color + '44'
                 }}
                 onMouseLeave={e => {
                   const el = e.currentTarget as HTMLDivElement
                   el.style.transform = 'translateY(0)'
-                  el.style.boxShadow = 'var(--shadow-card)'
-                  el.style.borderColor = 'var(--border)'
+                  el.style.boxShadow = 'none'
+                  el.style.borderColor = 'rgba(255,255,255,0.08)'
                 }}
               >
                 {/* Icon */}
@@ -119,7 +119,7 @@ export default function Features() {
                   fontFamily: 'var(--font-heading)',
                   fontSize: '1.125rem',
                   fontWeight: 600,
-                  color: 'var(--foreground)',
+                  color: '#ffffff',
                   marginBottom: '10px',
                   letterSpacing: '-0.01em',
                 }}>
@@ -128,7 +128,7 @@ export default function Features() {
                 <p style={{
                   fontFamily: 'var(--font-body)',
                   fontSize: '0.9375rem',
-                  color: 'var(--muted-fg)',
+                  color: 'rgba(255,255,255,0.6)',
                   lineHeight: 1.65,
                 }}>
                   {f.description}

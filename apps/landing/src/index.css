@@ -53,7 +53,7 @@ html {
 
 body {
   font-family: var(--font-body);
-  background: var(--background);
+  background: #ffffff;
   color: var(--foreground);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;

@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Menu, X, ExternalLink } from 'lucide-react'
+import { motion } from 'motion/react'
+import DarkVeil from './DarkVeil'
 
 const navLinks = [
   { label: 'Features', href: '#features' },
@@ -10,6 +12,9 @@ const navLinks = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [adminHovered, setAdminHovered] = useState(false)
+  const navRefs = useRef<(HTMLAnchorElement | null)[]>([])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
@@ -25,14 +30,35 @@ export default function Navbar() {
         left: 0,
         right: 0,
         zIndex: 100,
-        transition: 'background 0.25s ease, box-shadow 0.25s ease, backdrop-filter 0.25s ease',
-        background: scrolled ? 'rgba(10,29,55,0.88)' : 'transparent',
-        backdropFilter: scrolled ? 'blur(14px)' : 'none',
-        WebkitBackdropFilter: scrolled ? 'blur(14px)' : 'none',
+        transition: 'box-shadow 0.25s ease',
+        background: 'transparent',
         boxShadow: scrolled ? '0 1px 0 rgba(255,255,255,0.06)' : 'none',
+        overflow: 'hidden',
       }}
     >
-      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '68px' }}>
+      {/* DarkVeil Background - ALWAYS VISIBLE */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '100vh',
+        zIndex: -1,
+        pointerEvents: 'none',
+        background: '#0a1d37',
+      }}>
+        <DarkVeil
+          speed={2.0}
+          noiseIntensity={0.05}
+          scanlineIntensity={0.3}
+          scanlineFrequency={800}
+          hueShift={10}
+          warpAmount={0.3}
+          resolutionScale={1}
+        />
+      </div>
+
+      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '84px', position: 'relative' }}>
         {/* Logo */}
         <a href="#" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
           <div style={{
@@ -54,11 +80,38 @@ export default function Navbar() {
         </a>
 
         {/* Desktop nav */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '6px' }} aria-label="Main navigation">
-          {navLinks.map(link => (
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '6px', position: 'relative' }} aria-label="Main navigation" onMouseLeave={() => setHoveredIndex(null)}>
+          
+          {hoveredIndex !== null && navRefs.current[hoveredIndex] && (
+            <motion.div
+              layoutId="nav-focus"
+              className="absolute pointer-events-none"
+              initial={false}
+              animate={{
+                left: navRefs.current[hoveredIndex]?.offsetLeft || 0,
+                top: navRefs.current[hoveredIndex]?.offsetTop || 0,
+                width: navRefs.current[hoveredIndex]?.offsetWidth || 0,
+                height: navRefs.current[hoveredIndex]?.offsetHeight || 0,
+                opacity: 1
+              }}
+              transition={{ duration: 0.1 }}
+              style={{
+                '--border-color': '#0df103',
+                '--glow-color': 'rgba(13, 241, 3, 0.4)'
+              } as React.CSSProperties}
+            >
+              <span className="absolute w-2 h-2 border-[2px] rounded-[2px] -top-1 -left-1 border-r-0 border-b-0" style={{ borderColor: 'var(--border-color)', filter: 'drop-shadow(0 0 4px var(--border-color))' }}></span>
+              <span className="absolute w-2 h-2 border-[2px] rounded-[2px] -top-1 -right-1 border-l-0 border-b-0" style={{ borderColor: 'var(--border-color)', filter: 'drop-shadow(0 0 4px var(--border-color))' }}></span>
+              <span className="absolute w-2 h-2 border-[2px] rounded-[2px] -bottom-1 -left-1 border-r-0 border-t-0" style={{ borderColor: 'var(--border-color)', filter: 'drop-shadow(0 0 4px var(--border-color))' }}></span>
+              <span className="absolute w-2 h-2 border-[2px] rounded-[2px] -bottom-1 -right-1 border-l-0 border-t-0" style={{ borderColor: 'var(--border-color)', filter: 'drop-shadow(0 0 4px var(--border-color))' }}></span>
+            </motion.div>
+          )}
+
+          {navLinks.map((link, i) => (
             <a
               key={link.href}
               href={link.href}
+              ref={el => { navRefs.current[i] = el; }}
               onClick={(e) => {
                 if (link.href.startsWith('#')) {
                   e.preventDefault();
@@ -69,22 +122,13 @@ export default function Navbar() {
                 fontFamily: 'var(--font-body)',
                 fontWeight: 500,
                 fontSize: '0.9375rem',
-                color: 'rgba(255,255,255,0.72)',
+                color: hoveredIndex === i ? '#ffffff' : 'rgba(255,255,255,0.72)',
                 textDecoration: 'none',
                 padding: '7px 14px',
                 borderRadius: '8px',
-                transition: 'color 0.15s, background 0.15s',
+                transition: 'color 0.15s',
               }}
-              onMouseEnter={e => {
-                (e.target as HTMLAnchorElement).style.color = '#0df103';
-                (e.target as HTMLAnchorElement).style.background = 'rgba(13, 241, 3, 0.08)';
-                (e.target as HTMLAnchorElement).style.boxShadow = '0 0 12px rgba(13, 241, 3, 0.15)';
-              }}
-              onMouseLeave={e => {
-                (e.target as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.72)';
-                (e.target as HTMLAnchorElement).style.background = 'transparent';
-                (e.target as HTMLAnchorElement).style.boxShadow = 'none';
-              }}
+              onMouseEnter={() => setHoveredIndex(i)}
             >
               {link.label}
             </a>
@@ -101,28 +145,17 @@ export default function Navbar() {
               alignItems: 'center',
               gap: '6px',
               fontFamily: 'var(--font-body)',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              color: '#fff',
+              fontWeight: 500,
+              fontSize: '0.9375rem',
+              color: adminHovered ? '#ffffff' : 'rgba(255,255,255,0.72)',
+              background: adminHovered ? '#2563EB' : 'transparent',
               textDecoration: 'none',
-              padding: '8px 16px',
+              padding: '7px 14px',
               borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.2)',
-              background: 'rgba(255,255,255,0.06)',
-              transition: 'background 0.15s, border-color 0.15s',
+              transition: 'color 0.15s, background 0.15s',
             }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(13, 241, 3, 0.12)';
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(13, 241, 3, 0.35)';
-              (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 0 12px rgba(13, 241, 3, 0.2)';
-              (e.currentTarget as HTMLAnchorElement).style.color = '#0df103';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.06)';
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.2)';
-              (e.currentTarget as HTMLAnchorElement).style.boxShadow = 'none';
-              (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
-            }}
+            onMouseEnter={() => setAdminHovered(true)}
+            onMouseLeave={() => setAdminHovered(false)}
           >
             Admin Portal
             <ExternalLink size={13} strokeWidth={2.2}/>

@@ -10,10 +10,12 @@ export default function App() {
       <Navbar />
       <main>
         <Hero />
-        <Features />
-        <Team />
+        <div style={{ background: 'linear-gradient(to bottom, #0a1d37 0%, #030811 100%)' }}>
+          <Features />
+          <Team />
+          <Footer />
+        </div>
       </main>
-      <Footer />
     </>
   )
 }
