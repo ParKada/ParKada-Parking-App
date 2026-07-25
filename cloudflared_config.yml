@@ -1,0 +1,7 @@
+tunnel: a2efb928-354b-464d-85c0-9d5464a8a2cb
+credentials-file: C:\Users\iamga\.cloudflared\a2efb928-354b-464d-85c0-9d5464a8a2cb.json
+
+ingress:
+  - hostname: camera.parkada.site
+    service: http://localhost:5000
+  - service: http_status:404
