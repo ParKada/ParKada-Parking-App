@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # The Admin Web Panel (Vite + NGINX)
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    ports:
+      - "3000:80"
+    restart: always
+    container_name: parkada-admin
+
+  # The Landing Page (Vite + NGINX)
+  landing:
+    build:
+      context: .
+      dockerfile: Dockerfile.landing
+    ports:
+      - "3001:80"
+    restart: always
+    container_name: parkada-landing
+
+  # The Python AI Camera Tracker
+  ai-camera:
+    build:
+      context: .
+      dockerfile: Dockerfile.ai
+    ports:
+      - "5000:5000"
+    restart: always
+    container_name: parkada-camera
