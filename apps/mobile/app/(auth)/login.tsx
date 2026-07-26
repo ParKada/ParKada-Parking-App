@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react-native";
 import { supabase } from "../../lib/supabase";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+
+// Required for Expo Web Browser redirects to complete
+WebBrowser.maybeCompleteAuthSession();
 
 const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
 
@@ -15,6 +20,47 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Magic Link / Deep Link Listener
+  useEffect(() => {
+    const handleUrl = async (url: string | null) => {
+      if (url && url.includes("#access_token")) {
+        try {
+          const { data, error } = await supabase.auth.getSessionFromUrl(url);
+          if (error) throw error;
+          if (data?.session) {
+            verifyNotAdmin(data.session.user.id);
+          }
+        } catch (e: any) {
+          Alert.alert("Magic Link Error", e.message);
+        }
+      }
+    };
+
+    // Check initial URL
+    Linking.getInitialURL().then(handleUrl);
+
+    // Listen for incoming links while app is open
+    const sub = Linking.addEventListener("url", (event) => {
+      handleUrl(event.url);
+    });
+
+    return () => sub.remove();
+  }, []);
+
+  const verifyNotAdmin = async (userId: string) => {
+    const { data: adminData } = await supabase
+      .from("admin_profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (adminData) {
+      await supabase.auth.signOut();
+      throw new Error("Access Denied: Admin accounts cannot use the Driver App. Please log in via the Admin Portal.");
+    }
+    Alert.alert("Success", "Login successful! Welcome back.");
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -31,26 +77,67 @@ export default function LoginPage() {
 
       if (authError) throw authError;
 
-      const userId = authData.user?.id;
-
-      if (userId) {
-        // Fetch profile to verify role
-        const { data: adminData } = await supabase
-          .from("admin_profiles")
-          .select("id")
-          .eq("id", authData.user.id)
-          .maybeSingle();
-
-        if (adminData) {
-          await supabase.auth.signOut();
-          throw new Error("Access Denied: Admin accounts cannot use the Driver App. Please log in via the Admin Portal.");
-        }
-
-        Alert.alert("Success", "Login successful! Welcome back.");
+      if (authData.user?.id) {
+        await verifyNotAdmin(authData.user.id);
       }
     } catch (error: any) {
       console.error("LOGIN ERROR:", error);
       Alert.alert("Login Failed", error.message || "Invalid login credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMagicLink = async () => {
+    if (!email) {
+      Alert.alert("Error", "Please enter your email address first.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const redirectUrl = Linking.createURL('/');
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectUrl }
+      });
+      if (error) throw error;
+      Alert.alert("Check your inbox", "We sent a magic link to log you in instantly!");
+    } catch (error: any) {
+      console.error("OTP ERROR:", error);
+      Alert.alert("Failed", error.message || "Could not send magic link.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      const redirectUrl = Linking.createURL('/');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+        if (res.type === 'success' && res.url) {
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSessionFromUrl(res.url);
+          if (sessionError) throw sessionError;
+          
+          if (sessionData.session?.user) {
+            await verifyNotAdmin(sessionData.session.user.id);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error("GOOGLE LOGIN ERROR:", error);
+      Alert.alert("Google Login Failed", error.message || "An error occurred.");
     } finally {
       setLoading(false);
     }
@@ -153,14 +240,44 @@ export default function LoginPage() {
                 </View>
               </View>
 
+              <View>
+                <TouchableOpacity
+                  onPress={handleLogin}
+                  disabled={loading}
+                  className="w-full h-14 bg-[#0A1D37] rounded-xl flex-row justify-center items-center"
+                >
+                  {loading ? <ActivityIndicator color="white" className="mr-2" /> : null}
+                  <Text className="text-white text-base font-bold">
+                    {loading ? "Logging in..." : "Log In"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleMagicLink}
+                  disabled={loading}
+                  className="w-full h-14 border-2 border-blue-600 bg-blue-50/50 rounded-xl mt-3 flex-row justify-center items-center"
+                >
+                  <Text className="text-blue-600 text-base font-bold">
+                    Email me a Magic Link (OTP)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-row items-center mt-2">
+                <View className="flex-1 h-[1px] bg-slate-200" />
+                <Text className="text-slate-400 mx-4 font-medium text-xs uppercase tracking-widest">OR</Text>
+                <View className="flex-1 h-[1px] bg-slate-200" />
+              </View>
+
               <TouchableOpacity
-                onPress={handleLogin}
+                onPress={handleGoogleLogin}
                 disabled={loading}
-                className="w-full h-14 bg-[#0A1D37] rounded-xl mt-4 flex-row justify-center items-center"
+                className="w-full h-14 border border-slate-300 rounded-xl flex-row justify-center items-center bg-white shadow-sm"
               >
-                {loading ? <ActivityIndicator color="white" className="mr-2" /> : null}
-                <Text className="text-white text-base font-bold">
-                  {loading ? "Logging in..." : "Log In"}
+                {loading ? <ActivityIndicator color="#000" className="mr-2" /> : null}
+                <Image source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" }} className="w-5 h-5 mr-3" />
+                <Text className="text-slate-700 text-base font-bold">
+                  Continue with Google
                 </Text>
               </TouchableOpacity>
 
