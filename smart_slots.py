@@ -8,6 +8,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 
 #IMPORTS FOR WEB STREAMING
+# pyrefly: ignore [missing-import]
 from flask import Flask, Response
 from flask_cors import CORS
 
@@ -87,7 +88,7 @@ def sync_db_loop():
                             slot_labels.append(label)
                             all_slots.append(np.array(coords, np.int32))
                             # Add the db_status to our tracker
-                            slot_data.append({"status": "FREE", "time_in": 0, "db_status": current_db_status})
+                            slot_data.append({"status": "FREE", "time_in": 0, "db_status": current_db_status, "pending_state": None, "pending_start": 0})
                         else:
                             # 🔥 CRITICAL FIX: If the slot is already loaded, continuously update its db_status!
                             # This way, if someone reserves a slot on the web UI, Python instantly knows about it.
@@ -255,7 +256,7 @@ def handle_mouse(event, x, y, flags, param):
                         }).eq('id', target_id).execute()
                         
                         all_slots.append(new_slot_array)
-                        slot_data.append({"status": "FREE", "time_in": 0})
+                        slot_data.append({"status": "FREE", "time_in": 0, "pending_state": None, "pending_start": 0})
                         slot_ids.append(target_id)
                         slot_labels.append(target_label) # Lock the label
                         print(f"Mapped drawn slot to existing UI element: {target_label}")
@@ -267,7 +268,7 @@ def handle_mouse(event, x, y, flags, param):
                     
                     if new_db_id:
                         all_slots.append(new_slot_array)
-                        slot_data.append({"status": "FREE", "time_in": 0})
+                        slot_data.append({"status": "FREE", "time_in": 0, "pending_state": None, "pending_start": 0})
                         slot_ids.append(new_db_id)
                         slot_labels.append(new_label) # Lock the label
                         print(f"Created brand new slot: {new_label}")
@@ -349,39 +350,58 @@ while True:
 
             if is_occupied:
                 if slot_data[i]["status"] == "FREE":
-                    slot_data[i]["status"] = "FULL"
-                    slot_data[i]["time_in"] = time.time()
-                    
-                    # 🔥 SMART SYNC: 
-                    # If it's NOT reserved, update both columns to "occupied" (Turns it Red)
-                    # If it IS reserved, only update physical status to "occupied" (Keeps it Amber)
-                    if slot_data[i].get("db_status") != "reserved":
-                        update_supabase_bg(slot_ids[i], "occupied", "occupied")
-                    else:
-                        update_supabase_bg(slot_ids[i], "occupied", None)
+                    if slot_data[i].get("pending_state") != "FULL":
+                        slot_data[i]["pending_state"] = "FULL"
+                        slot_data[i]["pending_start"] = time.time()
+                    elif time.time() - slot_data[i]["pending_start"] >= 7.0:
+                        slot_data[i]["status"] = "FULL"
+                        slot_data[i]["time_in"] = time.time()
+                        slot_data[i]["pending_state"] = None
+                        
+                        if slot_data[i].get("db_status") != "reserved":
+                            update_supabase_bg(slot_ids[i], "occupied", "occupied")
+                        else:
+                            update_supabase_bg(slot_ids[i], "occupied", None)
+                else:
+                    slot_data[i]["pending_state"] = None
 
                 elapsed = int(time.time() - slot_data[i]["time_in"])
                 mins, secs = divmod(elapsed, 60)
-
-                color = (0, 0, 255)  # Red
-                text = f"{slot_label}: FULL ({mins}m {secs}s)"
-                full_count += 1
+                
+                if slot_data[i]["status"] == "FREE" and slot_data[i].get("pending_state") == "FULL":
+                    color = (0, 255, 255)  # Yellow for detecting
+                    pending_secs = int(7 - (time.time() - slot_data[i]["pending_start"]))
+                    text = f"{slot_label}: DETECTING ({pending_secs}s)"
+                else:
+                    color = (0, 0, 255)  # Red
+                    text = f"{slot_label}: FULL ({mins}m {secs}s)"
+                    full_count += 1
 
             else:
                 if slot_data[i]["status"] == "FULL":
-                    slot_data[i]["status"] = "FREE"
-                    slot_data[i]["time_in"] = 0
-                    
-                    # 🔥 SMART SYNC:
-                    # When a car leaves, if it wasn't reserved, make it "available" again
-                    if slot_data[i].get("db_status") != "reserved":
-                        update_supabase_bg(slot_ids[i], "empty", "available")
-                    else:
-                        update_supabase_bg(slot_ids[i], "empty", None)
+                    if slot_data[i].get("pending_state") != "FREE":
+                        slot_data[i]["pending_state"] = "FREE"
+                        slot_data[i]["pending_start"] = time.time()
+                    elif time.time() - slot_data[i]["pending_start"] >= 7.0:
+                        slot_data[i]["status"] = "FREE"
+                        slot_data[i]["time_in"] = 0
+                        slot_data[i]["pending_state"] = None
+                        
+                        if slot_data[i].get("db_status") != "reserved":
+                            update_supabase_bg(slot_ids[i], "empty", "available")
+                        else:
+                            update_supabase_bg(slot_ids[i], "empty", None)
+                else:
+                    slot_data[i]["pending_state"] = None
 
-                color = (0, 255, 0)  # Green
-                text = f"{slot_label}: FREE"
-                free_count += 1
+                if slot_data[i]["status"] == "FULL" and slot_data[i].get("pending_state") == "FREE":
+                    color = (0, 165, 255)  # Orange for clearing
+                    pending_secs = int(7 - (time.time() - slot_data[i]["pending_start"]))
+                    text = f"{slot_label}: CLEARING ({pending_secs}s)"
+                else:
+                    color = (0, 255, 0)  # Green
+                    text = f"{slot_label}: FREE"
+                    free_count += 1
 
             cv2.polylines(display_frame, [slot], True, color, 3)
             cv2.putText(display_frame, text, (slot[0][0], slot[0][1] - 15),

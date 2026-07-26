@@ -27,6 +27,22 @@ serve(async (req) => {
       });
     }
 
+    // TC-12: Enforce Maximum 3 Active Reservations per User
+    const { count: activeCount, error: countError } = await supabaseAdmin
+      .from("reservations")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user_id)
+      .in("status", ["active", "confirmed", "reserved"]);
+
+    if (countError) throw countError;
+
+    if (activeCount !== null && activeCount >= 3) {
+      return new Response(JSON.stringify({ error: "Reservation failed. You have reached the maximum limit of 3 active bookings." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Check for overlapping active reservations
     const { data: conflicts, error: checkError } = await supabaseAdmin
       .from("reservations")
