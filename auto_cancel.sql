@@ -1,35 +1,43 @@
--- TC-13: Auto-Cancellation with 5-Minute Grace Period
+-- TC-13 & TC-21: Auto-Cancellation with Dynamic Grace Period
 -- This function will find any 'reserved' bookings that have exceeded 
--- their end_time by 5 minutes without the user showing up.
-
--- 0. Enable the pg_cron extension (Required for the scheduler to work)
-CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- their end_time by the dynamically configured grace_period_minutes.
 
 CREATE OR REPLACE FUNCTION auto_cancel_expired_reservations()
-RETURNS void AS $$
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_grace_period integer;
 BEGIN
-  -- 1. Free up the parking slots
-  UPDATE parking_slots
-  SET status = 'available'
-  WHERE id IN (
-    SELECT slot_id 
-    FROM reservations
-    WHERE status = 'reserved' 
-    AND (end_time + interval '5 minutes') < NOW()
-  );
+  -- Get the current dynamic grace period from system settings (default to 10 if missing)
+  SELECT grace_period_minutes INTO v_grace_period 
+  FROM system_settings 
+  WHERE id = 1;
+  
+  IF v_grace_period IS NULL THEN
+    v_grace_period := 10;
+  END IF;
 
-  -- 2. Mark reservations as cancelled
+  -- 1. Mark expired reservations as cancelled
   UPDATE reservations
-  SET status = 'cancelled'
+  SET 
+    status = 'cancelled',
+    updated_at = NOW()
   WHERE status = 'reserved' 
-  AND (end_time + interval '5 minutes') < NOW();
-END;
-$$ LANGUAGE plpgsql;
+    -- If the end time + grace period is in the past, cancel it!
+    AND (end_time + (v_grace_period * interval '1 minute')) < NOW();
 
--- Schedule the job to run every minute via pg_cron
--- IMPORTANT: Make sure the pg_cron extension is enabled in your database!
-SELECT cron.schedule(
-  'auto-cancel-reservations',
-  '* * * * *',
-  $$ SELECT auto_cancel_expired_reservations(); $$
-);
+  -- 2. Free up the parking slots that were tied to these cancelled reservations
+  -- (We do this by resetting any slot that has NO active or reserved bookings left)
+  UPDATE parking_slots ps
+  SET status = 'available',
+      updated_at = NOW()
+  WHERE status IN ('occupied', 'reserved')
+    AND NOT EXISTS (
+      SELECT 1 FROM reservations r 
+      WHERE r.slot_id = ps.id 
+      AND r.status IN ('active', 'reserved')
+    );
+END;
+$$;

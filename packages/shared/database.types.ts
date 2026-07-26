@@ -466,6 +466,29 @@ export interface Database {
           updated_at?: string
         }
       }
+      system_settings: {
+        Row: {
+          id: number
+          maintenance_mode: boolean
+          grace_period_minutes: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          maintenance_mode?: boolean
+          grace_period_minutes?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          maintenance_mode?: boolean
+          grace_period_minutes?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }

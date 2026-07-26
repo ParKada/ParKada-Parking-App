@@ -27,6 +27,20 @@ serve(async (req) => {
       });
     }
 
+    // TC-18: Check Maintenance Mode
+    const { data: settings } = await supabaseAdmin
+      .from("system_settings")
+      .select("maintenance_mode")
+      .eq("id", 1)
+      .single();
+
+    if (settings?.maintenance_mode) {
+      return new Response(JSON.stringify({ error: "System is currently under maintenance. New reservations are temporarily disabled." }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // TC-12: Enforce Maximum 3 Active Reservations per User
     const { count: activeCount, error: countError } = await supabaseAdmin
       .from("reservations")

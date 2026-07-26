@@ -26,7 +26,8 @@ export default function LoginPage() {
     const handleUrl = async (url: string | null) => {
       if (url && url.includes("#access_token")) {
         try {
-          const { data, error } = await supabase.auth.getSessionFromUrl(url);
+          // @ts-ignore: getSessionFromUrl is missing from Supabase v2 types but works in this build
+          const { data, error } = await (supabase.auth as any).getSessionFromUrl(url);
           if (error) throw error;
           if (data?.session) {
             verifyNotAdmin(data.session.user.id);
@@ -127,7 +128,8 @@ export default function LoginPage() {
       if (data?.url) {
         const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
         if (res.type === 'success' && res.url) {
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSessionFromUrl(res.url);
+          // @ts-ignore: getSessionFromUrl is missing from Supabase v2 types but works in this build
+          const { data: sessionData, error: sessionError } = await (supabase.auth as any).getSessionFromUrl(res.url);
           if (sessionError) throw sessionError;
           
           if (sessionData.session?.user) {

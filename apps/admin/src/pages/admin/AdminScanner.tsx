@@ -84,14 +84,14 @@ export default function AdminScanner() {
 
       let expectedWithNames: any[] = [];
       if (expectedRaw && expectedRaw.length > 0) {
-        const userIds = [...new Set(expectedRaw.map(r => r.profile_id).filter(Boolean))];
+        const userIds = Array.from(new Set(expectedRaw.map(r => r.profile_id).filter(Boolean))) as string[];
         let userMap = new Map();
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select("id, full_name")
+            .select("id, first_name, last_name")
             .in("id", userIds);
-          if (profiles) profiles.forEach(p => userMap.set(p.id, p.full_name));
+          if (profiles) profiles.forEach(p => userMap.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || "Guest"));
         }
         expectedWithNames = expectedRaw.map(r => ({
           ...r,
@@ -118,14 +118,14 @@ export default function AdminScanner() {
 
       let parkedWithNames: any[] = [];
       if (parkedRaw && parkedRaw.length > 0) {
-        const userIds = [...new Set(parkedRaw.map(r => r.profile_id).filter(Boolean))];
+        const userIds = Array.from(new Set(parkedRaw.map(r => r.profile_id).filter(Boolean))) as string[];
         let userMap = new Map();
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select("id, full_name")
+            .select("id, first_name, last_name")
             .in("id", userIds);
-          if (profiles) profiles.forEach(p => userMap.set(p.id, p.full_name));
+          if (profiles) profiles.forEach(p => userMap.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || "Guest"));
         }
         parkedWithNames = parkedRaw.map(r => ({
           ...r,
@@ -153,14 +153,14 @@ export default function AdminScanner() {
 
       let historyWithNames: any[] = [];
       if (historyRaw && historyRaw.length > 0) {
-        const userIds = [...new Set(historyRaw.map(r => r.profile_id).filter(Boolean))];
+        const userIds = Array.from(new Set(historyRaw.map(r => r.profile_id).filter(Boolean))) as string[];
         let userMap = new Map();
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select("id, full_name")
+            .select("id, first_name, last_name")
             .in("id", userIds);
-          if (profiles) profiles.forEach(p => userMap.set(p.id, p.full_name));
+          if (profiles) profiles.forEach(p => userMap.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || "Guest"));
         }
         historyWithNames = historyRaw.map(r => ({
           ...r,

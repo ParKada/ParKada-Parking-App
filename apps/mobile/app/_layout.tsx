@@ -13,6 +13,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -28,13 +30,15 @@ async function registerForPushNotificationsAsync() {
   }
 
   if (Device.isDevice) {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    const existingStatus = (await Notifications.getPermissionsAsync()) as any;
+    let isGranted = existingStatus.granted || existingStatus.status === 'granted';
+    
+    if (!isGranted && existingStatus.canAskAgain) {
+      const newStatus = (await Notifications.requestPermissionsAsync()) as any;
+      isGranted = newStatus.granted || newStatus.status === 'granted';
     }
-    if (finalStatus !== 'granted') {
+    
+    if (!isGranted) {
       console.log('Failed to get push token for push notification!');
       return;
     }

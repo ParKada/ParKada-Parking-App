@@ -3,7 +3,8 @@
  * Reservation‑only, no advance booking, no grace period.
  * Added: concurrent limits, overtime fee, maintenance mode, etc.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@parkada/shared";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,17 +48,35 @@ export default function AdminSettings() {
   const [merchantId, setMerchantId] = useState("LGU-IPARK-00192");
   const [showKey, setShowKey] = useState(false);
 
-  const handleComingSoon = () => {
-    toast.info("Coming Soon! This feature will be available in a future update.");
-  };
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data } = await supabase.from('system_settings').select('*').eq('id', 1).single();
+      if (data) {
+        setMaintenanceMode(data.maintenance_mode);
+        setSlotCleanupMinutes(data.grace_period_minutes.toString());
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    setTimeout(() => {
+    try {
+      const { error } = await supabase.from('system_settings').upsert({
+        id: 1,
+        maintenance_mode: maintenanceMode,
+        grace_period_minutes: parseInt(slotCleanupMinutes) || 10,
+        updated_at: new Date().toISOString()
+      });
+      if (error) throw error;
+      toast.success("Global settings saved successfully!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to save settings");
+    } finally {
       setIsSaving(false);
-      handleComingSoon();
-    }, 500);
+    }
   };
 
   return (
@@ -202,7 +221,7 @@ export default function AdminSettings() {
         </form>
 
         <div className="text-center text-[10px] text-muted-foreground mt-4">
-          ⚡ Settings preview only – database integration coming soon.
+          ⚡ System Maintenance and Slot Cleanup settings are now live. Other inputs are in preview mode.
         </div>
       </div>
     </AdminLayout>
