@@ -94,6 +94,21 @@ serve(async (req) => {
       .update({ status: "reserved" })
       .eq("id", slot_id);
 
+    // TC-14: Trigger Push Notification (asynchronous)
+    const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push`;
+    fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+      },
+      body: JSON.stringify({
+        user_id: user_id,
+        title: "Reservation Confirmed!",
+        message: `Your slot has been successfully reserved for ${plate_number}.`,
+      }),
+    }).catch(console.error);
+
     return new Response(JSON.stringify({ success: true, reservation: newRes }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

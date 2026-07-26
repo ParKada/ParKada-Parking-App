@@ -17,6 +17,7 @@ export interface Database {
           email: string | null
           phone_number: string | null
           user_type: 'regular' | 'senior' | 'pwd' | 'driver'
+          expo_push_token: string | null
           created_at: string
           updated_at: string
         }
@@ -27,6 +28,7 @@ export interface Database {
           email?: string | null
           phone_number?: string | null
           user_type?: 'regular' | 'senior' | 'pwd' | 'driver'
+          expo_push_token?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -37,6 +39,7 @@ export interface Database {
           email?: string | null
           phone_number?: string | null
           user_type?: 'regular' | 'senior' | 'pwd' | 'driver'
+          expo_push_token?: string | null
           created_at?: string
           updated_at?: string
         }

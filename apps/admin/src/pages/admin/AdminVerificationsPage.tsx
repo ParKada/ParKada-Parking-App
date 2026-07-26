@@ -92,6 +92,15 @@ export default function AdminVerifications() {
       if (error) throw error;
       toast.success(`${userName} has been officially verified!`);
 
+      // TC-16: Send Push Notification asynchronously
+      supabase.functions.invoke('send-push', {
+        body: {
+          user_id: userId,
+          title: "Account Verified! 🚗",
+          message: "Congratulations! Your identity has been verified. You can now use all ParKada features.",
+        }
+      }).catch(console.error);
+
       // 3. Tanggalin ang row after 1.5 seconds para makita ng admin yung success effect
       setTimeout(() => {
         setPendingUsers((prev) => prev.filter((user) => user.id !== userId));
