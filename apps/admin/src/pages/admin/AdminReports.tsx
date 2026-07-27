@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   PieChart, Pie, Cell
 } from "recharts";
-import { Download, TrendingUp, TrendingDown, MapPin, Clock, Calendar, FileText } from "lucide-react";
+import { Download, TrendingUp, TrendingDown, MapPin, Clock, Calendar, FileText, Camera, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -26,6 +26,7 @@ export default function AdminReports() {
   const [composition, setComposition] = useState({ online: 0, walkin: 0 });
   const [dailyRevenue, setDailyRevenue] = useState<any[]>([]);
   const [topLots, setTopLots] = useState<any[]>([]);
+  const [ocrLogs, setOcrLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewOption, setViewOption] = useState<string>("all");
 
@@ -41,6 +42,7 @@ export default function AdminReports() {
   const weeklyRef = useRef<HTMLDivElement>(null);
   const hourlyRef = useRef<HTMLDivElement>(null);
   const lotRef = useRef<HTMLDivElement>(null);
+  const ocrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isSuperAdmin && viewOption === "toplots") {
@@ -84,6 +86,18 @@ export default function AdminReports() {
       }
       const { data: walkInData, error: walkError } = await walkInQuery;
       if (walkError) throw walkError;
+
+      let ocrQuery = supabase
+        .from('plate_validation_logs')
+        .select(`id, lot_id, camera_id, detected_plate, confidence_score, validation_status, created_at`)
+        .order('created_at', { ascending: false });
+      if (userRole === 'manager' && userLotId) {
+        ocrQuery = ocrQuery.eq('lot_id', userLotId);
+      }
+      const { data: ocrData, error: ocrError } = await ocrQuery;
+      if (!ocrError) {
+        setOcrLogs(ocrData || []);
+      }
 
       processStats(reservationsData || [], walkInData || []);
     } catch (error) {
@@ -259,11 +273,15 @@ export default function AdminReports() {
         content = lotRef.current ? lotRef.current.cloneNode(true) as HTMLElement : null;
         title = "Lot_Performance_Report";
         break;
+      case "ocr":
+        content = ocrRef.current ? ocrRef.current.cloneNode(true) as HTMLElement : null;
+        title = "OCR_Validation_Report";
+        break;
       case "all":
       default:
         content = buildWrapper([
           compositionRef, dailyRef, isSuperAdmin ? topLotsRef : null,
-          monthlyRef, weeklyRef, hourlyRef, lotRef
+          monthlyRef, weeklyRef, hourlyRef, lotRef, ocrRef
         ]);
         title = "All_Reports";
         break;
@@ -324,6 +342,52 @@ export default function AdminReports() {
     document.title = originalTitle;
   };
 
+  const handleExportCSV = () => {
+    let exportData: any[] = [];
+    let filename = "export.csv";
+
+    if (viewOption === "ocr") {
+      exportData = ocrLogs.map(log => ({
+        "Date": new Date(log.created_at).toLocaleString(),
+        "Detected Plate": log.detected_plate || "N/A",
+        "Confidence (%)": log.confidence_score || 0,
+        "Status": log.validation_status || "Pending",
+        "Camera": log.camera_id || "N/A"
+      }));
+      filename = "OCR_Validation_Report.csv";
+    } else {
+      exportData = lotStats.map(lot => ({
+        "Parking Lot": lot.name,
+        "Type": lot.type,
+        "Online Bookings": lot.onlineBookings,
+        "Walk-in Transactions": lot.walkinBookings,
+        "Total Revenue": lot.onlineRevenue + lot.walkinRevenue
+      }));
+      filename = "Occupancy_Revenue_Report.csv";
+    }
+
+    if (exportData.length === 0) {
+      toast.error("No data available to export.");
+      return;
+    }
+
+    const headers = Object.keys(exportData[0]).join(",");
+    const rows = exportData.map(row => 
+      Object.values(row).map(val => \`"\${String(val).replace(/"/g, '""')}"\`).join(",")
+    );
+    const csvContent = [headers, ...rows].join("\\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(\`\${filename} downloaded successfully!\`);
+  };
+
   const totalRevenue = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineRevenue + lot.walkinRevenue, 0);
   const totalBookings = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineBookings + lot.walkinBookings, 0);
   const walkInTotal = walkInStats.totalRevenue;
@@ -363,11 +427,17 @@ export default function AdminReports() {
               <option value="weekly">Weekly Occupancy</option>
               <option value="hourly">Hourly Pattern</option>
               <option value="lots">Lot Performance</option>
+              <option value="ocr">OCR Validation Report</option>
             </select>
           </div>
-          <Button onClick={handleExportPDF} className="rounded-xl gap-2">
-            <Download size={16} /> Export PDF
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleExportCSV} variant="outline" className="rounded-xl gap-2 text-slate-700">
+              <FileSpreadsheet size={16} /> Export CSV
+            </Button>
+            <Button onClick={handleExportPDF} className="rounded-xl gap-2 bg-[#0A1D37]">
+              <Download size={16} /> Export PDF
+            </Button>
+          </div>
         </div>
 
         {/* KPI Cards (always visible) */}
@@ -533,6 +603,62 @@ export default function AdminReports() {
                         <td className="py-4 text-center font-medium text-slate-600">{lot.walkinBookings}</td>
                         <td className="py-4 text-right font-black text-emerald-600">
                           ₱{(lot.onlineRevenue + lot.walkinRevenue).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* OCR Validation Logs Table */}
+        {showSection("ocr") && (
+          <div ref={ocrRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+            <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
+              <Camera size={20} className="text-primary" />
+              OCR Validation Logs (TC-28)
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-[10px] text-muted-foreground uppercase font-black tracking-widest border-b border-slate-100">
+                    <th className="text-left pb-4">Date/Time</th>
+                    <th className="text-left pb-4">Detected Plate</th>
+                    <th className="text-center pb-4">Confidence</th>
+                    <th className="text-center pb-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {ocrLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-muted-foreground font-medium">
+                        No OCR validation data available.
+                      </td>
+                    </tr>
+                  ) : (
+                    ocrLogs.map((log: any) => (
+                      <tr key={log.id} className="group hover:bg-slate-50 transition-colors">
+                        <td className="py-4 text-sm font-medium text-slate-700">
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                        <td className="py-4 font-bold text-slate-900">
+                          {log.detected_plate || "UNREADABLE"}
+                        </td>
+                        <td className="py-4 text-center">
+                          <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded-md">
+                            {log.confidence_score ? \`\${log.confidence_score}%\` : "N/A"}
+                          </span>
+                        </td>
+                        <td className="py-4 text-center">
+                          <span className={\`text-[10px] font-black px-2 py-1 rounded-md uppercase \${
+                            log.validation_status === 'matched' ? 'bg-emerald-100 text-emerald-700' :
+                            log.validation_status === 'mismatched' ? 'bg-rose-100 text-rose-700' :
+                            'bg-amber-100 text-amber-700'
+                          }\`}>
+                            {log.validation_status || "pending"}
+                          </span>
                         </td>
                       </tr>
                     ))
