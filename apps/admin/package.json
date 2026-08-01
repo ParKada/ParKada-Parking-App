@@ -105,10 +105,5 @@
     "vite-plugin-manus-runtime": "^0.0.57",
     "vitest": "^4.1.8"
   },
-  "packageManager": "pnpm@10.4.1",
-  "pnpm": {
-    "overrides": {
-      "tailwindcss>nanoid": "3.3.7"
-    }
-  }
+  "packageManager": "pnpm@10.4.1"
 }
