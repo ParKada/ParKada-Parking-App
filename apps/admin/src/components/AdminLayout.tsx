@@ -17,17 +17,17 @@ interface AdminLayoutProps {
 }
 
 const allNavItems = [
-  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["superadmin", "manager"] },
-  { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["superadmin"] },
+  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "manager"] },
+  { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["super_admin"] },
   { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager", "guard"] },
-  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["superadmin", "manager", "guard"] },
-  { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["superadmin"] }, 
-  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["superadmin"] }, 
+  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "manager", "guard"] },
+  { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["super_admin"] }, 
+  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin"] }, 
   { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "guard"] },
-  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["superadmin", "manager"] },
-  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["superadmin", "manager"] },
+  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "manager"] },
+  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "manager"] },
   { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager"] },
-  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["superadmin", "manager"] }, 
+  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "manager"] }, 
 ];
 
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
@@ -85,7 +85,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         }, 
         (payload) => {
           const newN = payload.new;
-          if (adminRole === "superadmin" || !newN.lot_id || newN.lot_id === adminLotId) {
+          if (adminRole === "super_admin" || !newN.lot_id || newN.lot_id === adminLotId) {
             setNotifications(prev => [newN, ...prev]);
             toast.info(`🔔 ${newN.title}`, { 
               description: newN.message,
