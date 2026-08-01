@@ -47,7 +47,7 @@ import AdminStaffManagement from "./pages/admin/AdminStaffManagement";
 import AdminTermsPage from "./pages/admin/AdminTermsPage";
 import SetPasswordPage from "./pages/admin/SetPasswordPage";
 import AuthCallback from "./pages/auth/authCallback";
-import AdminWalkInRecords from "./pages/admin/AdwinWalkInRecords";
+import AdminWalkInRecords from "./pages/admin/AdminWalkInRecords";
 
 
 function Router() {

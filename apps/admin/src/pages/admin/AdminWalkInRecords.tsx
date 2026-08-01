@@ -135,7 +135,7 @@ export default function AdminWalkInRecords() {
       }
 
       // 2. Get slot details for these records
-      const uniqueSlotIds = [...new Set(recordsData.map(r => r.slot_id))];
+      const uniqueSlotIds = Array.from(new Set(recordsData.map((r: any) => r.slot_id)));
       const { data: slotsData, error: slotsError } = await supabase
         .from("parking_slots")
         .select(`id, label, parking_lots ( name, rate_per_hour )`)

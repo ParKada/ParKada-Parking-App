@@ -373,9 +373,9 @@ export default function AdminReports() {
 
     const headers = Object.keys(exportData[0]).join(",");
     const rows = exportData.map(row => 
-      Object.values(row).map(val => \`"\${String(val).replace(/"/g, '""')}"\`).join(",")
+      Object.values(row).map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")
     );
-    const csvContent = [headers, ...rows].join("\\n");
+    const csvContent = [headers, ...rows].join("\n");
     
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -385,7 +385,7 @@ export default function AdminReports() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success(\`\${filename} downloaded successfully!\`);
+    toast.success(`${filename} downloaded successfully!`);
   };
 
   const totalRevenue = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineRevenue + lot.walkinRevenue, 0);
@@ -648,15 +648,15 @@ export default function AdminReports() {
                         </td>
                         <td className="py-4 text-center">
                           <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded-md">
-                            {log.confidence_score ? \`\${log.confidence_score}%\` : "N/A"}
+                            {log.confidence_score ? `${log.confidence_score}%` : "N/A"}
                           </span>
                         </td>
                         <td className="py-4 text-center">
-                          <span className={\`text-[10px] font-black px-2 py-1 rounded-md uppercase \${
+                          <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase ${
                             log.validation_status === 'matched' ? 'bg-emerald-100 text-emerald-700' :
                             log.validation_status === 'mismatched' ? 'bg-rose-100 text-rose-700' :
                             'bg-amber-100 text-amber-700'
-                          }\`}>
+                          }`}>
                             {log.validation_status || "pending"}
                           </span>
                         </td>

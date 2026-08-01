@@ -131,18 +131,18 @@ export default function ParkingLotPage() {
       }
 
       // 2. Kunin ang lahat ng natatanging profile_id para makuha ang pangalan
-      const userIds = [...new Set(reviewsData.map(r => r.profile_id).filter(Boolean))];
+      const userIds = Array.from(new Set(reviewsData.map((r: any) => r.profile_id).filter(Boolean)));
       let userMap = new Map();
 
       if (userIds.length > 0) {
-        // Subukan muna sa profiles table (kung may full_name)
+        // Subukan muna sa profiles table
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
-          .select("id, full_name")
-          .in("id", userIds);
+          .select("id, first_name, last_name")
+          .in("id", userIds as string[]);
 
         if (!profilesError && profilesData) {
-          userMap = new Map(profilesData.map(p => [p.id, p.full_name || "Anonymous"]));
+          userMap = new Map(profilesData.map(p => [p.id, `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Anonymous"]));
         } else {
           // Kung walang profiles table, subukan sa auth.users (email lang ang available)
           const { data: usersData, error: usersError } = await supabase

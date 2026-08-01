@@ -255,7 +255,7 @@ export default function DriverHome() {
         // Fetch vehicle models for the plates involved
         let vehicleMap = new Map<string, string>();
         if (resData && resData.length > 0) {
-          const plates = [...new Set(resData.map(r => r.plate_number).filter(Boolean))];
+          const plates = Array.from(new Set(resData.map((r: any) => r.plate_number).filter(Boolean)));
           if (plates.length > 0) {
             const { data: vehicles } = await supabase
               .from("vehicles")
