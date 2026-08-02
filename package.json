@@ -5,16 +5,13 @@
   "overrides": {
     "react-native": "0.81.5",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "tailwindcss>nanoid": "3.3.7"
   },
   "resolutions": {
     "react-native": "0.81.5",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "tailwindcss>nanoid": "3.3.7"
-    }
+    "react-dom": "19.1.0",
+    "tailwindcss>nanoid": "3.3.7"
   }
 }
