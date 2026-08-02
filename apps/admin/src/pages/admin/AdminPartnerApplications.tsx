@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@parkada/shared';
 import { toast } from 'sonner';
 import { FileText, Eye, CheckCircle, XCircle, AlertCircle, Clock, Building2, User as UserIcon, Calendar, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -61,7 +61,7 @@ export default function AdminPartnerApplications() {
     }
   };
 
-  const updateStatus = async (id: string, newStatus: string, extraData = {}) => {
+  const updateStatus = async (id: string, newStatus: string, extraData: Record<string, any> = {}) => {
     try {
       const { error } = await supabase
         .from('partner_applications')
