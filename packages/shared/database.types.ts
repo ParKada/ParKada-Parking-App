@@ -9,6 +9,133 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      partner_applications: {
+        Row: {
+          id: string
+          user_id: string
+          status: string
+          rep_first_name: string | null
+          rep_last_name: string | null
+          rep_contact_number: string | null
+          rep_email: string | null
+          establishment_name: string | null
+          establishment_address: string | null
+          establishment_city: string | null
+          establishment_zip: string | null
+          total_capacity: number | null
+          operating_hours: string | null
+          business_registration_number: string | null
+          tin: string | null
+          business_type: string | null
+          year_established: number | null
+          documents: Json | null
+          terms_accepted: boolean | null
+          terms_accepted_at: string | null
+          terms_version: string | null
+          reviewed_by: string | null
+          review_notes: string | null
+          rejection_reason: string | null
+          parkada_email: string | null
+          linked_lot_id: string | null
+          activated_at: string | null
+          submitted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          status?: string
+          rep_first_name?: string | null
+          rep_last_name?: string | null
+          rep_contact_number?: string | null
+          rep_email?: string | null
+          establishment_name?: string | null
+          establishment_address?: string | null
+          establishment_city?: string | null
+          establishment_zip?: string | null
+          total_capacity?: number | null
+          operating_hours?: string | null
+          business_registration_number?: string | null
+          tin?: string | null
+          business_type?: string | null
+          year_established?: number | null
+          documents?: Json | null
+          terms_accepted?: boolean | null
+          terms_accepted_at?: string | null
+          terms_version?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          rejection_reason?: string | null
+          parkada_email?: string | null
+          linked_lot_id?: string | null
+          activated_at?: string | null
+          submitted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          status?: string
+          rep_first_name?: string | null
+          rep_last_name?: string | null
+          rep_contact_number?: string | null
+          rep_email?: string | null
+          establishment_name?: string | null
+          establishment_address?: string | null
+          establishment_city?: string | null
+          establishment_zip?: string | null
+          total_capacity?: number | null
+          operating_hours?: string | null
+          business_registration_number?: string | null
+          tin?: string | null
+          business_type?: string | null
+          year_established?: number | null
+          documents?: Json | null
+          terms_accepted?: boolean | null
+          terms_accepted_at?: string | null
+          terms_version?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          rejection_reason?: string | null
+          parkada_email?: string | null
+          linked_lot_id?: string | null
+          activated_at?: string | null
+          submitted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      partner_application_audit_log: {
+        Row: {
+          id: string
+          application_id: string
+          changed_by_role: string | null
+          previous_status: string | null
+          new_status: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          application_id: string
+          changed_by_role?: string | null
+          previous_status?: string | null
+          new_status?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          application_id?: string
+          changed_by_role?: string | null
+          previous_status?: string | null
+          new_status?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+      }
       profiles: {
         Row: {
           id: string

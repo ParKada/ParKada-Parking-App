@@ -40,6 +40,7 @@ import AdminParkingSlots from "./pages/admin/AdminParkingSlots";
 import AdminReservations from "./pages/admin/AdminReservations";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminPersonnel from "./pages/admin/AdminPersonnel";
+import AdminPartnerApplications from "./pages/admin/AdminPartnerApplications";
 import AdminScanner from "./pages/admin/AdminScanner";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminVerifications from "./pages/admin/AdminVerificationsPage";
@@ -84,6 +85,7 @@ function Router() {
       <Route path="/admin/reservations" component={AdminReservations} />
       <Route path="/admin/reports" component={AdminReports} />
       <Route path="/admin/personnel" component={AdminPersonnel} />
+      <Route path="/admin/applications" component={AdminPartnerApplications} />
       <Route path="/admin/scanner" component={AdminScanner} />
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/verifications" component={AdminVerifications} />

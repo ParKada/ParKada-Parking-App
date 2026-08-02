@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ParkingSquare, BookOpen, BarChart3, 
   Settings, LogOut, Bell, User, MapPin, 
   CheckCircle2, Users, QrCode, Clock,
-  ShieldCheck, DollarSign 
+  ShieldCheck, DollarSign, FileText 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ const allNavItems = [
   { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["super_admin"] },
   { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager", "guard"] },
   { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "manager", "guard"] },
+  { path: "/admin/applications", icon: FileText, label: "Partner Applications", allowedRoles: ["super_admin"] },
   { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["super_admin"] }, 
   { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin"] }, 
   { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "guard"] },

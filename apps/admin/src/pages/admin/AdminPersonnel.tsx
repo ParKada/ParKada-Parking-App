@@ -1,5 +1,5 @@
 /*
- * ParKada — AdminPersonnel (System Manager Creation via Edge Function Invite)
+ * ParKada — AdminPersonnel (System Admin Creation via Edge Function)
  * Excludes 'Invited' managers from the list and prevents duplicate invitations.
  */
 import { useState, useEffect } from "react";
@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { 
   ShieldCheck, 
-  Mail, 
-  MapPin, 
+  Mail,
+  Lock,
+  MapPin,
   Database, 
   Users, 
   Building2, 
@@ -25,6 +26,8 @@ export default function AdminPersonnel() {
   const [managers, setManagers] = useState<any[]>([]);
   
   const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminName, setAdminName] = useState("");
   const [adminLotId, setAdminLotId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,16 +66,17 @@ export default function AdminPersonnel() {
 
   const handleInviteManager = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminEmail || !adminLotId) {
-      return toast.error("Please fill in email and select a parking lot.");
+    if (!adminEmail || !adminLotId || !adminPassword || !adminName) {
+      return toast.error("Please fill in all fields (Name, Email, Password, Lot).");
     }
 
     setIsSubmitting(true);
     try {
-      // 🔥 Call the Edge Function – it will return a proper error if the user already exists
-      const { error } = await supabase.functions.invoke("invite-manager", {
+      const { error } = await supabase.functions.invoke("create-partner-admin", {
         body: { 
           email: adminEmail, 
+          password: adminPassword,
+          full_name: adminName,
           lot_id: adminLotId, 
           role: "manager" 
         }
@@ -80,8 +84,10 @@ export default function AdminPersonnel() {
 
       if (error) throw error;
 
-      toast.success(`Invitation sent to ${adminEmail}. They will receive an email to set their password.`);
+      toast.success(`Admin account created for ${adminEmail}.`);
       setAdminEmail("");
+      setAdminPassword("");
+      setAdminName("");
       setAdminLotId("");
       fetchManagers(); 
     } catch (error: any) {
@@ -126,10 +132,10 @@ export default function AdminPersonnel() {
           <div className="bg-white rounded-[24px] shadow-sm border border-border overflow-hidden">
             <div className="bg-sidebar p-8 text-white relative overflow-hidden">
               <div className="relative z-10 space-y-2">
-                <h2 className="text-3xl font-extrabold tracking-tight">Invite Manager</h2>
+                <h2 className="text-3xl font-extrabold tracking-tight">Invite New Admin</h2>
                 <div className="flex items-center gap-2">
                   <div className="h-[2px] w-8 bg-primary"></div>
-                  <p className="text-primary text-[11px] font-black uppercase tracking-[0.2em]">Send Invitation</p>
+                  <p className="text-primary text-[11px] font-black uppercase tracking-[0.2em]">Create Credentials</p>
                 </div>
               </div>
               <div className="absolute right-[-20px] bottom-[-20px] opacity-10 rotate-[-15deg]">
@@ -153,22 +159,46 @@ export default function AdminPersonnel() {
               </div>
 
               <div className="space-y-2">
+                <Label className="text-[11px] font-bold uppercase text-muted-foreground ml-1">Admin Name</Label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <Input 
+                    className="h-12 rounded-xl pl-10 focus:ring-2 focus:ring-primary"
+                    type="text" placeholder="Juan Dela Cruz" 
+                    value={adminName} onChange={(e) => setAdminName(e.target.value)} required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-[11px] font-bold uppercase text-muted-foreground ml-1">Email Address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                   <Input 
                     className="h-12 rounded-xl pl-10 focus:ring-2 focus:ring-primary"
-                    type="email" placeholder="manager@parkada.ph" 
+                    type="email" placeholder="admin@parkada.ph" 
                     value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[11px] font-bold uppercase text-muted-foreground ml-1">Temporary Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <Input 
+                    className="h-12 rounded-xl pl-10 focus:ring-2 focus:ring-primary"
+                    type="text" placeholder="Enter temporary password" 
+                    value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} required
                   />
                 </div>
               </div>
 
               <Button 
                 type="submit" disabled={isSubmitting} 
-                className="w-full h-12 font-bold uppercase tracking-widest rounded-xl transition-all active:scale-95 mt-4"
+                className="w-full h-12 font-bold uppercase tracking-widest rounded-xl transition-all active:scale-95 mt-4 text-white"
               >
-                {isSubmitting ? "Sending Invite..." : "Send Invitation"}
+                {isSubmitting ? "Creating Account..." : "Create Account"}
               </Button>
             </form>
           </div>

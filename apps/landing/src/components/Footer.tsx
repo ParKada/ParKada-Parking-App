@@ -104,6 +104,24 @@ export default function Footer() {
                 </a>
               ))}
               <a
+                href="https://portal.parkada.site"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.9375rem',
+                  color: 'rgba(37,99,235,0.8)',
+                  textDecoration: 'none',
+                  transition: 'color 0.15s',
+                  fontWeight: 600,
+                  marginTop: '4px'
+                }}
+                onMouseEnter={e => { (e.target as HTMLAnchorElement).style.color = 'var(--primary)' }}
+                onMouseLeave={e => { (e.target as HTMLAnchorElement).style.color = 'rgba(37,99,235,0.8)' }}
+              >
+                For Establishments →
+              </a>
+              <a
                 href="https://admin.parkada.site"
                 target="_blank"
                 rel="noopener noreferrer"
