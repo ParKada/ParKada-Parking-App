@@ -56,7 +56,7 @@ export default function SignupRegister() {
   const handleVerifyOtp = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
+      const { error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
         type: 'signup'
