@@ -1,13 +1,5 @@
-/*
- * iParkBayan — AdminParkingSlots
- * Complete Version: Bi-directional Sync, Pending/Unmapped Slots (Gray State), and Full UI
- * Fixed: Natural sorting of slot labels (A1, A2, ..., A10, B1, B2)
- * Removed redundant stats row.
- * Updated: Only accredited parking lots are shown in the dropdown, sorted alphabetically.
- */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
-import ParkingSlotGrid from "@/components/parking/ParkingSlotGrid";
 import DraggableMapEditor from "@/components/parking/DraggableMapEditor";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -157,7 +149,7 @@ export default function AdminParkingSlots() {
     }
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('parking_slots')
         .insert([
           { 
@@ -181,13 +173,17 @@ export default function AdminParkingSlots() {
         return;
       }
 
+      if (data && data.length > 0) {
+        setSlots([...slots, data[0]]);
+      }
+
       toast.success(`Slot ${newSlotLabel} added! Draw it on the camera feed to link it.`);
       setNewSlotLabel("");
       setNewSlotIsPwd(false);
       setIsAdding(false);
     } catch (error: any) {
-      console.error("Supabase Error adding slot:", error.message);
-      toast.error("Failed to add new slot.");
+      console.error("Supabase Error adding slot:", error.message || error);
+      toast.error(`Error: ${error.message || "Failed to add new slot"}`);
     }
   };
 
@@ -229,8 +225,8 @@ export default function AdminParkingSlots() {
       toast.success(`Slot ${slotLabel} deleted.`);
       setSlots(slots.filter(s => s.id !== slotId));
     } catch (error: any) {
-      console.error("Supabase Error:", error.message);
-      toast.error("Failed to delete slot.");
+      console.error("Supabase Error:", error.message || error);
+      toast.error(`Error deleting slot: ${error.message || "Failed"}`);
     }
   };
 
@@ -258,9 +254,9 @@ export default function AdminParkingSlots() {
       setLots(lots.map(l => l.id === activeLot.id ? { ...l, floors: updatedFloors } : l));
       setSelectedFloorIndex(0);
       toast.success("Floor deleted successfully.");
-    } catch (e: any) {
-      console.error("Failed to delete floor", e.message);
-      toast.error("Failed to delete floor.");
+    } catch (error: any) {
+      console.error("Failed to delete floor", error.message || error);
+      toast.error(`Error deleting floor: ${error.message || "Failed"}`);
     }
   };
 
