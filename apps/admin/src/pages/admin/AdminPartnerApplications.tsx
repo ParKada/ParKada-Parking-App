@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import AdminLayout from "@/components/AdminLayout";
 
 export default function AdminPartnerApplications() {
   const [applications, setApplications] = useState<any[]>([]);
@@ -136,9 +137,10 @@ export default function AdminPartnerApplications() {
   };
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
+    <AdminLayout title="Partner Applications">
+      <div className="p-8 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Partner Applications</h1>
           <p className="text-muted-foreground mt-1">Review and manage parking establishment applications</p>
         </div>
@@ -406,7 +408,7 @@ export default function AdminPartnerApplications() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-    </div>
+      </div>
+    </AdminLayout>
   );
 }

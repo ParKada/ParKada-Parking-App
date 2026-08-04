@@ -102,7 +102,7 @@ The AI node processes the camera feed for vehicle occupancy.
    ```
 3. **Install Python dependencies:**
    ```bash
-   pip install opencv-python-headless numpy ultralytics supabase python-dotenv flask flask-cors
+   python -m pip install opencv-python-headless numpy ultralytics supabase python-dotenv flask flask-cors
    ```
 4. **Run the AI Node:**
    Ensure your AI `.env` file is set up, then run:
