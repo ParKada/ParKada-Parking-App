@@ -149,7 +149,7 @@ export default function AdminParkingSlots() {
 
   const handleAddSlot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userRole === 'guard') return; 
+    if (userRole !== 'superadmin' && userRole !== 'super_admin') return;  
 
     if (!newSlotLabel.trim()) {
       toast.error("Please enter a slot label.");
@@ -245,7 +245,7 @@ export default function AdminParkingSlots() {
   };
 
   const handleUpdateSlotCoordinates = async (slotId: string, updates: Partial<any>) => {
-    if (userRole === 'guard') return;
+    if (userRole !== 'superadmin' && userRole !== 'super_admin') return;
     try {
       const { error } = await supabase.from('parking_slots').update(updates).eq('id', slotId);
       if (error) throw error;
@@ -394,7 +394,7 @@ export default function AdminParkingSlots() {
                 {refreshing ? "Syncing..." : "Refresh"}
               </Button>
 
-              {userRole !== 'guard' && (
+              {(userRole === 'superadmin' || userRole === 'super_admin') && (
                 <Button 
                   size="sm" 
                   className="rounded-xl text-sm font-bold"
@@ -424,7 +424,7 @@ export default function AdminParkingSlots() {
                 </Button>
              ))}
              
-             {userRole === 'superadmin' && (
+             {(userRole === 'superadmin' || userRole === 'super_admin') && (
                <div className="ml-auto flex items-center gap-2">
                  {isAddingFloor ? (
                    <div className="flex items-center gap-2">
@@ -447,7 +447,7 @@ export default function AdminParkingSlots() {
              )}
           </div>
 
-          {isAdding && userRole !== 'guard' && (
+          {isAdding && (userRole === 'superadmin' || userRole === 'super_admin') && (
             <div className="mb-6 p-4 bg-muted/30 border border-border rounded-xl">
               <form onSubmit={handleAddSlot} className="flex flex-wrap items-end gap-4">
                 <div className="space-y-1">
@@ -483,7 +483,7 @@ export default function AdminParkingSlots() {
             <div className={userRole !== 'guard' ? "mb-8" : ""}>
               <DraggableMapEditor 
                 slots={slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)} 
-                interactive={userRole !== 'guard'}
+                interactive={userRole === 'superadmin' || userRole === 'super_admin'}
                 onUpdateSlot={handleUpdateSlotCoordinates}
               />
             </div>
