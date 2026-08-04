@@ -63,7 +63,8 @@ def sync_db_loop():
     global pending_slots, all_slots, slot_data, slot_ids, slot_labels
     while True:
         try:
-            res = supabase.table('parking_slots').select('*').eq('lot_id', TARGET_LOT_ID).execute()
+            # Sort by created_at ascending to map oldest slots first
+            res = supabase.table('parking_slots').select('*').eq('lot_id', TARGET_LOT_ID).order('created_at', desc=False).execute()
             db_slots = res.data
 
             mapped_db_ids = []

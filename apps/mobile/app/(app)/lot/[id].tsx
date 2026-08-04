@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { MapPin, Clock, Car, ChevronRight, Info, Ban, Star, X, ChevronLeft } from "lucide-react-native";
+import { MapPin, Clock, Car, ChevronRight, Info, Ban, Star, X, ChevronLeft, Layers } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
-import ParkingSlotGrid from "../../../components/parking/ParkingSlotGrid";
+import MapViewer from "../../../components/parking/MapViewer";
 
 const renderStaticStars = (rating: number) => {
   const fullStars = Math.floor(rating);
@@ -24,9 +24,10 @@ export default function ParkingLotPage() {
   const router = useRouter();
 
   const [lot, setLot] = useState<any>(null);
-  const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
 
   const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -213,15 +214,38 @@ export default function ParkingLotPage() {
               {!isSuspended && (
                 <View className="flex-row items-center gap-1">
                   <Info size={12} color="#94a3b8" />
-                  <Text className="text-[10px] font-bold text-slate-500">Tap green slot to select</Text>
+                  <Text className="text-slate-500">Rate</Text>
+                  <Text className="font-bold text-slate-800">₱{lot?.rate_per_hour}/hr</Text>
                 </View>
               )}
             </View>
-            <ParkingSlotGrid
-              slots={slots}
-              selectedSlot={selectedSlot?.id}
-              onSelectSlot={setSelectedSlot}
-              interactive={!isSuspended && lot.type !== "public"}
+
+            {/* Floor Tabs */}
+            {lot?.floors && lot.floors.length > 1 && (
+              <View className="mb-2">
+                <View className="flex-row items-center mb-2">
+                  <Layers size={16} color="#64748b" />
+                  <Text className="text-slate-500 font-bold ml-1 text-sm uppercase">Select Floor</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+                  {lot.floors.map((floorName: string, idx: number) => (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => setSelectedFloorIndex(idx)}
+                      className={`mr-2 px-4 py-2 rounded-full border ${selectedFloorIndex === idx ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-200'}`}
+                    >
+                      <Text className={`font-bold ${selectedFloorIndex === idx ? 'text-white' : 'text-slate-600'}`}>{floorName}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Dynamic 2D Map */}
+            <MapViewer 
+              slots={slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)} 
+              onSelectSlot={setSelectedSlot} 
+              selectedSlotId={selectedSlot?.id} 
             />
           </View>
 

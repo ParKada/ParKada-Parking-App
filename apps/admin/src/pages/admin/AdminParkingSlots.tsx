@@ -8,10 +8,11 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import ParkingSlotGrid from "@/components/parking/ParkingSlotGrid";
+import DraggableMapEditor from "@/components/parking/DraggableMapEditor";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, Eye } from "lucide-react";
+import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, Eye, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@parkada/shared";
 
@@ -25,6 +26,10 @@ export default function AdminParkingSlots() {
   const [isAdding, setIsAdding] = useState(false);
   const [newSlotLabel, setNewSlotLabel] = useState(""); 
   const [newSlotIsPwd, setNewSlotIsPwd] = useState(false);
+
+  const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
+  const [isAddingFloor, setIsAddingFloor] = useState(false);
+  const [newFloorName, setNewFloorName] = useState("");
 
   const userRole = localStorage.getItem("admin_role") || "guard"; 
   const userLotId = localStorage.getItem("admin_lot_id");
@@ -161,7 +166,8 @@ export default function AdminParkingSlots() {
             status: 'unmapped',
             coordinates: null,
             is_pwd: newSlotIsPwd,
-            is_reservable: true 
+            is_reservable: true,
+            floor_index: selectedFloorIndex
           }
         ])
         .select();
@@ -210,7 +216,7 @@ export default function AdminParkingSlots() {
   };
 
  const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
-    if (userRole !== 'superadmin') return; 
+    if (userRole === 'guard') return; 
 
     if (slotStatus === 'occupied') {
       toast.error(`Bawal i-delete ang Slot ${slotLabel} dahil ito ay occupied!`);
@@ -235,6 +241,37 @@ export default function AdminParkingSlots() {
     } catch (error: any) {
       console.error("Error deleting slot:", error.message);
       toast.error(error.message || "Failed to delete slot.");
+    }
+  };
+
+  const handleUpdateSlotCoordinates = async (slotId: string, updates: Partial<any>) => {
+    if (userRole === 'guard') return;
+    try {
+      const { error } = await supabase.from('parking_slots').update(updates).eq('id', slotId);
+      if (error) throw error;
+      setSlots(prev => prev.map(s => s.id === slotId ? { ...s, ...updates } : s));
+    } catch (e: any) {
+      console.error("Failed to update layout", e.message);
+      toast.error("Failed to save layout change.");
+    }
+  };
+
+  const handleAddFloor = async () => {
+    if (!newFloorName.trim() || !activeLot) return;
+    try {
+      const currentFloors = activeLot.floors || ["Main Floor"];
+      const updatedFloors = [...currentFloors, newFloorName.trim()];
+      const { error } = await supabase.from('parking_lots').update({ floors: updatedFloors }).eq('id', activeLot.id);
+      if (error) throw error;
+      
+      setLots(lots.map(l => l.id === activeLot.id ? { ...l, floors: updatedFloors } : l));
+      setNewFloorName("");
+      setIsAddingFloor(false);
+      setSelectedFloorIndex(updatedFloors.length - 1);
+      toast.success(`Added floor: ${newFloorName}`);
+    } catch (e: any) {
+      console.error("Failed to add floor", e.message);
+      toast.error("Failed to add floor.");
     }
   };
 
@@ -357,7 +394,7 @@ export default function AdminParkingSlots() {
                 {refreshing ? "Syncing..." : "Refresh"}
               </Button>
 
-              {userRole === 'superadmin' && (
+              {userRole !== 'guard' && (
                 <Button 
                   size="sm" 
                   className="rounded-xl text-sm font-bold"
@@ -370,7 +407,47 @@ export default function AdminParkingSlots() {
             </div>
           </div>
           
-          {isAdding && userRole === 'superadmin' && (
+          {/* Floor Navigation */}
+          <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-border pb-4">
+             <div className="flex items-center text-muted-foreground mr-2 font-medium">
+               <Layers size={18} className="mr-2" /> Floors
+             </div>
+             {(activeLot.floors || ["Main Floor"]).map((floorName: string, idx: number) => (
+                <Button 
+                  key={idx} 
+                  variant={selectedFloorIndex === idx ? "default" : "outline"} 
+                  size="sm" 
+                  onClick={() => setSelectedFloorIndex(idx)}
+                  className="rounded-full"
+                >
+                  {floorName}
+                </Button>
+             ))}
+             
+             {userRole === 'superadmin' && (
+               <div className="ml-auto flex items-center gap-2">
+                 {isAddingFloor ? (
+                   <div className="flex items-center gap-2">
+                     <input 
+                       type="text" 
+                       value={newFloorName} 
+                       onChange={(e) => setNewFloorName(e.target.value)} 
+                       placeholder="e.g. 2nd Floor" 
+                       className="h-9 px-3 rounded-md border text-sm"
+                     />
+                     <Button size="sm" onClick={handleAddFloor}>Save</Button>
+                     <Button size="sm" variant="ghost" onClick={() => setIsAddingFloor(false)}>Cancel</Button>
+                   </div>
+                 ) : (
+                   <Button variant="ghost" size="sm" onClick={() => setIsAddingFloor(true)}>
+                     <Plus size={16} className="mr-1" /> Add Floor
+                   </Button>
+                 )}
+               </div>
+             )}
+          </div>
+
+          {isAdding && userRole !== 'guard' && (
             <div className="mb-6 p-4 bg-muted/30 border border-border rounded-xl">
               <form onSubmit={handleAddSlot} className="flex flex-wrap items-end gap-4">
                 <div className="space-y-1">
@@ -402,9 +479,13 @@ export default function AdminParkingSlots() {
             </div>
           )}
 
-          {slots.length > 0 ? (
+          {slots.filter(s => (s.floor_index || 0) === selectedFloorIndex).length > 0 ? (
             <div className={userRole !== 'guard' ? "mb-8" : ""}>
-              <ParkingSlotGrid slots={slots} interactive={false} />
+              <DraggableMapEditor 
+                slots={slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)} 
+                interactive={userRole !== 'guard'}
+                onUpdateSlot={handleUpdateSlotCoordinates}
+              />
             </div>
           ) : (
             <div className="text-center p-8 mb-8 border-2 border-dashed border-border rounded-xl text-muted-foreground">
