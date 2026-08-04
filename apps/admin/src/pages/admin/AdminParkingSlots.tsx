@@ -156,7 +156,6 @@ export default function AdminParkingSlots() {
             lot_id: selectedLotId, 
             label: newSlotLabel.trim().toUpperCase(),
             status: 'unmapped',
-            coordinates: null,
             is_pwd: newSlotIsPwd,
             is_reservable: true,
             floor_index: selectedFloorIndex
