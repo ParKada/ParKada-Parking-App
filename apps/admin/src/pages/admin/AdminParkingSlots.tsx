@@ -215,32 +215,52 @@ export default function AdminParkingSlots() {
     }
   };
 
- const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
-    if (userRole === 'guard') return; 
-
+  const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
     if (slotStatus === 'occupied') {
-      toast.error(`Bawal i-delete ang Slot ${slotLabel} dahil ito ay occupied!`);
+      toast.error("Cannot delete an occupied slot.");
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to delete slot ${slotLabel}?`)) return;
+
+    try {
+      const { error } = await supabase.from('parking_slots').delete().eq('id', slotId);
+      if (error) throw error;
+      
+      toast.success(`Slot ${slotLabel} deleted.`);
+      setSlots(slots.filter(s => s.id !== slotId));
+    } catch (error: any) {
+      console.error("Supabase Error:", error.message);
+      toast.error("Failed to delete slot.");
+    }
+  };
+
+  const handleDeleteFloor = async (floorIndex: number) => {
+    if (!activeLot) return;
+    const currentFloors = activeLot.floors || ["Main Floor"];
+    if (currentFloors.length <= 1) {
+      toast.error("Cannot delete the only floor.");
+      return;
+    }
+    
+    const slotsOnFloor = slots.filter(s => (s.floor_index || 0) === floorIndex);
+    if (slotsOnFloor.length > 0) {
+      toast.error("Cannot delete a floor that has slots. Please delete the slots first.");
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to delete Slot ${slotLabel}?`)) return;
+    if (!window.confirm(`Are you sure you want to delete ${currentFloors[floorIndex]}?`)) return;
 
     try {
-      const { error } = await supabase
-        .from('parking_slots')
-        .delete()
-        .eq('id', slotId);
-
-      if (error) {
-        if (error.code === '23503') throw new Error("Cannot delete slot linked to billing history.");
-        throw error;
-      }
+      const updatedFloors = currentFloors.filter((_: any, idx: number) => idx !== floorIndex);
+      const { error } = await supabase.from('parking_lots').update({ floors: updatedFloors }).eq('id', activeLot.id);
+      if (error) throw error;
       
-      setSlots((prev) => prev.filter((slot) => slot.id !== slotId));
-      toast.success(`Slot ${slotLabel} deleted.`);
-    } catch (error: any) {
-      console.error("Error deleting slot:", error.message);
-      toast.error(error.message || "Failed to delete slot.");
+      setLots(lots.map(l => l.id === activeLot.id ? { ...l, floors: updatedFloors } : l));
+      setSelectedFloorIndex(0);
+      toast.success("Floor deleted successfully.");
+    } catch (e: any) {
+      console.error("Failed to delete floor", e.message);
+      toast.error("Failed to delete floor.");
     }
   };
 
@@ -363,8 +383,6 @@ export default function AdminParkingSlots() {
           )}
         </div>
 
-        {/* REMOVED: The stats row (Total Slots, Available, Occupied, PWD Slots) */}
-
         {/* Visual Slot Grid & Management */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-border card-elevated">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
@@ -393,17 +411,6 @@ export default function AdminParkingSlots() {
                 <RefreshCw size={16} className={cn("mr-2", refreshing && "animate-spin")} />
                 {refreshing ? "Syncing..." : "Refresh"}
               </Button>
-
-              {(userRole === 'superadmin' || userRole === 'super_admin') && (
-                <Button 
-                  size="sm" 
-                  className="rounded-xl text-sm font-bold"
-                  onClick={() => setIsAdding(!isAdding)}
-                >
-                  <Plus size={16} className="mr-2" />
-                  Add Slot
-                </Button>
-              )}
             </div>
           </div>
           
@@ -418,31 +425,54 @@ export default function AdminParkingSlots() {
                   variant={selectedFloorIndex === idx ? "default" : "outline"} 
                   size="sm" 
                   onClick={() => setSelectedFloorIndex(idx)}
-                  className="rounded-full"
+                  className="rounded-full flex items-center gap-2"
                 >
                   {floorName}
+                  {(userRole === 'superadmin' || userRole === 'super_admin') && (
+                     <span 
+                       onClick={(e) => { e.stopPropagation(); handleDeleteFloor(idx); }}
+                       className="text-muted-foreground hover:text-rose-500 ml-1"
+                       title="Delete Floor"
+                     >
+                       <Trash2 size={14} />
+                     </span>
+                   )}
                 </Button>
              ))}
              
              {(userRole === 'superadmin' || userRole === 'super_admin') && (
                <div className="ml-auto flex items-center gap-2">
-                 {isAddingFloor ? (
-                   <div className="flex items-center gap-2">
-                     <input 
-                       type="text" 
-                       value={newFloorName} 
-                       onChange={(e) => setNewFloorName(e.target.value)} 
-                       placeholder="e.g. 2nd Floor" 
-                       className="h-9 px-3 rounded-md border text-sm"
-                     />
-                     <Button size="sm" onClick={handleAddFloor}>Save</Button>
-                     <Button size="sm" variant="ghost" onClick={() => setIsAddingFloor(false)}>Cancel</Button>
-                   </div>
-                 ) : (
-                   <Button variant="ghost" size="sm" onClick={() => setIsAddingFloor(true)}>
-                     <Plus size={16} className="mr-1" /> Add Floor
-                   </Button>
-                 )}
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="rounded-xl text-sm font-bold"
+                    onClick={() => setIsAdding(!isAdding)}
+                  >
+                    <Plus size={16} className="mr-2" />
+                    Add Slot
+                  </Button>
+                  {isAddingFloor ? (
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text" 
+                        value={newFloorName} 
+                        onChange={(e) => setNewFloorName(e.target.value)} 
+                        placeholder="e.g. 2nd Floor" 
+                        className="h-9 px-3 rounded-md border text-sm w-32"
+                      />
+                      <Button size="sm" onClick={handleAddFloor}>Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setIsAddingFloor(false)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      size="sm" 
+                      className="rounded-xl text-sm font-bold"
+                      onClick={() => setIsAddingFloor(true)}
+                    >
+                      <Plus size={16} className="mr-2" />
+                      Add Floor
+                    </Button>
+                  )}
                </div>
              )}
           </div>
@@ -551,7 +581,7 @@ export default function AdminParkingSlots() {
                                 <ArrowLeftRight size={16} />
                               </button>
 
-                              {userRole === 'superadmin' && (
+                              {(userRole === 'superadmin' || userRole === 'super_admin') && (
                                 <button
                                   onClick={() => handleDeleteSlot(slot.id, slot.label, slot.status)}
                                   className={cn(

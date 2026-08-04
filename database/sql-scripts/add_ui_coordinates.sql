@@ -9,7 +9,6 @@ ALTER TABLE public.parking_slots
 ADD COLUMN IF NOT EXISTS floor_index INTEGER DEFAULT 0;
 
 -- 3. Add UI Coordinate fields for the interactive map
--- Percentages (0 to 100) are used for X and Y to make it responsive across mobile/web
 ALTER TABLE public.parking_slots 
 ADD COLUMN IF NOT EXISTS ui_x NUMERIC DEFAULT 10;
 
@@ -18,3 +17,20 @@ ADD COLUMN IF NOT EXISTS ui_y NUMERIC DEFAULT 10;
 
 ALTER TABLE public.parking_slots 
 ADD COLUMN IF NOT EXISTS ui_rotation NUMERIC DEFAULT 0;
+
+-- 4. Fix missing columns from a previous update that were blocking slots from saving
+ALTER TABLE public.parking_slots 
+ADD COLUMN IF NOT EXISTS is_pwd BOOLEAN DEFAULT false;
+
+ALTER TABLE public.parking_slots 
+ADD COLUMN IF NOT EXISTS is_reservable BOOLEAN DEFAULT true;
+
+-- 5. Fix the Status Check Constraint so that 'unmapped' is an allowed status
+ALTER TABLE public.parking_slots 
+DROP CONSTRAINT IF EXISTS parking_slots_status_check;
+
+ALTER TABLE public.parking_slots 
+ADD CONSTRAINT parking_slots_status_check CHECK (status IN ('available', 'occupied', 'reserved', 'unmapped'));
+
+-- Make sure to reload the cache so the API registers the changes immediately!
+NOTIFY pgrst, 'reload schema';
