@@ -24,6 +24,7 @@ export default function ParkingLotPage() {
   const router = useRouter();
 
   const [lot, setLot] = useState<any>(null);
+  const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   
