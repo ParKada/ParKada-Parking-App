@@ -149,6 +149,30 @@ export default function AdminParkingSlots() {
     }
 
     try {
+      // Find a non-overlapping spot
+      const currentFloorSlots = slots.filter(s => (s.floor_index || 0) === selectedFloorIndex);
+      let newX = 10;
+      let newY = 10;
+      let found = false;
+      
+      while (!found && newY <= 85) {
+        // Check if there is any slot within 10% distance
+        const overlap = currentFloorSlots.find(s => 
+          Math.abs((s.ui_x ?? 10) - newX) < 12 && 
+          Math.abs((s.ui_y ?? 10) - newY) < 15
+        );
+        
+        if (!overlap) {
+          found = true;
+        } else {
+          newX += 15;
+          if (newX > 85) {
+            newX = 10;
+            newY += 20;
+          }
+        }
+      }
+
       const { data, error } = await supabase
         .from('parking_slots')
         .insert([
@@ -156,6 +180,8 @@ export default function AdminParkingSlots() {
             lot_id: selectedLotId, 
             label: newSlotLabel.trim().toUpperCase(),
             status: 'unmapped',
+            ui_x: newX,
+            ui_y: newY,
             is_pwd: newSlotIsPwd,
             is_reservable: true,
             floor_index: selectedFloorIndex
