@@ -74,7 +74,8 @@ serve(async (req) => {
           parkada_email: email,
           linked_lot_id: lot_id,
           status: "account_activated",
-          activated_at: new Date().toISOString()
+          activated_at: new Date().toISOString(),
+          current_password: password
         })
         .eq("id", application_id);
         

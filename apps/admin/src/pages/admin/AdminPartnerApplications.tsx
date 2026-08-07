@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '@parkada/shared';
 import { toast } from 'sonner';
 import { FileText, Eye, CheckCircle, XCircle, AlertCircle, Clock, Building2, User as UserIcon, Calendar, ArrowRight } from 'lucide-react';
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import AdminLayout from "@/components/AdminLayout";
+import { Rnd } from "react-rnd";
 
 export default function AdminPartnerApplications() {
   const [applications, setApplications] = useState<any[]>([]);
@@ -94,12 +96,25 @@ export default function AdminPartnerApplications() {
     
     setIsApproving(true);
     try {
+      // Create the parking lot first so we have a real UUID for the Edge Function
+      const { data: newLot, error: lotError } = await supabase
+        .from('parking_lots')
+        .insert({
+          name: selectedApp.establishment_name,
+          address: selectedApp.city || 'Unknown Location',
+          capacity: 0
+        })
+        .select()
+        .single();
+        
+      if (lotError) throw new Error("Failed to create parking lot: " + lotError.message);
+
       const { error } = await supabase.functions.invoke("create-partner-admin", {
         body: { 
           email: adminEmail, 
           password: adminPassword,
           full_name: selectedApp.rep_first_name + ' ' + selectedApp.rep_last_name,
-          lot_id: '00000000-0000-0000-0000-000000000000', // Placeholder, ideally we create the lot here too
+          lot_id: newLot.id, // Pass the real UUID here!
           role: "manager",
           application_id: selectedApp.id
         }
@@ -209,17 +224,46 @@ export default function AdminPartnerApplications() {
         </table>
       </div>
 
-      {/* View Detail Modal */}
-      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl flex items-center gap-2">
-              <Building2 className="text-primary" /> Application Details
-            </DialogTitle>
-          </DialogHeader>
+      {/* Draggable View Detail Window */}
+      {isViewModalOpen && selectedApp && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Dimmed Background Overlay */}
+          <div 
+            className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-[90]"
+            onClick={() => setIsViewModalOpen(false)}
+          />
           
-          {selectedApp && (
-            <div className="space-y-8 py-4">
+          <Rnd
+            default={{
+              x: typeof window !== 'undefined' ? 256 + Math.max(20, (window.innerWidth - 256 - 1050) / 2) : 300,
+              y: typeof window !== 'undefined' ? Math.max(40, (window.innerHeight - 750) / 2) : 50,
+              width: typeof window !== 'undefined' ? Math.min(1050, window.innerWidth - 300) : 1050,
+              height: typeof window !== 'undefined' ? Math.min(750, window.innerHeight - 80) : 750,
+            }}
+            minWidth={500}
+            minHeight={400}
+            dragHandleClassName="drag-handle"
+            className="z-[100] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+            style={{ position: 'fixed' }}
+          >
+          <div className="flex flex-col w-full h-full relative">
+          {/* Window Title Bar (Drag Handle) */}
+          <div className="drag-handle bg-gray-50/80 backdrop-blur border-b px-5 py-4 flex items-center justify-between cursor-move select-none shrink-0">
+            <div className="text-xl font-extrabold flex items-center gap-2">
+              <Building2 className="text-primary" /> Application Details
+            </div>
+            <button 
+              onClick={() => setIsViewModalOpen(false)}
+              className="text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors p-1.5 rounded-full"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+          
+          {/* Scrollable Content Area */}
+          <div className="flex-1 min-h-0 overflow-y-auto bg-white">
+            <div className="space-y-8 p-6">
               {/* Header Status */}
               <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border">
                 <div>
@@ -250,9 +294,9 @@ export default function AdminPartnerApplications() {
                 <div className="space-y-6">
                   <section>
                     <h3 className="text-lg font-bold border-b pb-2 mb-4 flex items-center gap-2"><UserIcon size={18}/> Representative Info</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                       <div><span className="text-gray-500 block">Name</span><span className="font-medium">{selectedApp.rep_first_name} {selectedApp.rep_last_name}</span></div>
-                      <div><span className="text-gray-500 block">Email</span><span className="font-medium">{selectedApp.rep_email}</span></div>
+                      <div className="min-w-0"><span className="text-gray-500 block">Email</span><span className="font-medium break-all">{selectedApp.rep_email}</span></div>
                       <div><span className="text-gray-500 block">Contact</span><span className="font-medium">{selectedApp.rep_contact_number}</span></div>
                     </div>
                   </section>
@@ -304,7 +348,7 @@ export default function AdminPartnerApplications() {
 
               {/* Admin Actions */}
               {['documents_under_review', 'verification'].includes(selectedApp.status) && (
-                <div className="border-t pt-6 flex justify-end gap-4">
+                <div className="border-t pt-6 flex justify-end gap-4 sticky bottom-0 bg-white pb-2">
                   <Button variant="destructive" onClick={() => setIsRejectModalOpen(true)}>
                     <XCircle className="w-4 h-4 mr-2" /> Reject
                   </Button>
@@ -322,9 +366,12 @@ export default function AdminPartnerApplications() {
                 </div>
               )}
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </div>
+          </div>
+          </Rnd>
+        </>,
+        document.body
+      )}
 
       {/* Approve Modal */}
       <Dialog open={isApproveModalOpen} onOpenChange={setIsApproveModalOpen}>

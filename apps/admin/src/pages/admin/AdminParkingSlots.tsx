@@ -4,7 +4,7 @@ import DraggableMapEditor from "@/components/parking/DraggableMapEditor";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, Eye, Layers } from "lucide-react";
+import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, Eye, Layers, Building2, User as UserIcon, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@parkada/shared";
 
@@ -19,12 +19,36 @@ export default function AdminParkingSlots() {
   const [newSlotLabel, setNewSlotLabel] = useState(""); 
   const [newSlotIsPwd, setNewSlotIsPwd] = useState(false);
 
-  const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
+  const [selectedFloorIndex, setSelectedFloorIndex] = useState(-1);
   const [isAddingFloor, setIsAddingFloor] = useState(false);
   const [newFloorName, setNewFloorName] = useState("");
-
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const userRole = localStorage.getItem("admin_role") || "guard"; 
   const userLotId = localStorage.getItem("admin_lot_id");
+
+  // New states for Multi-Camera & Setup
+  const [activeTab, setActiveTab] = useState('details');
+  const [expandedCameraId, setExpandedCameraId] = useState<string | null>(null);
+  const [lotAccounts, setLotAccounts] = useState<any[]>([]);
+  
+  const [cameras, setCameras] = useState([
+    { id: 'cam1', name: 'Camera 1: Main Entrance' },
+    { id: 'cam2', name: 'Camera 2: Level 2' },
+  ]);
+  const [isAddingCamera, setIsAddingCamera] = useState(false);
+  const [newCameraName, setNewCameraName] = useState("");
+  const [editingCameraId, setEditingCameraId] = useState<string | null>(null);
+  const [editingCameraName, setEditingCameraName] = useState("");
+
+  const handleAddCamera = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCameraName.trim()) return;
+    setCameras([...cameras, { id: `cam${Date.now()}`, name: newCameraName.trim() }]);
+    setNewCameraName("");
+    setIsAddingCamera(false);
+  };
 
   // Natural sort comparator for slots
   const naturalSort = (a: any, b: any) => {
@@ -39,6 +63,7 @@ export default function AdminParkingSlots() {
     if (!selectedLotId) return;
 
     fetchSlots(selectedLotId);
+    fetchLotAccounts(selectedLotId);
 
     const channel = supabase
       .channel('realtime-parking-slots')
@@ -73,6 +98,10 @@ export default function AdminParkingSlots() {
       supabase.removeChannel(channel);
     };
   }, [selectedLotId]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedFloorIndex]);
 
   // 🔥 UPDATED: Only accredited lots, sorted alphabetically
   const fetchLots = async () => {
@@ -129,6 +158,20 @@ export default function AdminParkingSlots() {
       toast.error("Failed to fetch parking slots.");
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const fetchLotAccounts = async (lotId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('admin_profiles')
+        .select('*')
+        .eq('lot_id', lotId);
+      if (!error && data) {
+        setLotAccounts(data);
+      }
+    } catch (error) {
+      console.error("Error fetching accounts:", error);
     }
   };
 
@@ -372,262 +415,572 @@ export default function AdminParkingSlots() {
           </div>
         </div>
 
-        {/* Live Camera Feed (unchanged) */}
-        <div className="w-full max-w-5xl mx-auto bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative aspect-video flex items-center justify-center">
-          {activeLot.name.includes("Thesis Demo") ? (
-            <>
-              <img 
-                src={getCameraUrl()} 
-                alt="Live Parking Stream" 
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                   e.currentTarget.style.display = 'none';
-                   const fallbackMsg = document.getElementById('stream-fallback');
-                   if(fallbackMsg) fallbackMsg.style.display = 'flex';
-                }}
-              />
-              <div id="stream-fallback" className="absolute inset-0 flex-col items-center justify-center text-slate-400 hidden bg-slate-900">
-                 <Eye size={32} className="mb-3 opacity-50" />
-                 <p className="text-base font-bold text-slate-300">Camera Feed Offline</p>
-                 <p className="text-xs opacity-70 mt-1">Run <code className="bg-slate-800 px-1 py-0.5 rounded text-primary">python smart_slots.py</code> in terminal to start stream</p>
-              </div>
-              <div className="absolute top-4 left-4 bg-red-600/90 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-lg backdrop-blur-sm">
-                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
-              </div>
-            </>
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900">
-               <Eye size={32} className="mb-3 opacity-50" />
-               <p className="text-base font-bold text-slate-300">Camera Feed Offline</p>
-               <p className="text-sm opacity-70 mt-1 font-medium">Hardware integration not active for {activeLot.name}</p>
-            </div>
+        {/* Tabs */}
+        <div className="flex space-x-2 border-b border-border pb-2">
+          <button 
+            className={cn("px-4 py-2 font-bold text-sm rounded-t-lg border-b-2 transition-colors", activeTab === 'details' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+            onClick={() => setActiveTab('details')}
+          >
+            Lot Details
+          </button>
+          {userRole !== "guard" && (
+            <button 
+              className={cn("px-4 py-2 font-bold text-sm rounded-t-lg border-b-2 transition-colors", activeTab === "records" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+              onClick={() => setActiveTab("records")}
+            >
+              Database Records
+            </button>
           )}
+          <button 
+            className={cn("px-4 py-2 font-bold text-sm rounded-t-lg border-b-2 transition-colors", activeTab === 'cameras' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+            onClick={() => setActiveTab('cameras')}
+          >
+            Cameras & Setup
+          </button>
         </div>
 
-        {/* Visual Slot Grid & Management */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-border card-elevated">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/10 p-3 rounded-full text-primary">
-                {userRole === 'guard' ? <Eye size={24} /> : <Car size={24} />}
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  {activeLot.name}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {userRole === 'guard' ? "Live Slot Monitor" : "Live Tracking Dashboard"}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="rounded-xl text-sm font-bold"
-              >
-                <RefreshCw size={16} className={cn("mr-2", refreshing && "animate-spin")} />
-                {refreshing ? "Syncing..." : "Refresh"}
-              </Button>
-            </div>
-          </div>
-          
-          {/* Floor Navigation */}
-          <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-border pb-4">
-             <div className="flex items-center text-muted-foreground mr-2 font-medium">
-               <Layers size={18} className="mr-2" /> Floors
-             </div>
-             {(activeLot.floors || ["Main Floor"]).map((floorName: string, idx: number) => (
-                <Button 
-                  key={idx} 
-                  variant={selectedFloorIndex === idx ? "default" : "outline"} 
-                  size="sm" 
-                  onClick={() => setSelectedFloorIndex(idx)}
-                  className="rounded-full flex items-center gap-2"
-                >
-                  {floorName}
-                  {(userRole === 'superadmin' || userRole === 'super_admin') && (
-                     <span 
-                       onClick={(e) => { e.stopPropagation(); handleDeleteFloor(idx); }}
-                       className="text-muted-foreground hover:text-rose-500 ml-1"
-                       title="Delete Floor"
+        {activeTab === 'details' && (
+          <div className="animate-in fade-in duration-300">
+             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                
+                {/* LEFT COLUMN: Main Content (Establishment, Slot Mapping, Database) */}
+                <div className="xl:col-span-2 space-y-6">
+                   
+                   {/* Info Card */}
+                   <div className="bg-white p-6 rounded-2xl shadow-sm border border-border">
+                       <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
+                          <Building2 className="text-primary w-5 h-5" /> Establishment Info
+                       </h3>
+                       <p className="font-semibold text-lg">{activeLot.name}</p>
+                       <p className="text-muted-foreground">{activeLot.address || "No address specified"}</p>
+                   </div>
+                   
+                   {/* Visual Slot Grid & Management (Moved here from below) */}
+                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-border card-elevated">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 p-3 rounded-full text-primary">
+                        {userRole === 'guard' ? <Eye size={24} /> : <Car size={24} />}
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                          Slot Mapping
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {userRole === 'guard' ? "Live Slot Monitor" : "Draw and map slots on this camera"}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="rounded-xl text-sm font-bold"
+                      >
+                        <RefreshCw size={16} className={cn("mr-2", refreshing && "animate-spin")} />
+                        {refreshing ? "Syncing..." : "Refresh Data"}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Floor Navigation */}
+                  <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-border pb-4">
+                     <div className="flex items-center text-muted-foreground font-medium">
+                       <Layers size={18} className="mr-2" /> Floors
+                     </div>
+                     
+                     <select
+                       value={selectedFloorIndex}
+                       onChange={(e) => setSelectedFloorIndex(Number(e.target.value))}
+                       className="h-10 px-4 py-2 rounded-xl border border-border bg-white text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]"
                      >
-                       <Trash2 size={14} />
-                     </span>
-                   )}
-                </Button>
-             ))}
-             
-             {(userRole === 'superadmin' || userRole === 'super_admin') && (
-               <div className="ml-auto flex items-center gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="rounded-xl text-sm font-bold"
-                    onClick={() => setIsAdding(!isAdding)}
-                  >
-                    <Plus size={16} className="mr-2" />
-                    Add Slot
-                  </Button>
-                  {isAddingFloor ? (
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="text" 
-                        value={newFloorName} 
-                        onChange={(e) => setNewFloorName(e.target.value)} 
-                        placeholder="e.g. 2nd Floor" 
-                        className="h-9 px-3 rounded-md border text-sm w-32"
+                        <option value={-1}>All</option>
+                        {(activeLot.floors || ["Main Floor"]).map((floorName: string, idx: number) => (
+                           <option key={idx} value={idx}>{floorName}</option>
+                        ))}
+                     </select>
+
+                     {(userRole === 'superadmin' || userRole === 'super_admin') && selectedFloorIndex !== -1 && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-3 h-10 rounded-xl font-bold"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteFloor(selectedFloorIndex); }}
+                          title="Delete selected floor"
+                        >
+                           <Trash2 size={16} className="mr-2" /> Delete Floor
+                        </Button>
+                     )}
+                     
+                     {(userRole === 'superadmin' || userRole === 'super_admin') && (
+                       <div className="ml-auto flex items-center gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="rounded-xl text-sm font-bold"
+                            onClick={() => { setIsAdding(!isAdding); if (!isAdding) setIsAddingFloor(false); }}
+                            disabled={selectedFloorIndex === -1}
+                            title={selectedFloorIndex === -1 ? "Select a specific floor first" : ""}
+                          >
+                            <Plus size={16} className="mr-2" />
+                            Add Slot
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="rounded-xl text-sm font-bold"
+                            onClick={() => { setIsAddingFloor(!isAddingFloor); if (!isAddingFloor) setIsAdding(false); }}
+                          >
+                            <Plus size={16} className="mr-2" />
+                            Add Floor
+                          </Button>
+                       </div>
+                     )}
+                  </div>
+
+                  {isAddingFloor && (userRole === "superadmin" || userRole === "super_admin") && (
+                    <div className="mb-6 p-5 bg-white border border-slate-200 shadow-sm rounded-2xl w-full max-w-lg">
+                      <form onSubmit={(e) => { e.preventDefault(); handleAddFloor(); }} className="flex flex-col">
+                        <div className="flex flex-col mb-5">
+                          <label className="text-[11px] font-bold text-slate-500 tracking-wider uppercase mb-1.5">
+                            Floor Name (e.g., 2nd Floor, Basement)
+                          </label>
+                          <input 
+                            type="text" 
+                            value={newFloorName}
+                            onChange={(e) => setNewFloorName(e.target.value)}
+                            className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:border-primary focus:ring-1 focus:ring-primary text-sm shadow-sm transition-all text-foreground"
+                            placeholder="Enter floor name"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button type="submit" className="h-10 px-6 bg-slate-900 hover:bg-slate-800 text-white rounded-lg">Save Floor</Button>
+                          <Button type="button" variant="ghost" className="h-10 px-4 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg" onClick={() => setIsAddingFloor(false)}>Cancel</Button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {isAdding && (userRole === "superadmin" || userRole === "super_admin") && (
+                    <div className="mb-6 p-5 bg-white border border-slate-200 shadow-sm rounded-2xl w-full max-w-xl">
+                      <form onSubmit={handleAddSlot} className="flex flex-col">
+                        <div className="flex flex-col mb-5">
+                          <label className="text-[11px] font-bold text-slate-500 tracking-wider uppercase mb-1.5">
+                            Slot Label (e.g., A1, PWD-1)
+                          </label>
+                          <div className="flex items-center gap-4">
+                            <input 
+                              type="text" 
+                              value={newSlotLabel}
+                              onChange={(e) => setNewSlotLabel(e.target.value)}
+                              className="flex-1 h-10 px-3 rounded-lg border border-slate-300 focus:border-primary focus:ring-1 focus:ring-primary text-sm shadow-sm transition-all text-foreground"
+                              placeholder="Enter slot label"
+                              autoFocus
+                            />
+                            <div className="flex items-center space-x-2 shrink-0">
+                              <input 
+                                type="checkbox" 
+                                id="isPwd" 
+                                checked={newSlotIsPwd}
+                                onChange={(e) => setNewSlotIsPwd(e.target.checked)}
+                                className="rounded border-gray-300 w-4 h-4"
+                              />
+                              <label htmlFor="isPwd" className="text-sm font-medium text-slate-700">PWD / Priority Slot?</label>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button type="submit" className="h-10 px-6 bg-slate-900 hover:bg-slate-800 text-white rounded-lg">Save Slot</Button>
+                          <Button type="button" variant="ghost" className="h-10 px-4 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg" onClick={() => setIsAdding(false)}>Cancel</Button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {selectedFloorIndex === -1 ? (
+                    <div className="space-y-8 mb-8">
+                       {(activeLot.floors || ["Main Floor"]).map((floorName: string, idx: number) => {
+                          const floorSlots = slots.filter(s => (s.floor_index || 0) === idx);
+                          if (floorSlots.length === 0) return null;
+                          return (
+                             <div key={idx} className="space-y-3">
+                               <h4 className="font-bold text-foreground flex items-center gap-2">
+                                 <Layers className="w-4 h-4 text-primary" /> {floorName}
+                               </h4>
+                               <DraggableMapEditor 
+                                 slots={floorSlots} 
+                                 interactive={false}
+                                 onUpdateSlot={handleUpdateSlotCoordinates}
+                               />
+                             </div>
+                          );
+                       })}
+                       {slots.length === 0 && (
+                          <div className="text-center p-8 mb-8 border-2 border-dashed border-border rounded-xl text-muted-foreground">
+                            {userRole === 'guard' 
+                              ? "Wala pang nakalagay na slots sa mapang ito."
+                              : <>Wala pang slots sa parking lot na ito.<br/>I-click ang "Add Slot" button sa taas o gumuhit sa AI Camera Dashboard para mag-umpisa.</>
+                            }
+                          </div>
+                       )}
+                    </div>
+                  ) : slots.filter(s => (s.floor_index || 0) === selectedFloorIndex).length > 0 ? (
+                    <div className={userRole !== 'guard' ? "mb-8" : ""}>
+                      <DraggableMapEditor 
+                        slots={slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)} 
+                        interactive={userRole === 'superadmin' || userRole === 'super_admin'}
+                        onUpdateSlot={handleUpdateSlotCoordinates}
                       />
-                      <Button size="sm" onClick={handleAddFloor}>Save</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setIsAddingFloor(false)}>Cancel</Button>
                     </div>
                   ) : (
-                    <Button 
-                      size="sm" 
-                      className="rounded-xl text-sm font-bold"
-                      onClick={() => setIsAddingFloor(true)}
-                    >
-                      <Plus size={16} className="mr-2" />
-                      Add Floor
-                    </Button>
+                    <div className="text-center p-8 mb-8 border-2 border-dashed border-border rounded-xl text-muted-foreground">
+                      {userRole === 'guard' 
+                        ? "Wala pang nakalagay na slots sa mapang ito."
+                        : <>Wala pang slots sa parking lot na ito.<br/>I-click ang "Add Slot" button sa taas o gumuhit sa AI Camera Dashboard para mag-umpisa.</>
+                      }
+                    </div>
                   )}
-               </div>
-             )}
-          </div>
 
-          {isAdding && (userRole === 'superadmin' || userRole === 'super_admin') && (
-            <div className="mb-6 p-4 bg-muted/30 border border-border rounded-xl">
-              <form onSubmit={handleAddSlot} className="flex flex-wrap items-end gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">Slot Label (e.g., A1, PWD-1)</label>
-                  <input 
-                    type="text" 
-                    value={newSlotLabel}
-                    onChange={(e) => setNewSlotLabel(e.target.value)}
-                    className="w-full h-10 px-3 rounded-lg border border-border text-sm"
-                    placeholder="Enter slot label"
-                    autoFocus
-                  />
                 </div>
-                <div className="flex items-center space-x-2 h-10 px-2">
-                  <input 
-                    type="checkbox" 
-                    id="isPwd" 
-                    checked={newSlotIsPwd}
-                    onChange={(e) => setNewSlotIsPwd(e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <label htmlFor="isPwd" className="text-sm font-medium">PWD / Priority Slot?</label>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" className="h-10">Save Slot</Button>
-                  <Button type="button" variant="ghost" className="h-10" onClick={() => setIsAdding(false)}>Cancel</Button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {slots.filter(s => (s.floor_index || 0) === selectedFloorIndex).length > 0 ? (
-            <div className={userRole !== 'guard' ? "mb-8" : ""}>
-              <DraggableMapEditor 
-                slots={slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)} 
-                interactive={userRole === 'superadmin' || userRole === 'super_admin'}
-                onUpdateSlot={handleUpdateSlotCoordinates}
-              />
-            </div>
-          ) : (
-            <div className="text-center p-8 mb-8 border-2 border-dashed border-border rounded-xl text-muted-foreground">
-              {userRole === 'guard' 
-                ? "Wala pang nakalagay na slots sa mapang ito."
-                : <>Wala pang slots sa parking lot na ito.<br/>I-click ang "Add Slot" button sa taas o gumuhit sa AI Camera Dashboard para mag-umpisa.</>
-              }
-            </div>
-          )}
-
-          {userRole !== 'guard' && (
-            <>
-              <h3 className="text-base font-bold text-foreground mb-4 pt-4 border-t border-border" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Database Records
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-muted-foreground border-b border-border">
-                      <th className="text-left pb-3 font-semibold uppercase tracking-wider">Slot Label</th>
-                      <th className="text-left pb-3 font-semibold uppercase tracking-wider">Type</th>
-                      <th className="text-left pb-3 font-semibold uppercase tracking-wider">Booking Mode</th>
-                      <th className="text-left pb-3 font-semibold uppercase tracking-wider">Status</th>
-                      <th className="text-right pb-3 font-semibold uppercase tracking-wider">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {slots.map((slot) => {
-                      const isReservable = slot.is_reservable !== false && String(slot.is_reservable) !== "false";
-
-                      return (
-                        <tr key={slot.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-3 font-bold text-base">{slot.label}</td>
-                          <td className="py-3">
-                            {slot.is_pwd ? (
-                              <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">PWD / Reserved</Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-xs font-medium">Regular</span>
-                            )}
-                          </td>
-                          <td className="py-3">
-                            <Badge variant="outline" className={isReservable ? "border-blue-200 text-blue-700 bg-blue-50" : "border-gray-300 text-gray-500 bg-gray-100"}>
-                              {isReservable ? "Reservable" : "Walk-in Only (X)"}
-                            </Badge>
-                          </td>
-                          <td className="py-3">
-                            <span className={cn(
-                              "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
-                              slot.status === "available" ? "bg-emerald-100 text-emerald-700" :
-                              slot.status === "occupied" ? "bg-rose-100 text-rose-700" : 
-                              slot.status === "unmapped" ? "bg-slate-200 text-slate-500" : "bg-amber-100 text-amber-700"
-                            )}>
-                              {slot.status === "unmapped" ? "Null / Not Drawn" : slot.status}
-                            </span>
-                          </td>
-                          <td className="py-3 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                onClick={() => toggleReservableStatus(slot.id, isReservable, slot.label)}
-                                className="p-2 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors inline-flex items-center"
-                                title={`Switch to ${isReservable ? 'Walk-in' : 'Reservable'}`}
-                              >
-                                <ArrowLeftRight size={16} />
-                              </button>
-
-                              {(userRole === 'superadmin' || userRole === 'super_admin') && (
-                                <button
-                                  onClick={() => handleDeleteSlot(slot.id, slot.label, slot.status)}
-                                  className={cn(
-                                    "p-2 rounded-lg transition-colors inline-flex items-center",
-                                    slot.status !== 'occupied' 
-                                      ? "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                                      : "text-slate-300 cursor-not-allowed"
-                                  )}
-                                  title={slot.status !== 'occupied' ? "Delete Slot" : "Cannot delete occupied slot"}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
-            </>
-          )}
-        </div>
-        
+
+              {/* RIGHT COLUMN: Sidebar Content (Accounts, Photos) */}
+              <div className="xl:col-span-1 space-y-6">
+                 {/* Accounts */}
+                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-border">
+                     <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
+                        <UserIcon className="text-primary w-5 h-5" /> Manager Accounts
+                     </h3>
+                     <div className="space-y-3">
+                        {lotAccounts.map(acc => (
+                           <div key={acc.id} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                              <div className="truncate pr-2">
+                                <p className="font-bold text-foreground truncate">{acc.email}</p>
+                                <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1">{acc.role}</p>
+                              </div>
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">Active</Badge>
+                           </div>
+                        ))}
+                        {lotAccounts.length === 0 && <p className="text-sm text-muted-foreground p-4 bg-slate-50 rounded-xl border border-dashed">No accounts found for this lot.</p>}
+                     </div>
+                 </div>
+
+                 {/* Photos Placeholder */}
+                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-border">
+                     <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
+                        <Camera className="text-primary w-5 h-5" /> Photo References
+                     </h3>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
+                        <div className="aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400">
+                           <Camera size={24} className="mb-2" />
+                           <span className="text-sm font-semibold">Front View</span>
+                        </div>
+                        <div className="aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400">
+                           <Camera size={24} className="mb-2" />
+                           <span className="text-sm font-semibold">Business Permit</span>
+                        </div>
+                     </div>
+                     <p className="text-xs text-muted-foreground mt-4 font-medium leading-relaxed">* Photos will be synced with application documents in a future update.</p>
+                 </div>
+              </div>
+              
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'cameras' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {expandedCameraId === null ? (
+              // MULTI-CAMERA GRID VIEW
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                 {cameras.map(cam => (
+                    <div 
+                      key={cam.id} 
+                      className="bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-800 cursor-pointer group hover:ring-4 hover:ring-primary/50 transition-all" 
+                      onClick={() => setExpandedCameraId(cam.id)}
+                    >
+                       <div className="aspect-video bg-black flex items-center justify-center relative">
+                           <img 
+                             src={getCameraUrl()} 
+                             className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity" 
+                             onError={(e) => e.currentTarget.style.display = 'none'}
+                           />
+                           {activeLot.name.includes("Thesis Demo") && (
+                             <div className="absolute top-3 right-3 bg-red-600/90 text-white text-[10px] font-extrabold px-2 py-1 rounded-md flex items-center gap-1.5 shadow-lg backdrop-blur-sm z-10">
+                               <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+                             </div>
+                           )}
+                           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                              <Camera size={32} className="mb-2 opacity-50" />
+                              <p className="text-sm font-bold text-slate-300">Camera Offline</p>
+                           </div>
+                           <div className="absolute top-3 left-3 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-md backdrop-blur-sm">
+                             {cam.name}
+                           </div>
+                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                             <div className="bg-primary/90 text-primary-foreground p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 shadow-lg">
+                               <Eye size={20} />
+                             </div>
+                           </div>
+                       </div>
+                    </div>
+                 ))}
+                 
+                 {userRole !== 'guard' && (
+                   isAddingCamera ? (
+                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-center min-h-[200px]">
+                        <form onSubmit={handleAddCamera} className="flex flex-col gap-3">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">New Camera Name</label>
+                          <input 
+                            type="text" 
+                            value={newCameraName} 
+                            onChange={(e) => setNewCameraName(e.target.value)}
+                            className="h-10 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                            placeholder="e.g. Roof Deck Camera"
+                            autoFocus
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <Button type="submit" size="sm" className="flex-1">Add Camera</Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setIsAddingCamera(false)} className="flex-1">Cancel</Button>
+                          </div>
+                        </form>
+                     </div>
+                   ) : (
+                     <div 
+                       className="bg-slate-50 rounded-2xl shadow-sm border-2 border-dashed border-slate-300 cursor-pointer hover:border-primary/50 hover:bg-slate-100 transition-all flex flex-col items-center justify-center min-h-[200px] group"
+                       onClick={() => setIsAddingCamera(true)}
+                     >
+                       <div className="bg-white p-3 rounded-full shadow-sm mb-3 group-hover:scale-110 transition-transform">
+                         <Plus size={24} className="text-primary" />
+                       </div>
+                       <span className="text-sm font-bold text-slate-600">Add New Camera</span>
+                     </div>
+                   )
+                 )}
+              </div>
+            ) : (
+              // EXPANDED SINGLE CAMERA VIEW
+              <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-800 flex flex-col">
+                 <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+                     <h3 className="text-white font-bold flex items-center gap-2">
+                      <Camera className="text-primary w-5 h-5" />
+                      {editingCameraId === expandedCameraId ? (
+                        <input 
+                          type="text"
+                          value={editingCameraName}
+                          onChange={(e) => setEditingCameraName(e.target.value)}
+                          className="bg-slate-800 text-white px-3 py-1 rounded-md text-sm outline-none border border-slate-700 focus:border-primary min-w-[200px]"
+                          autoFocus
+                          onBlur={() => {
+                            if (editingCameraName.trim()) {
+                              setCameras(cameras.map(c => c.id === expandedCameraId ? { ...c, name: editingCameraName.trim() } : c));
+                            }
+                            setEditingCameraId(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.currentTarget.blur();
+                            } else if (e.key === 'Escape') {
+                              setEditingCameraId(null);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <>
+                          {cameras.find(c => c.id === expandedCameraId)?.name || 'Camera Feed'}
+                          {userRole !== 'guard' && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCameraName(cameras.find(c => c.id === expandedCameraId)?.name || "");
+                                setEditingCameraId(expandedCameraId);
+                              }}
+                              className="ml-2 text-slate-500 hover:text-primary transition-colors p-1"
+                              title="Rename Camera"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                            </button>
+                          )}
+                        </>
+                      )}
+                     </h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-slate-400 hover:text-white hover:bg-slate-800"
+                      onClick={() => setExpandedCameraId(null)}
+                    >
+                       Back to Grid
+                    </Button>
+                 </div>
+                 <div className="w-full aspect-video flex items-center justify-center relative bg-black">
+                    <img 
+                      src={getCameraUrl()} 
+                      alt="Live Parking Stream" 
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                         e.currentTarget.style.display = 'none';
+                         const fallbackMsg = document.getElementById('stream-fallback-expanded');
+                         if(fallbackMsg) fallbackMsg.style.display = 'flex';
+                      }}
+                    />
+                    {activeLot.name.includes("Thesis Demo") && (
+                      <div className="absolute top-4 right-4 bg-red-600/90 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg backdrop-blur-sm z-10">
+                        <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span> LIVE
+                      </div>
+                    )}
+                    <div id="stream-fallback-expanded" className="absolute inset-0 flex-col items-center justify-center text-slate-400 hidden">
+                       <Eye size={48} className="mb-4 opacity-50" />
+                       <p className="text-xl font-bold text-slate-300">Camera Feed Offline</p>
+                       <p className="text-sm opacity-70 mt-2 font-medium">Please check the connection or start the local stream script.</p>
+                    </div>
+                 </div>
+                 <div className="p-4 bg-slate-950/50 border-t border-slate-800">
+                    <p className="text-xs text-slate-400 text-center">Live feed processing via edge node.</p>
+                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'records' && userRole !== 'guard' && (
+          <div className="animate-in fade-in duration-300">
+             <div className="bg-white rounded-2xl p-6 shadow-sm border border-border card-elevated">
+                <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-border pb-4">
+                   <div className="flex items-center text-muted-foreground font-medium">
+                     <Layers size={18} className="mr-2" /> Filter by Floor
+                   </div>
+                   <select
+                     value={selectedFloorIndex}
+                     onChange={(e) => { setSelectedFloorIndex(Number(e.target.value)); setCurrentPage(1); }}
+                     className="h-10 px-4 py-2 rounded-xl border border-border bg-white text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]"
+                   >
+                      <option value={-1}>All</option>
+                      {(activeLot.floors || ["Main Floor"]).map((floorName: string, idx: number) => (
+                         <option key={idx} value={idx}>{floorName}</option>
+                      ))}
+                   </select>
+                </div>
+                <h3 className="text-base font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Database Records
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-muted-foreground border-b border-border">
+                        <th className="text-left pb-3 font-semibold uppercase tracking-wider">Slot Label</th>
+                        <th className="text-left pb-3 font-semibold uppercase tracking-wider">Type</th>
+                        <th className="text-left pb-3 font-semibold uppercase tracking-wider">Booking Mode</th>
+                        <th className="text-left pb-3 font-semibold uppercase tracking-wider">Status</th>
+                        <th className="text-right pb-3 font-semibold uppercase tracking-wider">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {(() => {
+                        const filtered = slots.filter(s => selectedFloorIndex === -1 || (s.floor_index || 0) === selectedFloorIndex);
+                        const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+                        return paginated.map((slot) => {
+                          const isReservable = slot.is_reservable !== false && String(slot.is_reservable) !== "false";
+
+                          return (
+                            <tr key={slot.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="py-3 font-bold text-base">{slot.label}</td>
+                              <td className="py-3">
+                                {slot.is_pwd ? (
+                                  <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">PWD / Reserved</Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs font-medium">Regular</span>
+                                )}
+                              </td>
+                              <td className="py-3">
+                                <Badge variant="outline" className={isReservable ? "border-blue-200 text-blue-700 bg-blue-50" : "border-gray-300 text-gray-500 bg-gray-100"}>
+                                  {isReservable ? "Reservable" : "Walk-in Only (X)"}
+                                </Badge>
+                              </td>
+                              <td className="py-3">
+                                <span className={cn(
+                                  "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
+                                  slot.status === "available" ? "bg-emerald-100 text-emerald-700" :
+                                  slot.status === "occupied" ? "bg-rose-100 text-rose-700" : 
+                                  slot.status === "unmapped" ? "bg-slate-200 text-slate-500" : "bg-amber-100 text-amber-700"
+                                )}>
+                                  {slot.status === "unmapped" ? "Null / Not Drawn" : slot.status}
+                                </span>
+                              </td>
+                              <td className="py-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    onClick={() => toggleReservableStatus(slot.id, isReservable, slot.label)}
+                                    className="p-2 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors inline-flex items-center"
+                                    title={`Switch to ${isReservable ? 'Walk-in' : 'Reservable'}`}
+                                  >
+                                    <ArrowLeftRight size={16} />
+                                  </button>
+
+                                  {(userRole === 'superadmin' || userRole === 'super_admin') && (
+                                    <button
+                                      onClick={() => handleDeleteSlot(slot.id, slot.label, slot.status)}
+                                      className={cn(
+                                        "p-2 rounded-lg transition-colors inline-flex items-center",
+                                        slot.status !== 'occupied' 
+                                          ? "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                          : "text-slate-300 cursor-not-allowed"
+                                      )}
+                                      title={slot.status !== 'occupied' ? "Delete Slot" : "Cannot delete occupied slot"}
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {(() => {
+                  const filtered = slots.filter(s => selectedFloorIndex === -1 || (s.floor_index || 0) === selectedFloorIndex);
+                  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+                  if (totalPages <= 1) return null;
+                  
+                  return (
+                    <div className="flex justify-between items-center mt-6 pt-4 border-t border-border">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} records
+                      </span>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                          disabled={currentPage === 1}
+                          className="rounded-lg"
+                        >
+                          Previous
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                          disabled={currentPage === totalPages}
+                          className="rounded-lg"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
+             </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

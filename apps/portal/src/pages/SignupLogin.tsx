@@ -125,7 +125,12 @@ export default function SignupLogin() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-semibold text-gray-700">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-gray-700">Password</label>
+                <Link to="/forgot-password" className="text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+                  Forgot?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input

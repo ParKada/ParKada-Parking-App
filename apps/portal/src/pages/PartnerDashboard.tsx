@@ -2,12 +2,19 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { LogOut, FileText, CheckCircle, AlertCircle, Clock, ExternalLink } from 'lucide-react';
+import { LogOut, FileText, CheckCircle, AlertCircle, Clock, ExternalLink, Eye, EyeOff, KeyRound, Save, X } from 'lucide-react';
 
 export default function PartnerDashboard() {
   const [application, setApplication] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState('');
+  
+  // Password change state
+  const [showPassword, setShowPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,6 +53,33 @@ export default function PartnerDashboard() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login');
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      return toast.error("Password must be at least 6 characters");
+    }
+    
+    setIsUpdatingPassword(true);
+    try {
+      const { error } = await supabase.functions.invoke("change-admin-password", {
+        body: {
+          application_id: application.id,
+          new_password: newPassword
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Admin password updated successfully!");
+      setApplication({ ...application, current_password: newPassword });
+      setIsChangingPassword(false);
+      setNewPassword('');
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password");
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   if (isLoading) {
@@ -157,9 +191,56 @@ export default function PartnerDashboard() {
                   <div className="font-mono text-lg font-bold text-gray-900">{parkada_email}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 font-semibold mb-1">PASSWORD</div>
-                  <div className="text-gray-700 text-sm italic">
-                    The temporary password has been sent to your personal email by the Super Admin. Please change it upon first login.
+                  <div className="text-xs text-gray-500 font-semibold mb-1 flex items-center justify-between">
+                    <span>PASSWORD</span>
+                    {!isChangingPassword && (
+                      <button 
+                        onClick={() => setIsChangingPassword(true)}
+                        className="text-primary hover:underline flex items-center gap-1 text-xs"
+                      >
+                        <KeyRound size={12} /> Change
+                      </button>
+                    )}
+                  </div>
+                  
+                  {isChangingPassword ? (
+                    <div className="flex items-center gap-2 mt-2">
+                      <input 
+                        type="text" 
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="New password"
+                        className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm outline-none focus:border-primary"
+                      />
+                      <button 
+                        onClick={handleChangePassword}
+                        disabled={isUpdatingPassword}
+                        className="px-3 py-1.5 bg-primary text-white rounded-md text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {isUpdatingPassword ? 'Saving...' : <><Save size={14} /> Save</>}
+                      </button>
+                      <button 
+                        onClick={() => setIsChangingPassword(false)}
+                        className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="font-mono text-lg font-bold text-gray-900 bg-gray-100 px-3 py-1 rounded-md tracking-wider">
+                        {showPassword ? (application.current_password || 'Not set') : '••••••••'}
+                      </div>
+                      <button 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  )}
+                  <div className="text-gray-500 text-xs mt-2 italic">
+                    You can use this password to log in to the Admin Portal. Do not share it with unauthorized personnel.
                   </div>
                 </div>
               </div>
