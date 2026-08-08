@@ -4,7 +4,7 @@
    Typography: Space Grotesk + DM Sans
    ============================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 /* ---- Tokens ---- */
@@ -34,8 +34,8 @@
 
   /* Typography */
   --font-display:     'Montserrat', sans-serif;
-  --font-heading:     'Space Grotesk', sans-serif;
-  --font-body:        'DM Sans', sans-serif;
+  --font-heading:     'Montserrat', sans-serif;
+  --font-body:        'Plus Jakarta Sans', sans-serif;
 
   /* Shadows */
   --shadow-card:      0 1px 3px rgba(15,23,42,0.06), 0 4px 16px rgba(37,99,235,0.06);

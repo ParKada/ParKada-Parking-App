@@ -184,11 +184,11 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             noiseIntensity={0.05}
             scanlineIntensity={0.3}
             scanlineFrequency={800}
-            hueShift={10}
+            hueShift={(adminRole === 'superadmin' || adminRole === 'super_admin') ? 140 : 10}
             warpAmount={0.3}
             resolutionScale={1}
           />
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
         </div>
 
         <div className="relative z-10 flex flex-col h-full w-full">
