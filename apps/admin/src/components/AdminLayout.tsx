@@ -184,7 +184,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             noiseIntensity={0.05}
             scanlineIntensity={0.3}
             scanlineFrequency={800}
-            hueShift={(adminRole === 'superadmin' || adminRole === 'super_admin') ? 140 : 10}
+            hueShift={(adminRole === 'superadmin' || adminRole === 'super_admin') ? 260 : 15}
             warpAmount={0.3}
             resolutionScale={1}
           />
@@ -200,7 +200,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             <div className="text-left">
               <p className="font-bold text-lg text-white">ParKada</p>
               <p className="text-xs text-white/70 capitalize">
-                {adminRole === 'superadmin' ? 'Super Admin' : 'Lot Manager'} Panel
+                {(adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : 'Lot Manager'} Panel
               </p>
             </div>
           </button>
@@ -234,7 +234,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white capitalize truncate">
-                  {adminRole === 'superadmin' ? 'Super Admin' : 'Manager'}
+                  {(adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : 'Manager'}
                 </p>
                 <p className="text-[10px] text-white/50 truncate" title={adminEmail}>
                   {adminEmail}

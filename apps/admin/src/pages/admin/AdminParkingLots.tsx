@@ -22,8 +22,7 @@ interface ParkingLot {
   type: string;
   rate_per_hour: number;
   total_slots: number;
-  available_slots: number;
-  open_hours: string | null;
+  operating_hours: string | null;
   status: "active" | "suspended";
   is_accredited: boolean;
   created_at: string;
@@ -41,7 +40,8 @@ export default function AdminParkingLots() {
   const [newType, setNewType] = useState("private");
   const [newRate, setNewRate] = useState("");
   const [newTotalSlots, setNewTotalSlots] = useState("");
-  const [newOpenHours, setNewOpenHours] = useState("");
+  const [newOpeningTime, setNewOpeningTime] = useState("6:00 AM");
+  const [newClosingTime, setNewClosingTime] = useState("10:00 PM");
   const [newIsAccredited, setNewIsAccredited] = useState(true); // default accredited
 
   // Real‑time subscription
@@ -86,12 +86,17 @@ export default function AdminParkingLots() {
   const handleToggleStatus = async (id: string, currentStatus: string, name: string) => {
     const newStatus = currentStatus === "active" ? "suspended" : "active";
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("parking_lots")
         .update({ status: newStatus })
-        .eq("id", id);
+        .eq("id", id)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.error("Access Denied: You do not have permission to update parking lots.");
+        return;
+      }
       toast.success(`${name} is now ${newStatus}`);
       fetchLots(true);
     } catch (err: any) {
@@ -115,8 +120,7 @@ export default function AdminParkingLots() {
           type: newType,
           rate_per_hour: parseFloat(newRate) || 0,
           total_slots: total,
-          available_slots: total,
-          open_hours: newOpenHours.trim() || null,
+          operating_hours: newOpeningTime === "24 Hours" ? "24 Hours" : `${newOpeningTime} - ${newClosingTime}`,
           status: "active",
           is_accredited: newIsAccredited,
         },
@@ -129,12 +133,14 @@ export default function AdminParkingLots() {
       setNewType("private");
       setNewRate("");
       setNewTotalSlots("");
-      setNewOpenHours("");
+      setNewOpeningTime("6:00 AM");
+      setNewClosingTime("10:00 PM");
       setNewIsAccredited(true);
       setIsAdding(false);
       fetchLots(true);
     } catch (error: any) {
-      toast.error("Failed to add parking lot.");
+      console.error("Add Lot Error:", error);
+      toast.error(error.message || "Failed to add parking lot.");
     }
   };
 
@@ -166,9 +172,11 @@ export default function AdminParkingLots() {
         return;
       }
 
-      const { error } = await supabase.from("parking_lots").delete().eq("id", id);
+      const { data, error } = await supabase.from("parking_lots").delete().eq("id", id).select();
       if (error) {
         toast.error("Database restriction: Hindi mabura ang location.");
+      } else if (!data || data.length === 0) {
+        toast.error("Access Denied: You do not have permission to delete parking lots.");
       } else {
         toast.success(`${name} deleted successfully!`);
         fetchLots(true);
@@ -247,37 +255,67 @@ export default function AdminParkingLots() {
                   onChange={(e) => setNewType(e.target.value)}
                   className="w-full h-10 px-3 rounded-lg border border-border text-sm bg-white"
                 >
-                  <option value="private">Private</option>
-                  <option value="public">Public</option>
+                  <option value="private">Private (Open to Reservations)</option>
+                  <option value="public">Public (For Detection Only)</option>
                 </select>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Price Rate (₱)</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={newRate}
-                  onChange={(e) => setNewRate(e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[^0-9.]/g, '');
+                    if ((val.match(/\./g) || []).length > 1) return;
+                    setNewRate(val);
+                  }}
                   className="w-full h-10 px-3 rounded-lg border border-border text-sm"
+                  placeholder="0.00"
                 />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Total Slots</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={newTotalSlots}
-                  onChange={(e) => setNewTotalSlots(e.target.value)}
+                  onChange={(e) => setNewTotalSlots(e.target.value.replace(/[^0-9]/g, ''))}
                   className="w-full h-10 px-3 rounded-lg border border-border text-sm"
+                  placeholder="0"
                 />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Open Hours</label>
-                <input
-                  type="text"
-                  value={newOpenHours}
-                  onChange={(e) => setNewOpenHours(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-border text-sm"
-                  placeholder="e.g. 6 AM - 10 PM"
-                />
+                <div className="flex gap-2">
+                  <select
+                    value={newOpeningTime}
+                    onChange={(e) => setNewOpeningTime(e.target.value)}
+                    className="w-full h-10 px-3 rounded-lg border border-border text-sm bg-white"
+                  >
+                    {[
+                      "12:00 AM", "1:00 AM", "2:00 AM", "3:00 AM", "4:00 AM", "5:00 AM",
+                      "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+                      "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
+                      "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM", "11:00 PM",
+                      "24 Hours"
+                    ].map(t => <option key={t} value={t}>{t === "24 Hours" ? "24 Hours" : `Opens: ${t}`}</option>)}
+                  </select>
+                  {newOpeningTime !== "24 Hours" && (
+                    <select
+                      value={newClosingTime}
+                      onChange={(e) => setNewClosingTime(e.target.value)}
+                      className="w-full h-10 px-3 rounded-lg border border-border text-sm bg-white"
+                    >
+                      {[
+                        "12:00 AM", "1:00 AM", "2:00 AM", "3:00 AM", "4:00 AM", "5:00 AM",
+                        "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+                        "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
+                        "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM", "11:00 PM"
+                      ].map(t => <option key={t} value={t}>Closes: {t}</option>)}
+                    </select>
+                  )}
+                </div>
               </div>
 
               {/* Accreditation Toggle */}
@@ -293,7 +331,9 @@ export default function AdminParkingLots() {
                       onChange={(e) => setNewIsAccredited(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
-                    <span className="text-sm font-medium">Accredited (Online Reservations)</span>
+                    <span className="text-sm font-medium">
+                      {newType === 'public' ? 'Visible in App (View Only)' : 'Accredited (Online Reservations)'}
+                    </span>
                   </label>
                   <span className="text-xs text-muted-foreground">
                     {newIsAccredited ? "Will be shown in user app" : "Walk‑in only, not in user app"}

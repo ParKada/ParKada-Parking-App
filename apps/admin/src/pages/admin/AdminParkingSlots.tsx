@@ -4,7 +4,7 @@ import DraggableMapEditor from "@/components/parking/DraggableMapEditor";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, Eye, Layers, Building2, User as UserIcon, Camera } from "lucide-react";
+import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, ArrowLeft, Eye, EyeOff, Layers, Building2, User as UserIcon, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@parkada/shared";
 
@@ -33,20 +33,24 @@ export default function AdminParkingSlots() {
   const [expandedCameraId, setExpandedCameraId] = useState<string | null>(null);
   const [lotAccounts, setLotAccounts] = useState<any[]>([]);
   
-  const [cameras, setCameras] = useState([
-    { id: 'cam1', name: 'Camera 1: Main Entrance' },
-    { id: 'cam2', name: 'Camera 2: Level 2' },
-  ]);
+  const [cameras, setCameras] = useState<{id: string, name: string, stream_url?: string}[]>([]);
   const [isAddingCamera, setIsAddingCamera] = useState(false);
   const [newCameraName, setNewCameraName] = useState("");
+  const [newCameraUrl, setNewCameraUrl] = useState("");
   const [editingCameraId, setEditingCameraId] = useState<string | null>(null);
+  const [editingCameraField, setEditingCameraField] = useState<'name' | 'url' | null>(null);
   const [editingCameraName, setEditingCameraName] = useState("");
+  const [editingCameraUrl, setEditingCameraUrl] = useState("");
+  const [showStreamUrl, setShowStreamUrl] = useState(false);
 
   const handleAddCamera = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCameraName.trim()) return;
-    setCameras([...cameras, { id: `cam${Date.now()}`, name: newCameraName.trim() }]);
+    const newCameras = [...cameras, { id: `cam${Date.now()}`, name: newCameraName.trim(), stream_url: newCameraUrl.trim() }];
+    setCameras(newCameras);
+    localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(newCameras));
     setNewCameraName("");
+    setNewCameraUrl("");
     setIsAddingCamera(false);
   };
 
@@ -93,6 +97,21 @@ export default function AdminParkingSlots() {
         }
       )
       .subscribe();
+
+    // Load cameras for this lot
+    const storedCameras = localStorage.getItem(`cameras_${selectedLotId}`);
+    if (storedCameras) {
+      try {
+        setCameras(JSON.parse(storedCameras));
+      } catch (e) {
+        setCameras([]);
+      }
+    } else {
+      setCameras([
+        { id: `cam1_${selectedLotId}`, name: 'Camera 1: Main Entrance' },
+        { id: `cam2_${selectedLotId}`, name: 'Camera 2: Level 2' },
+      ]);
+    }
 
     return () => {
       supabase.removeChannel(channel);
@@ -433,7 +452,10 @@ export default function AdminParkingSlots() {
           )}
           <button 
             className={cn("px-4 py-2 font-bold text-sm rounded-t-lg border-b-2 transition-colors", activeTab === 'cameras' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
-            onClick={() => setActiveTab('cameras')}
+            onClick={() => {
+              setActiveTab('cameras');
+              setExpandedCameraId(null);
+            }}
           >
             Cameras & Setup
           </button>
@@ -705,7 +727,7 @@ export default function AdminParkingSlots() {
                     >
                        <div className="aspect-video bg-black flex items-center justify-center relative">
                            <img 
-                             src={getCameraUrl()} 
+                             src={cam.stream_url || getCameraUrl()} 
                              className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity" 
                              onError={(e) => e.currentTarget.style.display = 'none'}
                            />
@@ -718,10 +740,10 @@ export default function AdminParkingSlots() {
                               <Camera size={32} className="mb-2 opacity-50" />
                               <p className="text-sm font-bold text-slate-300">Camera Offline</p>
                            </div>
-                           <div className="absolute top-3 left-3 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-md backdrop-blur-sm">
-                             {cam.name}
-                           </div>
-                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <div className="absolute top-3 left-3 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-md backdrop-blur-sm max-w-[70%] truncate">
+                              {cam.name}
+                            </div>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                              <div className="bg-primary/90 text-primary-foreground p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 shadow-lg">
                                <Eye size={20} />
                              </div>
@@ -742,6 +764,14 @@ export default function AdminParkingSlots() {
                             className="h-10 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
                             placeholder="e.g. Roof Deck Camera"
                             autoFocus
+                          />
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">Public Stream URL (Optional)</label>
+                          <input 
+                            type="url" 
+                            value={newCameraUrl} 
+                            onChange={(e) => setNewCameraUrl(e.target.value)}
+                            className="h-10 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                            placeholder="https://your-cloudflare-tunnel.com/video_feed"
                           />
                           <div className="flex gap-2 mt-2">
                             <Button type="submit" size="sm" className="flex-1">Add Camera</Button>
@@ -764,64 +794,72 @@ export default function AdminParkingSlots() {
               </div>
             ) : (
               // EXPANDED SINGLE CAMERA VIEW
-              <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-800 flex flex-col">
-                 <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-                     <h3 className="text-white font-bold flex items-center gap-2">
-                      <Camera className="text-primary w-5 h-5" />
-                      {editingCameraId === expandedCameraId ? (
-                        <input 
-                          type="text"
-                          value={editingCameraName}
-                          onChange={(e) => setEditingCameraName(e.target.value)}
-                          className="bg-slate-800 text-white px-3 py-1 rounded-md text-sm outline-none border border-slate-700 focus:border-primary min-w-[200px]"
-                          autoFocus
-                          onBlur={() => {
-                            if (editingCameraName.trim()) {
-                              setCameras(cameras.map(c => c.id === expandedCameraId ? { ...c, name: editingCameraName.trim() } : c));
-                            }
-                            setEditingCameraId(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.currentTarget.blur();
-                            } else if (e.key === 'Escape') {
-                              setEditingCameraId(null);
-                            }
-                          }}
-                        />
+              <div className="flex flex-col gap-4">
+                <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-800 flex flex-col">
+                 <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50 w-full overflow-hidden">
+                    <div className="flex items-center gap-3 w-full mr-4">
+                      <Camera className="text-primary w-5 h-5 flex-shrink-0" />
+                      {editingCameraId === expandedCameraId && editingCameraField === 'name' ? (
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full max-w-2xl">
+                          <input 
+                            type="text"
+                            value={editingCameraName}
+                            onChange={(e) => setEditingCameraName(e.target.value)}
+                            className="bg-slate-800 text-white px-3 py-1.5 rounded-md text-sm outline-none border border-slate-700 focus:border-primary w-full sm:flex-1 sm:min-w-[200px]"
+                            placeholder="Camera Name"
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button size="sm" onClick={() => {
+                                if (editingCameraName.trim()) {
+                                  const newCameras = cameras.map(c => c.id === expandedCameraId ? { ...c, name: editingCameraName.trim() } : c);
+                                  setCameras(newCameras);
+                                  localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(newCameras));
+                                }
+                                setEditingCameraId(null);
+                                setEditingCameraField(null);
+                            }} className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 px-3">Save</Button>
+                            <Button size="sm" variant="ghost" onClick={() => {
+                                setEditingCameraId(null);
+                                setEditingCameraField(null);
+                            }} className="h-8 px-3 text-slate-300 hover:text-white">Cancel</Button>
+                          </div>
+                        </div>
                       ) : (
-                        <>
-                          {cameras.find(c => c.id === expandedCameraId)?.name || 'Camera Feed'}
+                        <div className="flex items-center w-full">
+                          <h3 className="text-white font-bold">{cameras.find(c => c.id === expandedCameraId)?.name || 'Camera Feed'}</h3>
                           {userRole !== 'guard' && (
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setEditingCameraName(cameras.find(c => c.id === expandedCameraId)?.name || "");
+                                const cam = cameras.find(c => c.id === expandedCameraId);
+                                setEditingCameraName(cam?.name || "");
                                 setEditingCameraId(expandedCameraId);
+                                setEditingCameraField('name');
                               }}
-                              className="ml-2 text-slate-500 hover:text-primary transition-colors p-1"
-                              title="Rename Camera"
+                              className="ml-3 text-slate-500 hover:text-primary transition-colors p-1 flex-shrink-0"
+                              title="Edit Camera Name"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                             </button>
                           )}
-                        </>
+                        </div>
                       )}
-                     </h3>
+                    </div>
                     <Button 
                       variant="ghost" 
-                      size="sm" 
-                      className="text-slate-400 hover:text-white hover:bg-slate-800"
+                      size="icon" 
+                      className="text-slate-400 hover:text-white hover:bg-slate-800 flex-shrink-0 rounded-full h-8 w-8"
                       onClick={() => setExpandedCameraId(null)}
+                      title="Back to Grid"
                     >
-                       Back to Grid
+                       <ArrowLeft className="w-5 h-5" />
                     </Button>
                  </div>
                  <div className="w-full aspect-video flex items-center justify-center relative bg-black">
                     <img 
-                      src={getCameraUrl()} 
-                      alt="Live Parking Stream" 
-                      className="w-full h-full object-contain"
+                      src={cameras.find(c => c.id === expandedCameraId)?.stream_url || getCameraUrl()} 
+                      className="w-full h-auto max-h-[70vh] object-contain opacity-90"
                       onError={(e) => {
                          e.currentTarget.style.display = 'none';
                          const fallbackMsg = document.getElementById('stream-fallback-expanded');
@@ -839,9 +877,94 @@ export default function AdminParkingSlots() {
                        <p className="text-sm opacity-70 mt-2 font-medium">Please check the connection or start the local stream script.</p>
                     </div>
                  </div>
-                 <div className="p-4 bg-slate-950/50 border-t border-slate-800">
-                    <p className="text-xs text-slate-400 text-center">Live feed processing via edge node.</p>
+                 <div className="p-3 bg-slate-950/50 border-t border-slate-800 flex justify-center items-center">
+                    <p className="text-xs text-slate-400">Live feed processing via edge node.</p>
                  </div>
+                 </div>
+                 {userRole !== 'guard' && (
+                   <div className="flex flex-col gap-2">
+                     <div className="py-2 px-1 flex items-center gap-4">
+                       <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap flex-shrink-0 w-32">Stream URL</h4>
+                     
+                     {editingCameraId === expandedCameraId && editingCameraField === 'url' ? (
+                       <>
+                          <input 
+                            type="text"
+                            value={editingCameraUrl}
+                            onChange={(e) => setEditingCameraUrl(e.target.value)}
+                            className="bg-white text-slate-900 px-3 py-2 rounded-lg text-sm outline-none border border-slate-300 shadow-sm focus:border-primary w-full max-w-xl transition-colors"
+                            placeholder="Stream URL (e.g. Cloudflare tunnel)"
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                            <Button onClick={() => {
+                                if (window.confirm("Are you sure you want to make these changes?")) {
+                                  const newCameras = cameras.map(c => c.id === expandedCameraId ? { ...c, stream_url: editingCameraUrl.trim() } : c);
+                                  setCameras(newCameras);
+                                  localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(newCameras));
+                                  setEditingCameraId(null);
+                                  setEditingCameraField(null);
+                                }
+                            }} className="bg-green-50 text-green-700 hover:bg-slate-900 hover:text-white font-medium h-9 px-6 transition-colors">Save</Button>
+                            <Button variant="outline" onClick={() => {
+                                setEditingCameraId(null);
+                                setEditingCameraField(null);
+                            }} className="bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white border-transparent shadow-sm font-medium h-9 px-6 transition-colors">Cancel</Button>
+                          </div>
+                       </>
+                     ) : (
+                       <>
+                          <div className="flex items-center gap-3 w-full max-w-xl">
+                            <div className="bg-slate-50 text-slate-600 px-3 py-2 rounded-lg text-sm border border-slate-200 shadow-sm w-full font-mono flex items-center justify-between transition-colors">
+                              <span className="truncate">
+                                {cameras.find(c => c.id === expandedCameraId)?.stream_url 
+                                  ? (showStreamUrl ? cameras.find(c => c.id === expandedCameraId)?.stream_url : "••••••••••••••••••••••••••••••••••••••••••") 
+                                  : "No stream URL configured"}
+                              </span>
+                              {cameras.find(c => c.id === expandedCameraId)?.stream_url && (
+                                <button 
+                                  onClick={() => setShowStreamUrl(!showStreamUrl)}
+                                  className="text-slate-400 hover:text-slate-600 focus:outline-none flex-shrink-0 transition-colors ml-2"
+                                  title={showStreamUrl ? "Hide URL" : "Show URL"}
+                                >
+                                  {showStreamUrl ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                              )}
+                            </div>
+                            <button 
+                              onClick={() => {
+                                setEditingCameraId(expandedCameraId);
+                                setEditingCameraUrl(cameras.find(c => c.id === expandedCameraId)?.stream_url || "");
+                                setEditingCameraField('url');
+                              }} 
+                              className="text-slate-400 hover:text-slate-600 focus:outline-none flex-shrink-0 transition-colors p-2"
+                              title="Edit URL"
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                            </button>
+                          </div>
+                       </>
+                     )}
+                     </div>
+                     <div className="flex justify-end px-1 pt-4 pb-2 border-t border-slate-200 mt-2">
+                        <Button 
+                          variant="ghost"
+                          onClick={() => {
+                            const cam = cameras.find(c => c.id === expandedCameraId);
+                            if (cam && window.confirm(`Are you sure you want to delete camera: ${cam.name}?`)) {
+                              const newCameras = cameras.filter(c => c.id !== expandedCameraId);
+                              setCameras(newCameras);
+                              localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(newCameras));
+                              setExpandedCameraId(null);
+                            }
+                          }}
+                          className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 h-9 px-4 transition-colors font-medium rounded-lg"
+                        >
+                          <Trash2 size={16} className="mr-2" /> Delete Camera
+                        </Button>
+                     </div>
+                   </div>
+                 )}
               </div>
             )}
           </div>
