@@ -4,7 +4,8 @@ import DraggableMapEditor from "@/components/parking/DraggableMapEditor";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, ArrowLeft, Eye, EyeOff, Layers, Building2, User as UserIcon, Camera } from "lucide-react";
+import CameraGridEditor from "@/components/parking/CameraGridEditor";
+import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, ArrowLeft, Eye, EyeOff, Layers, Building2, User as UserIcon, Camera, PenTool, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@parkada/shared";
 
@@ -42,6 +43,37 @@ export default function AdminParkingSlots() {
   const [editingCameraName, setEditingCameraName] = useState("");
   const [editingCameraUrl, setEditingCameraUrl] = useState("");
   const [showStreamUrl, setShowStreamUrl] = useState(false);
+
+  const [showCameraGrid, setShowCameraGrid] = useState(false);
+  const [isDrawingGrid, setIsDrawingGrid] = useState(false);
+
+  const handleUpdateCameraZone = async (slotId: string, points: {x:number, y:number}[]) => {
+    try {
+      const { error } = await supabase
+        .from('parking_slots')
+        .update({ camera_id: expandedCameraId, camera_zone_points: points })
+        .eq('id', slotId);
+
+      if (error) throw error;
+      toast.success("Camera zone saved to Supabase!");
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleDeleteCameraZone = async (slotId: string) => {
+    try {
+      const { error } = await supabase
+        .from('parking_slots')
+        .update({ camera_id: null, camera_zone_points: null })
+        .eq('id', slotId);
+
+      if (error) throw error;
+      toast.success("Camera zone deleted from Supabase!");
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
 
   const handleAddCamera = (e: React.FormEvent) => {
     e.preventDefault();
@@ -876,9 +908,50 @@ export default function AdminParkingSlots() {
                        <p className="text-xl font-bold text-slate-300">Camera Feed Offline</p>
                        <p className="text-sm opacity-70 mt-2 font-medium">Please check the connection or start the local stream script.</p>
                     </div>
+                    
+                    {/* Camera Grid Overlay */}
+                    {(showCameraGrid || isDrawingGrid) && expandedCameraId && (
+                      <CameraGridEditor 
+                        interactive={isDrawingGrid}
+                        slots={slots}
+                        cameraId={expandedCameraId}
+                        onSaveZone={handleUpdateCameraZone}
+                        onDeleteZone={handleDeleteCameraZone}
+                      />
+                    )}
                  </div>
-                 <div className="p-3 bg-slate-950/50 border-t border-slate-800 flex justify-center items-center">
+                 <div className="p-3 bg-slate-950/50 border-t border-slate-800 flex justify-between items-center">
                     <p className="text-xs text-slate-400">Live feed processing via edge node.</p>
+                    
+                    {/* Toolbar for Camera Grid */}
+                    {userRole !== 'guard' && (
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => setShowCameraGrid(!showCameraGrid)}
+                          className={cn("h-8 px-3 text-xs border-slate-700 bg-transparent transition-colors", showCameraGrid ? "text-primary border-primary bg-primary/10" : "text-slate-300 hover:text-white hover:bg-slate-800")}
+                        >
+                          {showCameraGrid ? <EyeOff size={14} className="mr-1.5" /> : <Eye size={14} className="mr-1.5" />}
+                          {showCameraGrid ? "Hide Grid" : "Show Grid"}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant={isDrawingGrid ? "default" : "outline"}
+                          onClick={() => {
+                            if (!isDrawingGrid) setShowCameraGrid(true); // Always show grid when entering drawing mode
+                            setIsDrawingGrid(!isDrawingGrid);
+                          }}
+                          className={cn("h-8 px-3 text-xs transition-colors", isDrawingGrid ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-slate-700 bg-transparent text-slate-300 hover:text-white hover:bg-slate-800")}
+                        >
+                          {isDrawingGrid ? (
+                            <><Check size={14} className="mr-1.5" /> Done</>
+                          ) : (
+                            <><PenTool size={14} className="mr-1.5" /> Draw Zones</>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                  </div>
                  </div>
                  {userRole !== 'guard' && (
