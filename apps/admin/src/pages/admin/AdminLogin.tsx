@@ -154,7 +154,7 @@ export default function AdminLogin() {
             speed={2.0}              
             noiseIntensity={0.05}    
             scanlineIntensity={0.3}  
-            scanlineFrequency={800}
+            scanlineFrequency={2}
             hueShift={10}           
             warpAmount={0.3}
             resolutionScale={1}

@@ -7,9 +7,7 @@ void main(){gl_Position=vec4(position,0.0,1.0);}
 `;
 
 const fragment = `
-#ifdef GL_ES
-precision lowp float;
-#endif
+precision highp float;
 uniform vec2 uResolution;
 uniform float uTime;
 uniform float uHueShift;
@@ -121,14 +119,28 @@ export default function DarkVeil({
 
     const mesh = new Mesh(gl, { geometry, program });
 
+    let isResizing = false;
     const resize = () => {
-      const w = parent.clientWidth,
-        h = parent.clientHeight;
+      if (!parent) return;
+      const w = parent.clientWidth;
+      const h = parent.clientHeight;
+      if (w === 0 || h === 0) return;
+      
       renderer.setSize(w * resolutionScale, h * resolutionScale);
-      program.uniforms.uResolution.value.set(w, h);
+      program.uniforms.uResolution.value.set(gl.canvas.width, gl.canvas.height);
     };
 
-    window.addEventListener('resize', resize);
+    const resizeObserver = new ResizeObserver(() => {
+      if (!isResizing) {
+        isResizing = true;
+        requestAnimationFrame(() => {
+          resize();
+          isResizing = false;
+        });
+      }
+    });
+    
+    resizeObserver.observe(parent);
     resize();
 
     const start = performance.now();
@@ -149,7 +161,7 @@ export default function DarkVeil({
 
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener('resize', resize);
+      resizeObserver.disconnect();
     };
   }, [hueShift, noiseIntensity, scanlineIntensity, speed, scanlineFrequency, warpAmount, resolutionScale]);
   return <canvas ref={ref} className="w-full h-full block" />;
