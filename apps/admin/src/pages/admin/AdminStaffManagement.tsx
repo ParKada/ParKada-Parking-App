@@ -19,7 +19,8 @@ import {
   User,
   ScanLine,
   Eye,
-  EyeOff
+  EyeOff,
+  Trash2
 } from "lucide-react";
 import { supabase } from "@parkada/shared"; 
 import { createClient } from "@supabase/supabase-js";
@@ -140,15 +141,25 @@ export default function ManageGuards() {
       if (!newUserId) throw new Error("Hindi nakuha ang User ID.");
 
       // Save sa admin_profiles table
-      const { error: profileError } = await supabase.from('admin_profiles').insert([{
+      const { error: profileError } = await supabase.from('admin_profiles').upsert([{
         id: newUserId,
         full_name: guardName,
         assigned_lot_id: managerLotId,
         role: 'guard',
         status: 'Active'
-      }]);
+      }], { onConflict: 'id' });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("Profile Upsert Error:", profileError);
+        // Fallback: If upsert fails (maybe due to RLS on update), try a manual update
+        const { error: updateError } = await supabase.from('admin_profiles').update({
+          full_name: guardName,
+          assigned_lot_id: managerLotId,
+          status: 'Active'
+        }).eq('id', newUserId);
+        
+        if (updateError) throw updateError;
+      }
 
       toast.success(`Guard account para kay ${guardName} nagawa na!`);
       setGuardName(""); setGuardEmail(""); setGuardPassword("");
@@ -180,7 +191,29 @@ export default function ManageGuards() {
 
       if (error) throw error;
 
-      toast.success(`Guard account successfully ${newStatus.toLowerCase()}!`);
+      toast.success(`Access ni ${name} ay na-${newStatus.toLowerCase()} na.`);
+      fetchManagerDataAndGuards();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Error: ${error.message}`);
+    }
+  };
+
+  // Delete Guard
+  const handleDeleteGuard = async (guardId: string, name: string) => {
+    if (!window.confirm(`WARNING: Ito ay permanente at hindi maibabalik. Sigurado ka bang gusto mong tanggalin nang tuluyan si ${name}?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('admin_profiles')
+        .delete()
+        .eq('id', guardId);
+
+      if (error) throw error;
+      
+      toast.success(`Ang account ni ${name} ay permanenteng natanggal.`);
       fetchManagerDataAndGuards();
     } catch (error: any) {
       console.error(error);
@@ -200,12 +233,12 @@ export default function ManageGuards() {
             <div className="bg-sidebar p-8 text-white relative overflow-hidden">
               <div className="relative z-10 space-y-2">
                 <h2 className="text-3xl font-extrabold tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}> 
-                  New Guard 
+                  New Staff 
                 </h2>
                 
                 <div className="flex items-center gap-2">
                   <div className="h-0.5 w-8 bg-primary"></div>
-                  <p className="text-primary text-[11px] font-black uppercase tracking-[0.2em]"> 
+                  <p className="text-white text-[11px] font-black uppercase tracking-[0.2em]"> 
                     Scanner Access 
                   </p>
                 </div>
@@ -348,17 +381,28 @@ export default function ManageGuards() {
                         </div>
                       </div>
 
-                      <button 
-                        onClick={() => handleToggleStatus(guard.id, guard.status, guard.full_name)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          isActive 
-                            ? 'text-rose-500 hover:bg-rose-100' 
-                            : 'text-emerald-600 hover:bg-emerald-100'
-                        }`}
-                        title={isActive ? "Suspend Access" : "Reactivate Access"}
-                      >
-                        {isActive ? <UserMinus size={18} /> : <UserCheck size={18} />}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {!isActive && (
+                          <button 
+                            onClick={() => handleDeleteGuard(guard.id, guard.full_name)}
+                            className="p-2 rounded-lg text-rose-600 hover:bg-rose-100 transition-colors"
+                            title="Permanently Delete Access"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleToggleStatus(guard.id, guard.status, guard.full_name)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            isActive 
+                              ? 'text-rose-500 hover:bg-rose-100' 
+                              : 'text-emerald-600 hover:bg-emerald-100'
+                          }`}
+                          title={isActive ? "Suspend Access" : "Reactivate Access"}
+                        >
+                          {isActive ? <UserMinus size={18} /> : <UserCheck size={18} />}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

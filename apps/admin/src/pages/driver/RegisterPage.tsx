@@ -243,7 +243,7 @@ export default function RegisterPage() {
     }
 
     if (otpCode.length !== 6) {
-      toast.error("Please enter the 6-digit code.");
+      toast.error("Please enter the 8-digit code.");
       return;
     }
 
@@ -417,7 +417,7 @@ export default function RegisterPage() {
           {/* Step 3 - OTP */}
           {step === 3 && (
             <div className="space-y-6 flex-1 flex flex-col items-center justify-center text-center">
-              <div><h3 className="text-xl font-bold text-slate-900 mb-2">Check your email</h3><p className="text-sm text-slate-500">We've sent a 6-digit verification code to<br/><strong className="text-slate-800">{email}</strong></p></div>
+              <div><h3 className="text-xl font-bold text-slate-900 mb-2">Check your email</h3><p className="text-sm text-slate-500">We've sent a 8-digit verification code to<br/><strong className="text-slate-800">{email}</strong></p></div>
               <div className="relative w-full max-w-70 mx-auto"><div className="flex justify-between gap-2">{[0,1,2,3,4,5].map((index) => { const char = otpCode[index]; return (<div key={index} className={`w-10 h-14 flex items-center justify-center text-2xl font-bold rounded-xl border-2 transition-all ${otpCode.length === index && !isLocked ? 'border-navy-900 shadow-sm' : 'border-slate-200'} ${char ? 'bg-white text-slate-900' : 'bg-slate-50 text-slate-400'} ${isLocked ? 'opacity-50' : ''}`}>{char ? char : "•"}</div>); })}</div><input type="text" inputMode="numeric" maxLength={6} value={otpCode} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ''); setOtpCode(val); }} className="absolute inset-0 w-full h-full opacity-0 cursor-text" disabled={isLocked || loading} /></div>
               <div className="mt-2 text-sm w-full">{countdown > 0 ? (<p className="text-slate-500 font-medium">Resend code in <span style={{ color: "oklch(0.22 0.07 255)" }}>{Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}</span></p>) : (<p className="text-slate-500">Didn't receive the code? <button onClick={() => handleResendOtp(false)} disabled={resending || isLocked} className="font-bold hover:underline disabled:opacity-50 transition-all" style={{ color: "oklch(0.22 0.07 255)" }}>{resending ? "Resending..." : "Resend Code"}</button></p>)}</div>
               <div className="pt-4 pb-2 w-full mt-auto"><Button onClick={handleVerifyOtpAndSave} disabled={loading || otpCode.length !== 6 || isLocked} className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white disabled:opacity-70" style={{ background: "oklch(0.22 0.07 255)" }}>{loading ? <Loader2 className="animate-spin" size={20} /> : "Verify & Create Account"}</Button></div>

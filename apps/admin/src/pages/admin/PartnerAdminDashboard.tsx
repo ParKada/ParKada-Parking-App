@@ -151,12 +151,12 @@ export default function PartnerAdminDashboard() {
       if (user) {
         const { data: profileData } = await supabase
           .from("admin_profiles")
-          .select("role, lot_id")
+          .select("role, assigned_lot_id")
           .eq("id", user.id)
           .single();
         if (profileData?.role) {
           currentRole = profileData.role.toLowerCase();
-          managerLotId = profileData.lot_id;
+          managerLotId = profileData.assigned_lot_id;
           setUserRole(currentRole);
         }
       }

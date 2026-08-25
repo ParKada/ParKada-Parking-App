@@ -165,9 +165,21 @@ export default function ReservationPage() {
   const startTimeFormatted = format12Hour(startTime);
   const endTimeFormatted = format12Hour(endTime24);
 
-  const baseRate = 30; 
-  const extendedFee = duration > 3 ? (duration - 3) * 10 : 0; 
-  const totalCost = baseRate + extendedFee; 
+  let totalCost = 0;
+  let baseRateDisplay = 0;
+  let extendedFee = 0;
+
+  if (lot) {
+    if (lot.pricing_scheme === 'fixed') {
+      totalCost = Number(lot.fixed_rate) || 150;
+      baseRateDisplay = Number(lot.fixed_rate) || 150;
+    } else {
+      baseRateDisplay = Number(lot.base_rate) || 50;
+      const hourlyRate = Number(lot.rate_per_hour) || 20;
+      extendedFee = duration > 3 ? (duration - 3) * hourlyRate : 0;
+      totalCost = baseRateDisplay + extendedFee;
+    }
+  }
   
   const isExceedingCloseTime = () => {
     if (!lot?.open_hours || lot.open_hours.toLowerCase().includes("24 hours")) return false;
@@ -284,9 +296,11 @@ export default function ReservationPage() {
                 </View>
               </View>
               <View className="items-end">
-                <Text className="text-[10px] font-bold opacity-70 uppercase text-white">Base (3h)</Text>
-                <Text className="text-base font-bold text-white">₱{baseRate}</Text>
-                {extendedFee > 0 && (
+                <Text className="text-[10px] font-bold opacity-70 uppercase text-white">
+                  {lot?.pricing_scheme === 'fixed' ? 'Fixed (Whole Day)' : 'Base (3h)'}
+                </Text>
+                <Text className="text-base font-bold text-white">₱{baseRateDisplay}</Text>
+                {lot?.pricing_scheme !== 'fixed' && extendedFee > 0 && (
                   <View className="items-end mt-1">
                     <Text className="text-[10px] font-bold text-amber-200 uppercase">Extra</Text>
                     <Text className="text-sm font-bold text-amber-200">+₱{extendedFee}</Text>

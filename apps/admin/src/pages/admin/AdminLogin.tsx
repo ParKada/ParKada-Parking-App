@@ -22,6 +22,8 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [otp, setOtp] = useState("");
   const [loginStats, setLoginStats] = useState([
     { label: "Accredited Partners", value: "..." },
     { label: "Occupancy Rate", value: "..." },
@@ -78,6 +80,43 @@ export default function AdminLogin() {
     fetchLoginStats();
   }, []);
 
+  const processLoginSuccess = async (userId: string) => {
+    const { data: profileData, error: profileError } = await supabase
+      .from("admin_profiles")
+      .select("assigned_lot_id, role, status")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !profileData) {
+      await supabase.auth.signOut();
+      throw new Error("Access Denied: Wala kang access sa admin portal.");
+    }
+
+    if (profileData.status === "Suspended") {
+      await supabase.auth.signOut();
+      throw new Error("Access Denied: Ang iyong account ay suspended. Makipag-ugnayan sa Super Admin.");
+    }
+
+    localStorage.setItem("admin_role", profileData.role);
+
+    if (profileData.assigned_lot_id) {
+      localStorage.setItem("admin_lot_id", profileData.assigned_lot_id);
+    } else {
+      localStorage.removeItem("admin_lot_id");
+    }
+
+    if (profileData.role === "guard") {
+      toast.success("Welcome, Guard! Opening scanner...");
+      navigate("/admin/scanner");
+    } else if (profileData.role === "manager") {
+      toast.success("Welcome, Lot Manager!");
+      navigate("/admin/dashboard");
+    } else {
+      toast.success("Welcome, Super Admin!");
+      navigate("/admin/dashboard");
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -93,51 +132,51 @@ export default function AdminLogin() {
         password: password,
       });
 
-      if (authError) throw authError;
-
-      const userId = authData.user?.id;
-
-      if (userId) {
-        const { data: profileData, error: profileError } = await supabase
-          .from("admin_profiles")
-          .select("assigned_lot_id, role, status")
-          .eq("id", userId)
-          .single();
-
-        if (profileError || !profileData) {
-          await supabase.auth.signOut();
-          throw new Error("Access Denied: Wala kang access sa admin portal.");
+      if (authError) {
+        if (authError.message.toLowerCase().includes("email not confirmed")) {
+          setNeedsVerification(true);
+          toast.success("Verification required. Please enter the OTP sent to your email.");
+          return;
         }
+        throw authError;
+      }
 
-        if (profileData.status === "Suspended") {
-          await supabase.auth.signOut();
-          throw new Error("Access Denied: Ang iyong account ay suspended. Makipag-ugnayan sa Super Admin.");
-        }
-
-        localStorage.setItem("admin_role", profileData.role);
-
-        if (profileData.assigned_lot_id) {
-          localStorage.setItem("admin_lot_id", profileData.assigned_lot_id);
-        } else {
-          localStorage.removeItem("admin_lot_id");
-        }
-
-        if (profileData.role === "guard") {
-          toast.success("Welcome, Guard! Opening scanner...");
-          navigate("/admin/scanner");
-        } else if (profileData.role === "manager") {
-          toast.success("Welcome, Lot Manager!");
-          navigate("/admin/dashboard");
-        } else {
-          toast.success("Welcome, Super Admin!");
-          navigate("/admin/dashboard");
-        }
+      if (authData.user?.id) {
+        await processLoginSuccess(authData.user.id);
       }
     } catch (error: any) {
       console.error("Login Error:", error);
       localStorage.removeItem("admin_role");
       localStorage.removeItem("admin_lot_id");
       toast.error(error.message || "Mali ang email o password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp) {
+      toast.error("Please enter the verification code.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'signup'
+      });
+
+      if (error) throw error;
+      
+      if (data.user?.id) {
+        await processLoginSuccess(data.user.id);
+      }
+    } catch (error: any) {
+      console.error("Verification Error:", error);
+      toast.error(error.message || "Invalid verification code.");
     } finally {
       setLoading(false);
     }
@@ -254,48 +293,81 @@ export default function AdminLogin() {
           </h2>
           <p className="text-muted-foreground text-sm mb-8">Access the parking management dashboard</p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-semibold">Email Address</Label>
-              <Input
-                type="email"
-                placeholder="admin@parkada.ph"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-12 rounded-xl bg-muted/40"
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-semibold">Password</Label>
-              <div className="relative">
+          {needsVerification ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Verification Code (OTP)</Label>
                 <Input
-                  type={showPass ? "text" : "password"}
-                  placeholder="Enter password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 rounded-xl bg-muted/40 pr-12"
+                  type="text"
+                  placeholder="Enter 8-digit code"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="h-12 rounded-xl bg-muted/40 text-center tracking-widest text-lg font-bold"
                   disabled={loading}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                >
-                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
               </div>
-            </div>
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full h-12 text-base font-bold rounded-xl mt-2 flex justify-center items-center gap-2"
-              style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              {loading && <Loader2 className="h-5 w-5 animate-spin" />}
-              {loading ? "Signing in..." : "Sign In to Dashboard"}
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 text-base font-bold rounded-xl mt-2 flex justify-center items-center gap-2"
+                style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                {loading && <Loader2 className="h-5 w-5 animate-spin" />}
+                {loading ? "Verifying..." : "Verify & Sign In"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setNeedsVerification(false)}
+                className="w-full h-12 text-sm font-semibold rounded-xl text-muted-foreground"
+              >
+                Back to Login
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Email Address</Label>
+                <Input
+                  type="email"
+                  placeholder="admin@parkada.ph"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-12 rounded-xl bg-muted/40"
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Password</Label>
+                <div className="relative">
+                  <Input
+                    type={showPass ? "text" : "password"}
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-12 rounded-xl bg-muted/40 pr-12"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
+                    {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 text-base font-bold rounded-xl mt-2 flex justify-center items-center gap-2"
+                style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                {loading && <Loader2 className="h-5 w-5 animate-spin" />}
+                {loading ? "Signing in..." : "Sign In to Dashboard"}
+              </Button>
+            </form>
+          )}
 
           <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10">
             <p className="text-xs text-primary/80 text-center font-medium">

@@ -151,7 +151,8 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           if (payload.new.status === 'Suspended') {
             toast.error("⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde.", { duration: 8000 });
             await supabase.auth.signOut();
-            localStorage.clear();
+            localStorage.removeItem('admin_role');
+            localStorage.removeItem('admin_lot_id');
             setTimeout(() => { setLocation("/admin"); }, 2000);
           }
         }
@@ -162,7 +163,8 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      localStorage.clear();
+      localStorage.removeItem('admin_role');
+      localStorage.removeItem('admin_lot_id');
       toast.success("Successfully logged out");
       setLocation("/admin");
     } catch (error) {

@@ -428,7 +428,7 @@ export default function AdminScanner() {
                   QR Scanner
                 </h3>
                 <button
-                  onClick={handleStartCamera}
+                  onClick={() => isScanning ? setIsScanning(false) : handleStartCamera()}
                   className={cn(
                     "text-xs px-3 py-1.5 rounded-lg font-bold transition-colors",
                     isScanning ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"

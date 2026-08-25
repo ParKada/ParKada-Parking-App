@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import DraggableMapEditor from "@/components/parking/DraggableMapEditor";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import CameraGridEditor from "@/components/parking/CameraGridEditor";
-import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight, ArrowLeft, Eye, EyeOff, Layers, Building2, User as UserIcon, Camera, PenTool, Check } from "lucide-react";
+import { Loader2, Plus, Info, LayoutDashboard, Database, Video, ChevronDown, Check, PenSquare, Trash2, MapPin, MousePointer2, Settings, Smartphone, Maximize, Maximize2, ShieldAlert, User as UserIcon, Camera, Upload, RefreshCw, Car, ArrowLeftRight, ArrowLeft, Eye, EyeOff, Layers, Building2, PenTool, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@parkada/shared";
 
@@ -44,8 +45,17 @@ export default function AdminParkingSlots() {
   const [editingCameraUrl, setEditingCameraUrl] = useState("");
   const [showStreamUrl, setShowStreamUrl] = useState(false);
 
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [cameraTestStatus, setCameraTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+
   const [showCameraGrid, setShowCameraGrid] = useState(false);
   const [isDrawingGrid, setIsDrawingGrid] = useState(false);
+
+  // Refs for file uploads
+  const frontViewRef = useRef<HTMLInputElement>(null);
+  const businessPermitRef = useRef<HTMLInputElement>(null);
+  const otherPhotoRef = useRef<HTMLInputElement>(null);
 
   const handleUpdateCameraZone = async (slotId: string, points: {x:number, y:number}[]) => {
     try {
@@ -89,6 +99,111 @@ export default function AdminParkingSlots() {
   // Natural sort comparator for slots
   const naturalSort = (a: any, b: any) => {
     return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' });
+  };
+
+  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>, type: 'front_view' | 'business_permit' | 'other') => {
+    const file = e.target.files?.[0];
+    console.log("Photo upload triggered. File:", file, "Lot ID:", selectedLotId);
+    if (!file || !selectedLotId) return;
+    
+    const toastId = toast.loading(`Uploading ${type === 'front_view' ? 'Front View' : type === 'business_permit' ? 'Business Permit' : 'Photo'}...`);
+    
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${selectedLotId}/${type}-${Date.now()}.${fileExt}`;
+      console.log("Uploading to storage as:", fileName);
+
+      const { data, error } = await supabase.storage
+        .from('lot-documents')
+        .upload(fileName, file, { upsert: true });
+
+      if (error) {
+        console.error("Storage error:", error);
+        throw error;
+      }
+      
+      const { data: publicUrlData } = supabase.storage
+        .from('lot-documents')
+        .getPublicUrl(fileName);
+        
+      const publicUrl = publicUrlData.publicUrl;
+      console.log("Upload successful. Public URL:", publicUrl);
+
+      // Update database
+      let updatePayload: any = {};
+      if (type === 'other') {
+        const currentOthers = activeLot?.other_photos || [];
+        updatePayload = { other_photos: [...currentOthers, publicUrl] };
+      } else {
+        const updateField = type === 'front_view' ? 'front_view_url' : 'business_permit_url';
+        updatePayload = { [updateField]: publicUrl };
+      }
+
+      const { error: dbError } = await supabase
+        .from('parking_lots')
+        .update(updatePayload)
+        .eq('id', selectedLotId);
+
+      if (dbError) {
+        console.error("Database update error:", dbError);
+        throw dbError;
+      }
+      
+      toast.success("Photo uploaded successfully!", { id: toastId });
+      fetchLots(); // refresh data
+    } catch (error: any) {
+      console.error("Upload error caught:", error);
+      toast.error(`Upload failed: ${error.message}`, { id: toastId });
+    }
+    
+    // Reset the input value so the same file can be selected again if needed
+    e.target.value = '';
+  };
+
+  const handleDeleteOtherPhoto = async (urlToDelete: string) => {
+    if (!activeLot || !selectedLotId) return;
+    if (!window.confirm("Sigurado ka bang gusto mong burahin ang litratong ito? (Are you sure you want to delete this photo?)")) return;
+    
+    const toastId = toast.loading("Deleting photo...");
+    try {
+      const currentOthers = activeLot.other_photos || [];
+      const newOthers = currentOthers.filter((u: string) => u !== urlToDelete);
+      
+      const { error: dbError } = await supabase
+        .from('parking_lots')
+        .update({ other_photos: newOthers })
+        .eq('id', selectedLotId);
+        
+      if (dbError) throw dbError;
+      
+      toast.success("Photo deleted", { id: toastId });
+      fetchLots();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Delete failed: ${error.message}`, { id: toastId });
+    }
+  };
+
+  const handleDeleteMainPhoto = async (type: 'front_view' | 'business_permit') => {
+    if (!activeLot || !selectedLotId) return;
+    if (!window.confirm("Sigurado ka bang gusto mong burahin ang litratong ito? (Are you sure you want to delete this photo?)")) return;
+    
+    const toastId = toast.loading("Deleting photo...");
+    try {
+      const updateField = type === 'front_view' ? 'front_view_url' : 'business_permit_url';
+      const { error: dbError } = await supabase
+        .from('parking_lots')
+        .update({ [updateField]: null })
+        .eq('id', selectedLotId);
+        
+      if (dbError) throw dbError;
+      
+      toast.success("Photo deleted", { id: toastId });
+      fetchLots();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Delete failed: ${error.message}`, { id: toastId });
+    }
   };
 
   useEffect(() => {
@@ -154,6 +269,13 @@ export default function AdminParkingSlots() {
     setCurrentPage(1);
   }, [selectedFloorIndex]);
 
+  // Save cameras to local storage whenever they change
+  useEffect(() => {
+    if (selectedLotId && cameras.length > 0) {
+      localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(cameras));
+    }
+  }, [cameras, selectedLotId]);
+
   // 🔥 UPDATED: Only accredited lots, sorted alphabetically
   const fetchLots = async () => {
     setLoadingLots(true);
@@ -217,7 +339,7 @@ export default function AdminParkingSlots() {
       const { data, error } = await supabase
         .from('admin_profiles')
         .select('*')
-        .eq('lot_id', lotId);
+        .eq('assigned_lot_id', lotId);
       if (!error && data) {
         setLotAccounts(data);
       }
@@ -235,7 +357,7 @@ export default function AdminParkingSlots() {
 
   const handleAddSlot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userRole !== 'superadmin' && userRole !== 'super_admin') return;  
+    if (userRole !== 'superadmin' && userRole !== 'super_admin' && userRole !== 'manager') return;  
 
     if (!newSlotLabel.trim()) {
       toast.error("Please enter a slot label.");
@@ -705,40 +827,208 @@ export default function AdminParkingSlots() {
               {/* RIGHT COLUMN: Sidebar Content (Accounts, Photos) */}
               <div className="xl:col-span-1 space-y-6">
                  {/* Accounts */}
-                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-border">
-                     <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
-                        <UserIcon className="text-primary w-5 h-5" /> Manager Accounts
-                     </h3>
-                     <div className="space-y-3">
-                        {lotAccounts.map(acc => (
-                           <div key={acc.id} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl">
-                              <div className="truncate pr-2">
-                                <p className="font-bold text-foreground truncate">{acc.email}</p>
-                                <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1">{acc.role}</p>
-                              </div>
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">Active</Badge>
-                           </div>
-                        ))}
-                        {lotAccounts.length === 0 && <p className="text-sm text-muted-foreground p-4 bg-slate-50 rounded-xl border border-dashed">No accounts found for this lot.</p>}
-                     </div>
-                 </div>
+                 {userRole === 'super_admin' && (
+                   <div className="bg-white p-6 rounded-2xl shadow-sm border border-border">
+                       <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
+                          <UserIcon className="text-primary w-5 h-5" /> Manager Accounts
+                       </h3>
+                       <div className="space-y-3">
+                          {lotAccounts.map(acc => (
+                             <div key={acc.id} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                                <div className="truncate pr-2">
+                                  <p className="font-bold text-foreground truncate">{acc.email}</p>
+                                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1">{acc.role}</p>
+                                </div>
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">Active</Badge>
+                             </div>
+                          ))}
+                          {lotAccounts.length === 0 && <p className="text-sm text-muted-foreground p-4 bg-slate-50 rounded-xl border border-dashed">No accounts found for this lot.</p>}
+                       </div>
+                   </div>
+                 )}
 
-                 {/* Photos Placeholder */}
+                 {/* Photo References */}
                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-border">
                      <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
                         <Camera className="text-primary w-5 h-5" /> Photo References
                      </h3>
                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
-                        <div className="aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400">
-                           <Camera size={24} className="mb-2" />
-                           <span className="text-sm font-semibold">Front View</span>
+                        
+                        {/* Front View */}
+                        <div 
+                          className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${userRole === 'manager' ? 'cursor-pointer' : activeLot?.front_view_url ? 'cursor-zoom-in' : ''}`}
+                          onClick={() => {
+                            if (userRole === 'manager') {
+                              frontViewRef.current?.click();
+                            } else if (activeLot?.front_view_url) {
+                              setExpandedImageUrl(activeLot.front_view_url);
+                            }
+                          }}
+                        >
+                           <input type="file" accept="image/*" className="hidden" ref={frontViewRef} onChange={(e) => handleUploadPhoto(e, 'front_view')} />
+                           
+                           {activeLot?.front_view_url ? (
+                             <>
+                               <img src={activeLot.front_view_url} alt="Front View" className="w-full h-full object-cover" />
+                               
+                               {/* Expand Button */}
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); setExpandedImageUrl(activeLot.front_view_url); }}
+                                 className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${userRole === 'manager' ? 'opacity-0 group-hover:opacity-100' : 'hidden'}`}
+                                 title="View Full Image"
+                               >
+                                 <Maximize2 size={16} />
+                               </button>
+
+                               {/* Delete Button */}
+                               {userRole === 'manager' && (
+                                 <button 
+                                   onClick={(e) => { e.stopPropagation(); handleDeleteMainPhoto('front_view'); }}
+                                   className="absolute top-2 left-2 p-2 bg-rose-500 hover:bg-rose-600 text-white rounded-md transition-colors z-20 shadow-md opacity-0 group-hover:opacity-100"
+                                   title="Delete Photo"
+                                 >
+                                   <Trash2 size={16} />
+                                 </button>
+                               )}
+
+                               {userRole === 'manager' && (
+                                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity z-10">
+                                   <Upload size={24} className="mb-2" />
+                                   <span className="text-sm font-semibold">Change Photo</span>
+                                 </div>
+                               )}
+                               {userRole !== 'manager' && (
+                                 <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm z-10">
+                                   Front View
+                                 </div>
+                               )}
+                             </>
+                           ) : (
+                             <div className={`w-full h-full flex flex-col items-center justify-center ${userRole === 'manager' ? 'hover:bg-slate-100 transition-colors' : ''}`}>
+                               <Camera size={24} className="mb-2" />
+                               <span className="text-sm font-semibold">Front View</span>
+                               {userRole === 'manager' && (
+                                 <span className="text-[10px] mt-1 text-primary">Click to upload</span>
+                               )}
+                             </div>
+                           )}
                         </div>
-                        <div className="aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400">
-                           <Camera size={24} className="mb-2" />
-                           <span className="text-sm font-semibold">Business Permit</span>
+
+                        {/* Business Permit */}
+                        <div 
+                          className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${userRole === 'manager' ? 'cursor-pointer' : activeLot?.business_permit_url ? 'cursor-zoom-in' : ''}`}
+                          onClick={() => {
+                            if (userRole === 'manager') {
+                              businessPermitRef.current?.click();
+                            } else if (activeLot?.business_permit_url) {
+                              setExpandedImageUrl(activeLot.business_permit_url);
+                            }
+                          }}
+                        >
+                           <input type="file" accept="image/*" className="hidden" ref={businessPermitRef} onChange={(e) => handleUploadPhoto(e, 'business_permit')} />
+                           
+                           {activeLot?.business_permit_url ? (
+                             <>
+                               <img src={activeLot.business_permit_url} alt="Business Permit" className="w-full h-full object-cover" />
+                               
+                               {/* Expand Button */}
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); setExpandedImageUrl(activeLot.business_permit_url); }}
+                                 className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${userRole === 'manager' ? 'opacity-0 group-hover:opacity-100' : 'hidden'}`}
+                                 title="View Full Image"
+                               >
+                                 <Maximize2 size={16} />
+                               </button>
+
+                               {/* Delete Button */}
+                               {userRole === 'manager' && (
+                                 <button 
+                                   onClick={(e) => { e.stopPropagation(); handleDeleteMainPhoto('business_permit'); }}
+                                   className="absolute top-2 left-2 p-2 bg-rose-500 hover:bg-rose-600 text-white rounded-md transition-colors z-20 shadow-md opacity-0 group-hover:opacity-100"
+                                   title="Delete Photo"
+                                 >
+                                   <Trash2 size={16} />
+                                 </button>
+                               )}
+
+                               {userRole === 'manager' && (
+                                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity z-10">
+                                   <Upload size={24} className="mb-2" />
+                                   <span className="text-sm font-semibold">Change Photo</span>
+                                 </div>
+                               )}
+                               {userRole !== 'manager' && (
+                                 <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm z-10">
+                                   Business Permit
+                                 </div>
+                               )}
+                             </>
+                           ) : (
+                             <div className={`w-full h-full flex flex-col items-center justify-center ${userRole === 'manager' ? 'hover:bg-slate-100 transition-colors' : ''}`}>
+                               <Camera size={24} className="mb-2" />
+                               <span className="text-sm font-semibold">Business Permit</span>
+                               {userRole === 'manager' && (
+                                 <span className="text-[10px] mt-1 text-primary">Click to upload</span>
+                               )}
+                             </div>
+                           )}
                         </div>
+
+                        {/* Other Photos Section */}
+                        {(activeLot?.other_photos?.length > 0 || userRole === 'manager') && (
+                          <div className="pt-4 mt-2 border-t border-slate-100">
+                             <div className="flex items-center justify-between mb-3">
+                               <h4 className="text-sm font-bold text-slate-700">Additional Photos</h4>
+                             </div>
+                             <div className="grid grid-cols-2 gap-3">
+                               {activeLot?.other_photos?.map((url: string, idx: number) => (
+                                 <div 
+                                   key={idx} 
+                                   className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl overflow-hidden ${userRole !== 'manager' ? 'cursor-zoom-in' : ''}`}
+                                   onClick={() => {
+                                     if (userRole !== 'manager') setExpandedImageUrl(url);
+                                   }}
+                                 >
+                                   <img src={url} alt={`Other ${idx}`} className="w-full h-full object-cover" />
+                                   
+                                   {userRole === 'manager' && (
+                                     <>
+                                       {/* Expand Button for Manager */}
+                                       <button 
+                                         onClick={(e) => { e.stopPropagation(); setExpandedImageUrl(url); }}
+                                         className="absolute top-2 left-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-md"
+                                         title="View Full Image"
+                                       >
+                                         <Maximize2 size={14} />
+                                       </button>
+
+                                       {/* Delete Button */}
+                                       <button 
+                                         onClick={(e) => { e.stopPropagation(); handleDeleteOtherPhoto(url); }}
+                                         className="absolute top-2 right-2 p-1.5 bg-rose-500 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-600 z-20 shadow-md"
+                                         title="Delete Photo"
+                                       >
+                                         <Trash2 size={14} />
+                                       </button>
+                                     </>
+                                   )}
+                                 </div>
+                               ))}
+                               
+                               {userRole === 'manager' && (
+                                 <div 
+                                   className="aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-100 hover:border-primary/50 transition-colors"
+                                   onClick={() => otherPhotoRef.current?.click()}
+                                 >
+                                   <Plus size={20} className="mb-1" />
+                                   <span className="text-[10px] font-semibold text-center">Add Photo</span>
+                                   <input type="file" accept="image/*" className="hidden" ref={otherPhotoRef} onChange={(e) => handleUploadPhoto(e, 'other')} />
+                                 </div>
+                               )}
+                             </div>
+                          </div>
+                        )}
                      </div>
-                     <p className="text-xs text-muted-foreground mt-4 font-medium leading-relaxed">* Photos will be synced with application documents in a future update.</p>
                  </div>
               </div>
               
@@ -930,31 +1220,33 @@ export default function AdminParkingSlots() {
                           size="sm" 
                           variant="outline" 
                           onClick={() => setShowCameraGrid(!showCameraGrid)}
-                          className={cn("h-8 px-3 text-xs border-slate-700 bg-transparent transition-colors", showCameraGrid ? "text-primary border-primary bg-primary/10" : "text-slate-300 hover:text-white hover:bg-slate-800")}
+                          className={cn("h-8 px-3 text-xs border-slate-700 bg-transparent transition-colors", showCameraGrid ? "text-blue-400 border-blue-400 bg-blue-400/10" : "text-slate-300 hover:text-white hover:bg-slate-800")}
                         >
                           {showCameraGrid ? <EyeOff size={14} className="mr-1.5" /> : <Eye size={14} className="mr-1.5" />}
                           {showCameraGrid ? "Hide Grid" : "Show Grid"}
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant={isDrawingGrid ? "default" : "outline"}
-                          onClick={() => {
-                            if (!isDrawingGrid) setShowCameraGrid(true); // Always show grid when entering drawing mode
-                            setIsDrawingGrid(!isDrawingGrid);
-                          }}
-                          className={cn("h-8 px-3 text-xs transition-colors", isDrawingGrid ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-slate-700 bg-transparent text-slate-300 hover:text-white hover:bg-slate-800")}
-                        >
-                          {isDrawingGrid ? (
-                            <><Check size={14} className="mr-1.5" /> Done</>
-                          ) : (
-                            <><PenTool size={14} className="mr-1.5" /> Draw Zones</>
-                          )}
-                        </Button>
+                        {(userRole === 'superadmin' || userRole === 'super_admin') && (
+                          <Button 
+                            size="sm" 
+                            variant={isDrawingGrid ? "default" : "outline"}
+                            onClick={() => {
+                              if (!isDrawingGrid) setShowCameraGrid(true); // Always show grid when entering drawing mode
+                              setIsDrawingGrid(!isDrawingGrid);
+                            }}
+                            className={cn("h-8 px-3 text-xs transition-colors", isDrawingGrid ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-slate-700 bg-transparent text-slate-300 hover:text-white hover:bg-slate-800")}
+                          >
+                            {isDrawingGrid ? (
+                              <><Check size={14} className="mr-1.5" /> Done</>
+                            ) : (
+                              <><PenTool size={14} className="mr-1.5" /> Draw Zones</>
+                            )}
+                          </Button>
+                        )}
                       </div>
                     )}
                  </div>
                  </div>
-                 {userRole !== 'guard' && (
+                 {(userRole === 'superadmin' || userRole === 'super_admin') && (
                    <div className="flex flex-col gap-2">
                      <div className="py-2 px-1 flex items-center gap-4">
                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap flex-shrink-0 w-32">Stream URL</h4>
@@ -1178,6 +1470,30 @@ export default function AdminParkingSlots() {
           </div>
         )}
       </div>
+
+      {/* Full-screen Image Viewer (Facebook/Messenger style) */}
+      {expandedImageUrl && (
+        <div 
+          className="fixed inset-0 z-[99999] bg-black/95 flex items-center justify-center p-2 sm:p-6 animate-in fade-in duration-200 cursor-zoom-out backdrop-blur-sm"
+          onClick={() => setExpandedImageUrl(null)}
+        >
+          {/* Close Button */}
+          <button 
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 sm:p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-50"
+            onClick={(e) => { e.stopPropagation(); setExpandedImageUrl(null); }}
+          >
+            <X size={24} />
+          </button>
+          
+          {/* Image */}
+          <img 
+            src={expandedImageUrl} 
+            className="max-w-full max-h-full object-contain drop-shadow-2xl select-none" 
+            alt="Expanded view" 
+            onClick={(e) => e.stopPropagation()} // Prevent clicking the image from closing it immediately
+          />
+        </div>
+      )}
     </AdminLayout>
   );
 }

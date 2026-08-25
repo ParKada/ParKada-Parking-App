@@ -27,6 +27,17 @@ export default function AdminReports() {
   const [dailyRevenue, setDailyRevenue] = useState<any[]>([]);
   const [topLots, setTopLots] = useState<any[]>([]);
   const [ocrLogs, setOcrLogs] = useState<any[]>([]);
+  
+  // KPI changes
+  const [revenueChange, setRevenueChange] = useState("0%");
+  const [isRevenueUp, setIsRevenueUp] = useState(true);
+  const [bookingsChange, setBookingsChange] = useState("0%");
+  const [isBookingsUp, setIsBookingsUp] = useState(true);
+  const [walkInChange, setWalkInChange] = useState("0%");
+  const [isWalkInUp, setIsWalkInUp] = useState(true);
+  const [avgChange, setAvgChange] = useState("0%");
+  const [isAvgUp, setIsAvgUp] = useState(true);
+
   const [isLoading, setIsLoading] = useState(true);
   const [viewOption, setViewOption] = useState<string>("all");
 
@@ -67,7 +78,7 @@ export default function AdminReports() {
         .from('reservations')
         .select(`
           id, total_amount, status, created_at, start_time, lot_id,
-          parking_lots (name, type, total_slots)
+          parking_lots (name, type, total_slots, operating_hours)
         `);
       if (userRole === 'manager' && userLotId) {
         reservationsQuery = reservationsQuery.eq('lot_id', userLotId);
@@ -99,7 +110,13 @@ export default function AdminReports() {
         setOcrLogs(ocrData || []);
       }
 
-      processStats(reservationsData || [], walkInData || []);
+      let lotsQuery = supabase.from('parking_lots').select('operating_hours');
+      if (userRole === 'manager' && userLotId) {
+        lotsQuery = lotsQuery.eq('id', userLotId);
+      }
+      const { data: lotsData } = await lotsQuery;
+
+      processStats(reservationsData || [], walkInData || [], lotsData || []);
     } catch (error) {
       console.error(error);
       toast.error("Failed to load analytics data.");
@@ -108,7 +125,7 @@ export default function AdminReports() {
     }
   };
 
-  const processStats = (reservations: any[], walkIns: any[]) => {
+  const processStats = (reservations: any[], walkIns: any[], lots: any[]) => {
     // Walk‑in totals
     const walkInTotalRevenue = walkIns.reduce((sum, w) => sum + (w.amount_paid || 0), 0);
     const walkInTotalTransactions = walkIns.length;
@@ -117,6 +134,47 @@ export default function AdminReports() {
     // Revenue composition
     const onlineTotal = reservations.filter(r => r.status === 'completed').reduce((sum, r) => sum + (r.total_amount || 0), 0);
     setComposition({ online: onlineTotal, walkin: walkInTotalRevenue });
+
+    // KPI Trend Calculation (Last 30 vs Prev 30)
+    const now = new Date();
+    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(now.getDate() - 30);
+    const sixtyDaysAgo = new Date(); sixtyDaysAgo.setDate(now.getDate() - 60);
+
+    let currentRev = 0, prevRev = 0;
+    let currentBookings = 0, prevBookings = 0;
+    let currentWalkinRev = 0, prevWalkinRev = 0;
+
+    reservations.filter(r => r.status === 'completed').forEach(r => {
+      const d = new Date(r.created_at);
+      const amount = Number(r.total_amount || 0);
+      if (d >= thirtyDaysAgo) { currentRev += amount; currentBookings++; }
+      else if (d >= sixtyDaysAgo && d < thirtyDaysAgo) { prevRev += amount; prevBookings++; }
+    });
+
+    walkIns.forEach(w => {
+      const d = new Date(w.entry_time);
+      const amount = Number(w.amount_paid || 0);
+      if (d >= thirtyDaysAgo) { currentWalkinRev += amount; }
+      else if (d >= sixtyDaysAgo && d < thirtyDaysAgo) { prevWalkinRev += amount; }
+    });
+
+    const calculateChange = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? { text: "+100%", up: true } : { text: "0%", up: true };
+      const pct = ((current - previous) / previous) * 100;
+      return { text: `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`, up: pct >= 0 };
+    };
+
+    const revStats = calculateChange(currentRev, prevRev);
+    const bookingsStats = calculateChange(currentBookings, prevBookings);
+    const walkinStats = calculateChange(currentWalkinRev, prevWalkinRev);
+    const currentAvg = currentBookings > 0 ? currentRev / currentBookings : 0;
+    const prevAvg = prevBookings > 0 ? prevRev / prevBookings : 0;
+    const avgStats = calculateChange(currentAvg, prevAvg);
+
+    setRevenueChange(revStats.text); setIsRevenueUp(revStats.up);
+    setBookingsChange(bookingsStats.text); setIsBookingsUp(bookingsStats.up);
+    setWalkInChange(walkinStats.text); setIsWalkInUp(walkinStats.up);
+    setAvgChange(avgStats.text); setIsAvgUp(avgStats.up);
 
     // Monthly revenue
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -152,8 +210,47 @@ export default function AdminReports() {
     })));
 
     // Hourly pattern
+    let minHour = 7;
+    let maxHour = 18;
+
+    if (lots.length > 0) {
+      const hoursList = lots.map(l => l.operating_hours).filter(h => h);
+      if (hoursList.length > 0) {
+        let globalMin = 24;
+        let globalMax = 0;
+        const parseHour = (timeStr: string) => {
+          if (!timeStr) return null;
+          const isPM = timeStr.toUpperCase().includes("PM");
+          const isAM = timeStr.toUpperCase().includes("AM");
+          const timeParts = timeStr.split(":");
+          if (timeParts.length < 2) return null;
+          let hour = parseInt(timeParts[0].replace(/[^0-9]/g, ''));
+          if (isNaN(hour)) return null;
+          if (isPM && hour !== 12) hour += 12;
+          if (isAM && hour === 12) hour = 0;
+          return hour;
+        };
+        hoursList.forEach(hoursStr => {
+          const parts = hoursStr.split("-");
+          if (parts.length === 2) {
+            const startH = parseHour(parts[0]);
+            const endH = parseHour(parts[1]);
+            if (startH !== null && endH !== null) {
+              if (startH < globalMin) globalMin = startH;
+              if (endH > globalMax) globalMax = endH;
+            }
+          }
+        });
+        if (globalMin <= globalMax && globalMax > 0) {
+          minHour = globalMin;
+          maxHour = globalMax;
+        }
+      }
+    }
+
     const hourlyMap: any = {};
-    for (let i = 7; i <= 18; i++) hourlyMap[i] = 0;
+    for (let i = minHour; i <= maxHour; i++) hourlyMap[i] = 0;
+    
     reservations.forEach(r => {
       if (r.start_time) {
         const hour = parseInt(r.start_time.split(':')[0]);
@@ -442,10 +539,10 @@ export default function AdminReports() {
 
         {/* KPI Cards (always visible) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <KPICard label="Total Revenue" value={`₱${totalRevenue.toLocaleString()}`} change="+12%" up />
-          <KPICard label="Completed Bookings" value={totalBookings.toString()} change="+5%" up />
-          <KPICard label="Walk‑in Revenue" value={`₱${walkInTotal.toLocaleString()}`} change="+8%" up />
-          <KPICard label="Avg per Booking" value={`₱${totalBookings > 0 ? (totalRevenue / totalBookings).toFixed(0) : 0}`} change="+2%" up />
+          <KPICard label="Total Revenue" value={`₱${totalRevenue.toLocaleString()}`} change={revenueChange} up={isRevenueUp} />
+          <KPICard label="Completed Bookings" value={totalBookings.toString()} change={bookingsChange} up={isBookingsUp} />
+          <KPICard label="Walk‑in Revenue" value={`₱${walkInTotal.toLocaleString()}`} change={walkInChange} up={isWalkInUp} />
+          <KPICard label="Avg per Booking" value={`₱${totalBookings > 0 ? (totalRevenue / totalBookings).toFixed(0) : 0}`} change={avgChange} up={isAvgUp} />
         </div>
 
         {/* Revenue Composition */}
@@ -528,44 +625,43 @@ export default function AdminReports() {
           </div>
         )}
 
-        {/* Weekly & Hourly */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {showSection("weekly") && (
-            <div ref={weeklyRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-              <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
-                <Calendar size={16} className="text-primary" /> Weekly Occupancy (%)
-              </h3>
-              <p className="text-[10px] text-muted-foreground mb-6">Based on online reservations</p>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={weeklyData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} domain={[0, 100]} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} />
-                  <Bar dataKey="occupancy" fill="#0f172a" radius={[6, 6, 0, 0]} barSize={30} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+        {/* Weekly Occupancy */}
+        {showSection("weekly") && (
+          <div ref={weeklyRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+            <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
+              <Calendar size={16} className="text-primary" /> Weekly Occupancy (%)
+            </h3>
+            <p className="text-[10px] text-muted-foreground mb-6">Based on online reservations</p>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={weeklyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} domain={[0, 100]} />
+                <Tooltip cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="occupancy" fill="#0f172a" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
-          {showSection("hourly") && (
-            <div ref={hourlyRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-              <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
-                <Clock size={16} className="text-emerald-500" /> Hourly Occupancy Pattern
-              </h3>
-              <p className="text-[10px] text-muted-foreground mb-6">Based on online reservations</p>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={hourlyData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} hide />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="pattern" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: "#10b981" }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+        {/* Hourly Pattern */}
+        {showSection("hourly") && (
+          <div ref={hourlyRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+            <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
+              <Clock size={16} className="text-emerald-500" /> Hourly Occupancy Pattern
+            </h3>
+            <p className="text-[10px] text-muted-foreground mb-6">Based on online reservations</p>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={hourlyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} hide />
+                <Tooltip />
+                <Line type="monotone" dataKey="pattern" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: "#10b981" }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* Lot Performance Table */}
         {showSection("lots") && (
@@ -618,7 +714,7 @@ export default function AdminReports() {
           <div ref={ocrRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
               <Camera size={20} className="text-primary" />
-              OCR Validation Logs (TC-28)
+              OCR Validation Logs
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full">
