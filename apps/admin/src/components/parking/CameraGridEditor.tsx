@@ -30,8 +30,7 @@ export default function CameraGridEditor({
 }: CameraGridEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Filter to only slots that belong to this camera (or have points assigned)
-  // Since we save camera_id and camera_zone_points in the slot
+  // Slots that already have a zone drawn on this camera
   const mappedZones: CameraZone[] = slots
     .filter(s => s.camera_id === cameraId && s.camera_zone_points && s.camera_zone_points.length === 4)
     .map(s => ({
@@ -41,107 +40,150 @@ export default function CameraGridEditor({
       status: s.status
     }));
 
+  // Slots that are unmapped and don't yet have a zone on this camera
+  const unmappedSlots = slots.filter(
+    s => s.status === 'unmapped' && !mappedZones.some(z => z.slotId === s.id)
+  );
+
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<Point[]>([]);
-  
-  // Dragging state for existing zones
-  const [draggingPoint, setDraggingPoint] = useState<{ slotId: string, pointIndex: number } | null>(null);
-  // Local state for dragging to make it smooth without immediate DB updates
+
+  // After finishing 4 points, the zone is "pending" — shown locally and draggable before saving
+  const [pendingZone, setPendingZone] = useState<{ slotId: string; points: Point[]; label: string } | null>(null);
+
+  // Dragging state for existing zones and the pending zone
+  const [draggingPoint, setDraggingPoint] = useState<{ slotId: string; pointIndex: number; isPending: boolean } | null>(null);
   const [localZones, setLocalZones] = useState<CameraZone[]>(mappedZones);
 
-  // Sync local zones
+  // Sync local zones when DB updates come in (but not during dragging)
   useEffect(() => {
     if (!draggingPoint) {
       setLocalZones(mappedZones);
     }
   }, [slots, cameraId, draggingPoint]);
 
-  // Handle click on the SVG background
+  const getRelativePoint = (e: React.MouseEvent | React.PointerEvent): { x: number; y: number } | null => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    return { x, y };
+  };
+
+  // Handle click on the SVG background to add drawing points
   const handleSvgClick = (e: ReactMouseEvent<SVGSVGElement>) => {
     if (!interactive) return;
-    if (draggingPoint) return; // Ignore if we were dragging a point
+    if (draggingPoint) return;
+    if (pendingZone) return; // If pending zone exists, wait for user to confirm/cancel
 
-    // If we have selected a slot to draw, and it doesn't already have a full zone, add a point
     if (activeSlotId && drawingPoints.length < 4) {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
+      const pt = getRelativePoint(e);
+      if (!pt) return;
 
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-
-      const newPoints = [...drawingPoints, { x, y }];
+      const newPoints = [...drawingPoints, pt];
       setDrawingPoints(newPoints);
 
+      // Once 4 points are placed, create a pending zone (do NOT save yet — let user adjust)
       if (newPoints.length === 4) {
-        // Complete the shape
-        onSaveZone(activeSlotId, newPoints);
+        const slot = slots.find(s => s.id === activeSlotId);
+        setPendingZone({
+          slotId: activeSlotId,
+          points: newPoints,
+          label: slot?.label || slot?.slot_number || '?'
+        });
         setDrawingPoints([]);
         setActiveSlotId(null);
       }
     }
   };
 
-  // Handle clicking inside a formed zone to delete it
+  // Save the pending zone to the database
+  const handleConfirmPending = () => {
+    if (!pendingZone) return;
+    onSaveZone(pendingZone.slotId, pendingZone.points);
+    setPendingZone(null);
+  };
+
+  // Discard the pending zone
+  const handleCancelPending = () => {
+    setPendingZone(null);
+    setDrawingPoints([]);
+    setActiveSlotId(null);
+  };
+
+  // Handle clicking inside a formed saved zone to delete it
   const handleZoneClick = (e: ReactMouseEvent<SVGPolygonElement>, slotId: string) => {
     if (!interactive) return;
     e.stopPropagation();
-    
-    // If not dragging, and we click the zone, delete it
     if (!draggingPoint && window.confirm("Are you sure you want to delete this mapped zone?")) {
       onDeleteZone(slotId);
     }
   };
 
-  // Handle dragging corners
-  const handlePointerDown = (e: React.PointerEvent, slotId: string, pointIndex: number) => {
+  // --- Pointer drag handlers for saved zones ---
+  const handlePointerDownSaved = (e: React.PointerEvent, slotId: string, pointIndex: number) => {
     if (!interactive) return;
     e.stopPropagation();
-    setDraggingPoint({ slotId, pointIndex });
+    setDraggingPoint({ slotId, pointIndex, isPending: false });
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  // --- Pointer drag handlers for pending zone corners ---
+  const handlePointerDownPending = (e: React.PointerEvent, pointIndex: number) => {
+    if (!interactive || !pendingZone) return;
+    e.stopPropagation();
+    setDraggingPoint({ slotId: pendingZone.slotId, pointIndex, isPending: true });
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!interactive || !draggingPoint) return;
-    
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const pt = getRelativePoint(e);
+    if (!pt) return;
 
-    let newX = ((e.clientX - rect.left) / rect.width) * 100;
-    let newY = ((e.clientY - rect.top) / rect.height) * 100;
+    const clampedX = Math.max(0, Math.min(pt.x, 100));
+    const clampedY = Math.max(0, Math.min(pt.y, 100));
 
-    newX = Math.max(0, Math.min(newX, 100));
-    newY = Math.max(0, Math.min(newY, 100));
-
-    setLocalZones(prev => prev.map(zone => {
-      if (zone.slotId === draggingPoint.slotId) {
-        const newPoints = [...zone.points];
-        newPoints[draggingPoint.pointIndex] = { x: newX, y: newY };
-        return { ...zone, points: newPoints };
-      }
-      return zone;
-    }));
+    if (draggingPoint.isPending && pendingZone) {
+      // Update pending zone points
+      const newPoints = [...pendingZone.points];
+      newPoints[draggingPoint.pointIndex] = { x: clampedX, y: clampedY };
+      setPendingZone({ ...pendingZone, points: newPoints });
+    } else {
+      // Update saved zone points locally
+      setLocalZones(prev => prev.map(zone => {
+        if (zone.slotId === draggingPoint.slotId) {
+          const newPoints = [...zone.points];
+          newPoints[draggingPoint.pointIndex] = { x: clampedX, y: clampedY };
+          return { ...zone, points: newPoints };
+        }
+        return zone;
+      }));
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!interactive || !draggingPoint) return;
     e.stopPropagation();
-    
-    const zone = localZones.find(z => z.slotId === draggingPoint.slotId);
-    if (zone) {
-      onSaveZone(zone.slotId, zone.points);
+
+    if (!draggingPoint.isPending) {
+      // Save adjusted saved zone to DB
+      const zone = localZones.find(z => z.slotId === draggingPoint.slotId);
+      if (zone) onSaveZone(zone.slotId, zone.points);
     }
-    
+    // For pending zone, just let the user keep adjusting before confirming
+
     setDraggingPoint(null);
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
   };
 
   const getColorForStatus = (status: string) => {
     switch (status) {
-      case 'occupied': return 'rgba(239, 68, 68, 0.4)'; // red-500
-      case 'reserved': return 'rgba(59, 130, 246, 0.4)'; // blue-500
-      case 'maintenance': return 'rgba(245, 158, 11, 0.4)'; // amber-500
-      case 'available': return 'rgba(16, 185, 129, 0.4)'; // emerald-500
-      default: return 'rgba(148, 163, 184, 0.4)'; // slate-400
+      case 'occupied': return 'rgba(239, 68, 68, 0.4)';
+      case 'reserved': return 'rgba(59, 130, 246, 0.4)';
+      case 'maintenance': return 'rgba(245, 158, 11, 0.4)';
+      case 'available': return 'rgba(16, 185, 129, 0.4)';
+      default: return 'rgba(148, 163, 184, 0.4)';
     }
   };
 
@@ -156,16 +198,15 @@ export default function CameraGridEditor({
   };
 
   return (
-    <div className="absolute inset-0 z-10" ref={containerRef}>
-      
+    <div className="absolute inset-0 z-10" ref={containerRef} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
+
       {/* SVG Canvas for shapes */}
-      <svg 
+      <svg
         className="w-full h-full absolute inset-0"
         onClick={handleSvgClick}
-        onPointerMove={handlePointerMove}
         style={{ cursor: interactive && activeSlotId && drawingPoints.length < 4 ? 'crosshair' : 'default' }}
       >
-        {/* Render fully mapped zones */}
+        {/* Render fully saved zones */}
         {localZones.map(zone => (
           <g key={zone.slotId}>
             <polygon
@@ -179,7 +220,6 @@ export default function CameraGridEditor({
               )}
               onClick={(e) => handleZoneClick(e, zone.slotId)}
             />
-            {/* Zone Label placed at the center of the polygon */}
             <text
               x={`${zone.points.reduce((sum, p) => sum + p.x, 0) / 4}%`}
               y={`${zone.points.reduce((sum, p) => sum + p.y, 0) / 4}%`}
@@ -192,40 +232,69 @@ export default function CameraGridEditor({
             >
               {zone.label}
             </text>
-
-            {/* Draggable corners */}
+            {/* Draggable corners for saved zones */}
             {interactive && zone.points.map((p, i) => (
               <circle
                 key={i}
                 cx={`${p.x}%`}
                 cy={`${p.y}%`}
-                r="6"
+                r="7"
                 fill="white"
                 stroke={getBorderColorForStatus(zone.status)}
                 strokeWidth="2"
-                className="cursor-move hover:scale-150 transition-transform"
-                onPointerDown={(e) => handlePointerDown(e, zone.slotId, i)}
-                onPointerUp={handlePointerUp}
+                className="cursor-move"
+                onPointerDown={(e) => handlePointerDownSaved(e, zone.slotId, i)}
               />
             ))}
           </g>
         ))}
 
-        {/* Render currently drawing zone */}
-        {activeSlotId && drawingPoints.length > 0 && (
+        {/* Render PENDING zone (drawn but not yet confirmed) */}
+        {pendingZone && (
           <g>
-            {drawingPoints.map((p, i) => (
+            <polygon
+              points={pendingZone.points.map(p => `${p.x}%,${p.y}%`).join(' ')}
+              fill="rgba(251, 191, 36, 0.3)"
+              stroke="rgb(251, 191, 36)"
+              strokeWidth="2.5"
+              strokeDasharray="6 3"
+              className="pointer-events-none"
+            />
+            <text
+              x={`${pendingZone.points.reduce((sum, p) => sum + p.x, 0) / 4}%`}
+              y={`${pendingZone.points.reduce((sum, p) => sum + p.y, 0) / 4}%`}
+              fill="white"
+              fontSize="12"
+              fontWeight="bold"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="drop-shadow-md pointer-events-none"
+            >
+              {pendingZone.label}
+            </text>
+            {/* Draggable corners for pending zone */}
+            {pendingZone.points.map((p, i) => (
               <circle
                 key={i}
                 cx={`${p.x}%`}
                 cy={`${p.y}%`}
-                r="5"
-                fill="orange"
+                r="8"
+                fill="rgb(251, 191, 36)"
                 stroke="white"
-                strokeWidth="2"
+                strokeWidth="2.5"
+                className="cursor-move"
+                onPointerDown={(e) => handlePointerDownPending(e, i)}
               />
             ))}
-            {/* Draw lines between points */}
+          </g>
+        )}
+
+        {/* Render currently drawing points (while placing) */}
+        {activeSlotId && drawingPoints.length > 0 && (
+          <g>
+            {drawingPoints.map((p, i) => (
+              <circle key={i} cx={`${p.x}%`} cy={`${p.y}%`} r="5" fill="orange" stroke="white" strokeWidth="2" />
+            ))}
             {drawingPoints.length > 1 && (
               <polyline
                 points={drawingPoints.map(p => `${p.x}%,${p.y}%`).join(' ')}
@@ -239,41 +308,51 @@ export default function CameraGridEditor({
         )}
       </svg>
 
+      {/* Pending Zone Confirmation Banner */}
+      {interactive && pendingZone && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-amber-500 text-white rounded-xl px-5 py-3 shadow-2xl flex items-center gap-4 pointer-events-auto z-20">
+          <span className="text-sm font-semibold">Adjust corners, then confirm zone for <strong>{pendingZone.label}</strong></span>
+          <button onClick={handleConfirmPending} className="bg-white text-amber-600 font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors">✓ Save</button>
+          <button onClick={handleCancelPending} className="bg-white/20 text-white font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-white/30 transition-colors">✕ Cancel</button>
+        </div>
+      )}
+
       {/* Floating Toolbar for interactive drawing mode */}
       {interactive && (
         <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md rounded-xl p-4 shadow-xl border border-white/20 w-64 pointer-events-auto">
-          <h4 className="font-bold text-slate-800 mb-2">Drawing Mode</h4>
-          <p className="text-xs text-slate-600 mb-4">
-            Select a slot and click 4 times on the camera feed to draw a zone.
+          <h4 className="font-bold text-slate-800 mb-1">Drawing Mode</h4>
+          <p className="text-xs text-slate-500 mb-3">
+            {pendingZone
+              ? "Drag the yellow corners to adjust, then click Save."
+              : activeSlotId
+                ? `Click ${4 - drawingPoints.length} more point${4 - drawingPoints.length !== 1 ? 's' : ''} on the feed.`
+                : "Select an unmapped slot to begin."}
           </p>
-          
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-            {slots.filter(s => s.status !== 'unmapped').map(slot => {
-              const isMapped = mappedZones.some(z => z.slotId === slot.id);
-              return (
-                <div 
-                  key={slot.id} 
+
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            {unmappedSlots.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-4">All slots are already mapped!</p>
+            ) : (
+              unmappedSlots.map(slot => (
+                <div
+                  key={slot.id}
                   className={cn(
-                    "flex items-center justify-between p-2 rounded-lg text-sm transition-colors border",
-                    activeSlotId === slot.id 
-                      ? "bg-primary/10 border-primary text-primary font-bold" 
-                      : isMapped 
-                        ? "bg-slate-50 border-slate-200 text-slate-500" 
-                        : "bg-white border-slate-200 text-slate-700 hover:border-primary/50 cursor-pointer"
+                    "flex items-center justify-between p-2 rounded-lg text-sm transition-colors border cursor-pointer",
+                    activeSlotId === slot.id
+                      ? "bg-primary/10 border-primary text-primary font-bold"
+                      : "bg-white border-slate-200 text-slate-700 hover:border-primary/50 hover:bg-slate-50"
                   )}
                   onClick={() => {
-                    if (!isMapped) {
-                      setActiveSlotId(slot.id);
-                      setDrawingPoints([]);
-                    }
+                    if (pendingZone) return; // Don't switch while a pending zone exists
+                    setActiveSlotId(slot.id);
+                    setDrawingPoints([]);
                   }}
                 >
                   <span>{slot.label || slot.slot_number}</span>
-                  {isMapped && <span className="text-xs font-semibold text-emerald-500">Mapped</span>}
-                  {!isMapped && activeSlotId === slot.id && <span className="text-xs font-semibold">Drawing...</span>}
+                  {activeSlotId === slot.id && <span className="text-xs font-semibold animate-pulse">Drawing...</span>}
                 </div>
-              )
-            })}
+              ))
+            )}
           </div>
         </div>
       )}

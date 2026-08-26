@@ -12,9 +12,9 @@ from dotenv import load_dotenv
 from flask import Flask, Response
 from flask_cors import CORS
 
-# ---------------------------------------------------------
+# =============================================================
 # 1. SECURE DATABASE SETUP
-# ---------------------------------------------------------
+# =============================================================
 load_dotenv()
 
 VITE_SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
@@ -26,133 +26,54 @@ if not VITE_SUPABASE_URL or not VITE_SUPABASE_SERVICE_KEY:
 
 supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 
-#IMPORTANT: Paste your specific parking lot's UUID here!
-TARGET_LOT_ID = "6928d8dc-1562-43cd-bad1-14c8bb412895" # Thesis Demo ID
+# =============================================================
+# 2. MULTI-CAMERA CONFIGURATION
+# 
+# Add or remove cameras from this list.
+# Each camera needs:
+#   - "rtsp_url": The RTSP stream URL for your IP camera
+#   - "camera_id": The UUID of this camera in Supabase (from the cameras table)
+#   - "label": A friendly name shown in the terminal
+#
+# HOW TO FIND YOUR camera_id:
+#   Open your Admin Dashboard -> Parking Slots -> the camera name.
+#   The camera_id is stored in your browser localStorage. Check the
+#   browser console: localStorage.getItem('cameras_<lot_id>')
+# =============================================================
+TARGET_LOT_ID = "b2a68b16-a627-4dd0-8ea2-217634de4e18"
 
-def update_supabase_bg(target_id, physical_state, main_status=None):
-    def api_call():
-        try:
-            # Always update the camera's column
-            data_to_update = {'physical_status': physical_state}
-            
-            # If we also passed a main status (like "occupied" or "available"), update that too!
-            if main_status is not None:
-                data_to_update['status'] = main_status
-                
-            supabase.table('parking_slots').update(data_to_update).eq('id', target_id).execute()
-        except Exception as e:
-            print(f"Background Supabase update failed: {e}")
-            
-    threading.Thread(target=api_call).start()
+CAMERAS = [
+    {
+        "label":      "Camera 1 (Right)",
+        "rtsp_url":   "rtsp://admincamnew:admincamnew@192.168.8.154:554/stream1",
+        "camera_id":  "cam1_b2a68b16-a627-4dd0-8ea2-217634de4e18",  # <-- Paste the camera_id from your dashboard
+    },
+    {
+        "label":      "Camera 2 (Left)",
+        "rtsp_url":   "rtsp://admincam:admincam@192.168.8.159:554/stream1",  # <-- e.g. rtsp://admin:pass@192.168.8.155:554/stream1
+        "camera_id":  "cam2_b2a68b16-a627-4dd0-8ea2-217634de4e18",  # <-- Paste the camera_id from your dashboard
+    },
+]
 
-# ---------------------------------------------------------
-# 2. CLOUD SYNC LOGIC (Bi-directional)
-# ---------------------------------------------------------
-data_lock = threading.Lock() # Protects lists while threads read/write
+# =============================================================
+# 3. SHARED AI MODEL (loaded once, used by all cameras)
+# =============================================================
+print("Loading custom AI brain (models/occupancy_model.pt)...")
+model = YOLO("models/occupancy_model.pt")
+model_lock = threading.Lock()  # YOLO is not thread-safe, so we lock it
 
-slot_ids = []    # Tracks the database UUID for each slot
-all_slots = []   # Tracks the numpy arrays for OpenCV drawing
-slot_data = []   # Tracks the current FREE/FULL status and timers
-slot_labels = [] # FIX: Locks the true database label (S1, S2) to the drawn box!
-current_points = [] # Tracks the points you are currently drawing
+print("Warming up AI model (please wait a few seconds)...")
+dummy = np.zeros((416, 416, 3), dtype=np.uint8)
+with model_lock:
+    model.predict(dummy, verbose=False, conf=0.4, imgsz=416, device="cpu")
+print("Warmup complete!")
 
-pending_slots = [] # Slots created in the Web UI but not yet drawn in Python
-
-def sync_db_loop():
-    """Runs in background: Polls Supabase to handle web UI deletions and new pending slots."""
-    global pending_slots, all_slots, slot_data, slot_ids, slot_labels
-    while True:
-        try:
-            # Sort by created_at ascending to map oldest slots first
-            res = supabase.table('parking_slots').select('*').eq('lot_id', TARGET_LOT_ID).order('created_at', desc=False).execute()
-            db_slots = res.data
-
-            mapped_db_ids = []
-            unmapped_slots = []
-
-            with data_lock:
-                for row in db_slots:
-                    db_id = row['id']
-                    coords = row.get('coordinates')
-                    label = row.get('label', 'Unknown')
-                    
-                    # 🔥 CRITICAL FIX: Fetch the live status from the database!
-                    current_db_status = row.get('status') 
-
-                    if coords:
-                        mapped_db_ids.append(db_id)
-                        
-                        # If it's a new slot loading for the first time
-                        if db_id not in slot_ids:
-                            print(f"Loaded existing slot from DB: {label}")
-                            slot_ids.append(db_id)
-                            slot_labels.append(label)
-                            all_slots.append(np.array(coords, np.int32))
-                            # Add the db_status to our tracker
-                            slot_data.append({"status": "FREE", "time_in": 0, "db_status": current_db_status, "pending_state": None, "pending_start": 0})
-                        else:
-                            # 🔥 CRITICAL FIX: If the slot is already loaded, continuously update its db_status!
-                            # This way, if someone reserves a slot on the web UI, Python instantly knows about it.
-                            idx = slot_ids.index(db_id)
-                            slot_data[idx]["db_status"] = current_db_status
-                    else:
-                        unmapped_slots.append(row)
-
-                # 1. Update pending queue for drawing
-                pending_slots = unmapped_slots
-
-                # 2. Handle Deletions (Exists locally, but deleted from Web UI)
-                for i in range(len(slot_ids) - 1, -1, -1):
-                    if slot_ids[i] not in mapped_db_ids:
-                        print(f"Sync: Slot '{slot_labels[i]}' removed from web UI. Deleting locally.")
-                        all_slots.pop(i)
-                        slot_data.pop(i)
-                        slot_labels.pop(i)
-                        slot_ids.pop(i)
-
-        except Exception as e:
-            print(f"[SYNC ERROR]: {e}")
-            pass
-        time.sleep(2) # Check every 2 seconds
-
-# Start the bi-directional sync loop
-sync_thread = threading.Thread(target=sync_db_loop, daemon=True)
-sync_thread.start()
-
-print("Syncing initial state with cloud...")
-time.sleep(2.5) # Give it a moment to fetch data before opening camera
-
-def save_new_slot_to_db(points_list, label):
-    """Inserts a newly drawn slot directly into Supabase."""
-    try:
-        json_ready_points = [list(pt) for pt in points_list] 
-        
-        data, count = supabase.table('parking_slots').insert({
-            'lot_id': TARGET_LOT_ID,
-            'label': label,
-            'status': 'available',
-            'coordinates': json_ready_points
-        }).execute()
-        
-        if data and len(data[1]) > 0:
-            return data[1][0]['id'] 
-    except Exception as e:
-        print(f"[DB ERROR] Failed to save slot: {e}")
-    return None
-
-def delete_slot_from_db(db_id):
-    """Deletes a slot from Supabase."""
-    try:
-        supabase.table('parking_slots').delete().eq('id', db_id).execute()
-        print(f"[SUPABASE] Slot deleted successfully!")
-    except Exception as e:
-        print(f"[DB ERROR] Failed to delete slot: {e}")
-
-# ---------------------------------------------------------
-# 3. LOW-LATENCY RTSP STREAM READER
-# ---------------------------------------------------------
+# =============================================================
+# 4. RTSP STREAM READER (auto-reconnects on failure)
+# =============================================================
 class RTSPStream:
     def __init__(self, src):
+        self.src = src
         self.cap = cv2.VideoCapture(src)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.frame = None
@@ -160,11 +81,17 @@ class RTSPStream:
         self.lock = threading.Lock()
         self.running = True
         threading.Thread(target=self._reader, daemon=True).start()
-        print("RTSP stream reader started...")
 
     def _reader(self):
         while self.running:
             ret, frame = self.cap.read()
+            if not ret:
+                print(f"[RTSP] Stream lost for {self.src}. Reconnecting in 5s...")
+                self.cap.release()
+                time.sleep(5)
+                self.cap = cv2.VideoCapture(self.src)
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                continue
             with self.lock:
                 self.ret = ret
                 self.frame = frame
@@ -179,260 +106,268 @@ class RTSPStream:
         self.running = False
         self.cap.release()
 
-# ---------------------------------------------------------
-# 4. FLASK WEB STREAMING SETUP
-# ---------------------------------------------------------
+# =============================================================
+# 5. FLASK WEB STREAMING SETUP
+# =============================================================
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 
-shared_frame = None
-frame_lock = threading.Lock()
+# Each camera gets its own shared frame dict entry keyed by camera_id
+shared_frames = {}  # { camera_id: frame_or_None }
+shared_frames_lock = threading.Lock()
 
-def generate_frames():
-    """Generator that yields the latest frame for the web stream."""
-    global shared_frame
+def generate_frames(camera_id):
+    """Generator that yields the latest frame for a specific camera."""
     while True:
-        with frame_lock:
-            if shared_frame is None:
-                continue
-            ret, buffer = cv2.imencode('.jpg', shared_frame)
-            frame_bytes = buffer.tobytes()
+        with shared_frames_lock:
+            frame = shared_frames.get(camera_id)
 
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        time.sleep(0.03) 
+        if frame is not None:
+            stream_frame = cv2.resize(frame, (1024, 576))
+            ret, buffer = cv2.imencode('.jpg', stream_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 28])
+            if ret:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        time.sleep(0.1)  # ~10 fps
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+@app.route('/')
+def index():
+    links = "".join(
+        f'<li><a href="/video_feed/{c["camera_id"]}">{c["label"]}</a></li>'
+        for c in CAMERAS
+    )
+    return f'<h1>Feldgrau AI Node is Running!</h1><p>Live camera feeds:</p><ul>{links}</ul>'
+
+@app.route('/video_feed/<camera_id>')
+def video_feed(camera_id):
+    return Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 def run_flask():
-    print("Starting Flask web server on http://127.0.0.1:5000/video_feed")
+    print("Starting Flask web server...")
+    for cam in CAMERAS:
+        print(f"  -> Stream: http://127.0.0.1:5000/video_feed/{cam['camera_id']}")
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
 flask_thread = threading.Thread(target=run_flask, daemon=True)
 flask_thread.start()
 
-# ---------------------------------------------------------
-# 5. AI & CAMERA SETUP
-# ---------------------------------------------------------
-print("Loading custom AI brain (best.pt)...")
-model = YOLO("best.pt")
+# =============================================================
+# 6. SUPABASE HELPER FUNCTIONS
+# =============================================================
+def update_supabase_bg(target_id, physical_state, main_status=None):
+    def api_call():
+        try:
+            data_to_update = {'physical_status': physical_state}
+            if main_status is not None:
+                data_to_update['status'] = main_status
+            supabase.table('parking_slots').update(data_to_update).eq('id', target_id).execute()
+        except Exception as e:
+            print(f"Background Supabase update failed: {e}")
+    threading.Thread(target=api_call).start()
 
-print("Warming up AI model (please wait a few seconds)...")
-dummy = np.zeros((416, 416, 3), dtype=np.uint8)
-model.predict(dummy, verbose=False, conf=0.4, imgsz=416, device="cpu")
-print("Warmup complete!")
+# =============================================================
+# 7. CAMERA WORKER CLASS
+# Each instance handles one camera independently:
+#   - Reads RTSP stream
+#   - Runs AI inference
+#   - Syncs slots from Supabase (filtered by camera_id)
+#   - Pushes frames to shared_frames dict for Flask
+# =============================================================
+class CameraWorker:
+    def __init__(self, config: dict):
+        self.label      = config["label"]
+        self.rtsp_url   = config["rtsp_url"]
+        self.camera_id  = config["camera_id"]
 
-# Camera RTSP Stream (Or use 0 for webcam testing)
-video_path = "rtsp://admincam:admin123@10.21.49.127:554/stream1" 
-cap = RTSPStream(0) 
+        # Per-camera slot state
+        self.data_lock  = threading.Lock()
+        self.slot_ids   = []
+        self.all_slots  = []
+        self.slot_data  = []
+        self.slot_labels= []
 
-print("Waiting for stream to stabilize...")
-time.sleep(2)
+        # Initialize this camera's frame slot
+        with shared_frames_lock:
+            shared_frames[self.camera_id] = None
 
-# ---------------------------------------------------------
-# 6. MOUSE CONTROLS (Draw/Delete Cloud Slots)
-# ---------------------------------------------------------
-def handle_mouse(event, x, y, flags, param):
-    global current_points, all_slots, slot_data, slot_ids, slot_labels, pending_slots
+    def sync_db_loop(self):
+        """Polls Supabase every 2s to load/sync slots for this specific camera."""
+        while True:
+            try:
+                res = supabase.table('parking_slots')\
+                    .select('*')\
+                    .eq('lot_id', TARGET_LOT_ID)\
+                    .eq('camera_id', self.camera_id)\
+                    .order('created_at', desc=False)\
+                    .execute()
+                db_slots = res.data
+                mapped_db_ids = []
 
-    if event == cv2.EVENT_LBUTTONDOWN:
-        current_points.append((x, y))
-        if len(current_points) == 4:
-            new_slot_array = np.array(current_points, np.int32)
-            json_ready_points = [list(pt) for pt in current_points]
+                with self.data_lock:
+                    for row in db_slots:
+                        db_id   = row['id']
+                        coords  = row.get('coordinates')
+                        label   = row.get('label', 'Unknown')
+                        db_status = row.get('status')
 
-            with data_lock:
-                # Check if there are slots waiting to be drawn from the web UI
-                if len(pending_slots) > 0:
-                    target_slot = pending_slots.pop(0) 
-                    target_id = target_slot['id']
-                    target_label = target_slot.get('label', f"S{len(all_slots) + 1}")
-                    
-                    try:
-                        supabase.table('parking_slots').update({
-                            'coordinates': json_ready_points,
-                            'status': 'available'
-                        }).eq('id', target_id).execute()
-                        
-                        all_slots.append(new_slot_array)
-                        slot_data.append({"status": "FREE", "time_in": 0, "pending_state": None, "pending_start": 0})
-                        slot_ids.append(target_id)
-                        slot_labels.append(target_label) # Lock the label
-                        print(f"Mapped drawn slot to existing UI element: {target_label}")
-                    except Exception as e:
-                        print(f"Failed to map coordinates: {e}")
-                else:
-                    new_label = f"S{len(all_slots) + 1}"
-                    new_db_id = save_new_slot_to_db(current_points, new_label)
-                    
-                    if new_db_id:
-                        all_slots.append(new_slot_array)
-                        slot_data.append({"status": "FREE", "time_in": 0, "pending_state": None, "pending_start": 0})
-                        slot_ids.append(new_db_id)
-                        slot_labels.append(new_label) # Lock the label
-                        print(f"Created brand new slot: {new_label}")
-            
-            current_points = []
+                        if coords:
+                            mapped_db_ids.append(db_id)
+                            if db_id not in self.slot_ids:
+                                print(f"[{self.label}] Loaded slot: {label}")
+                                self.slot_ids.append(db_id)
+                                self.slot_labels.append(label)
+                                self.all_slots.append(np.array(coords, np.int32))
+                                self.slot_data.append({
+                                    "status": "FREE", "time_in": 0,
+                                    "db_status": db_status,
+                                    "pending_state": None, "pending_start": 0
+                                })
+                            else:
+                                idx = self.slot_ids.index(db_id)
+                                self.slot_data[idx]["db_status"] = db_status
 
-    elif event == cv2.EVENT_RBUTTONDOWN:
-        with data_lock:
-            for i in range(len(all_slots)):
-                if cv2.pointPolygonTest(all_slots[i], (x, y), False) >= 0:
-                    delete_slot_from_db(slot_ids[i])
-                    all_slots.pop(i)
-                    slot_data.pop(i)
-                    slot_labels.pop(i) # Sync deletion of label
-                    slot_ids.pop(i)
-                    break
+                    # Handle deletions
+                    for i in range(len(self.slot_ids) - 1, -1, -1):
+                        if self.slot_ids[i] not in mapped_db_ids:
+                            print(f"[{self.label}] Slot '{self.slot_labels[i]}' removed. Deleting locally.")
+                            self.all_slots.pop(i)
+                            self.slot_data.pop(i)
+                            self.slot_labels.pop(i)
+                            self.slot_ids.pop(i)
 
-cv2.namedWindow("Smart Traffic Agent")
-cv2.setMouseCallback("Smart Traffic Agent", handle_mouse)
+            except Exception as e:
+                print(f"[{self.label}] [SYNC ERROR]: {e}")
+            time.sleep(2)
 
-print("Starting Smart Detection...")
-paused = False
+    def ai_loop(self):
+        """Main AI detection loop for this camera."""
+        cap = RTSPStream(self.rtsp_url)
+        print(f"[{self.label}] RTSP stream reader started...")
+        time.sleep(2)  # Let stream stabilize
 
-# ---------------------------------------------------------
-# 7. MAIN AI LOOP
-# ---------------------------------------------------------
-empty_frame_strikes = 0 # Keeps track of how many times we missed a frame
+        frame_counter   = 0
+        last_results    = []
+        empty_strikes   = 0
 
-while True:
-    if not paused:
-        ret, frame = cap.read()
-        
-        #FIX: Don't instantly break! Be patient for network buffering.
-        if not ret or frame is None:
-            empty_frame_strikes += 1
-            if empty_frame_strikes % 20 == 0: # Print a warning every few seconds
-                print("Waiting for camera feed... (Buffering or disconnected)")
-            
-            if empty_frame_strikes > 200: # If it's been dead for way too long (e.g., 10 seconds)
-                print("CRITICAL: Camera completely unreachable. Shutting down.")
-                break
-                
-            time.sleep(0.1) # Wait a millisecond and try grabbing the frame again
-            continue # Skip the rest of the loop and try again
-            
-        else:
-            empty_frame_strikes = 0 # Reset strikes when we successfully get a frame!
-
-    display_frame = frame.copy()
-    results = model.predict(display_frame, verbose=False, conf=0.4, imgsz=416, device="cpu")
-
-    vehicle_centers = []
-    for r in results:
-        for box in r.boxes:
-            x1, y1, x2, y2 = box.xyxy[0]
-            cx = int((x1 + x2) / 2)
-            cy = int(y2)  
-
-            vehicle_centers.append((cx, cy))
-
-            cv2.circle(display_frame, (cx, cy), 5, (255, 0, 0), -1)
-            cv2.rectangle(display_frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 165, 0), 2)
-
-    free_count = 0
-    full_count = 0
-
-# ---------------------------------------------------------
-# 8. SLOT LOGIC & SUPABASE SYNC
-# ---------------------------------------------------------
-    with data_lock:
-        for i, slot in enumerate(all_slots):
-            is_occupied = False
-            for center in vehicle_centers:
-                if cv2.pointPolygonTest(slot, center, False) >= 0:
-                    is_occupied = True
-                    break
-
-            slot_label = slot_labels[i]
-
-            if is_occupied:
-                if slot_data[i]["status"] == "FREE":
-                    if slot_data[i].get("pending_state") != "FULL":
-                        slot_data[i]["pending_state"] = "FULL"
-                        slot_data[i]["pending_start"] = time.time()
-                    elif time.time() - slot_data[i]["pending_start"] >= 7.0:
-                        slot_data[i]["status"] = "FULL"
-                        slot_data[i]["time_in"] = time.time()
-                        slot_data[i]["pending_state"] = None
-                        
-                        if slot_data[i].get("db_status") != "reserved":
-                            update_supabase_bg(slot_ids[i], "occupied", "occupied")
-                        else:
-                            update_supabase_bg(slot_ids[i], "occupied", None)
-                else:
-                    slot_data[i]["pending_state"] = None
-
-                elapsed = int(time.time() - slot_data[i]["time_in"])
-                mins, secs = divmod(elapsed, 60)
-                
-                if slot_data[i]["status"] == "FREE" and slot_data[i].get("pending_state") == "FULL":
-                    color = (0, 255, 255)  # Yellow for detecting
-                    pending_secs = int(7 - (time.time() - slot_data[i]["pending_start"]))
-                    text = f"{slot_label}: DETECTING ({pending_secs}s)"
-                else:
-                    color = (0, 0, 255)  # Red
-                    text = f"{slot_label}: FULL ({mins}m {secs}s)"
-                    full_count += 1
-
+        while True:
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                empty_strikes += 1
+                if empty_strikes % 30 == 0:
+                    print(f"[{self.label}] Waiting for camera feed (strike {empty_strikes})...")
+                time.sleep(0.1)
+                continue
             else:
-                if slot_data[i]["status"] == "FULL":
-                    if slot_data[i].get("pending_state") != "FREE":
-                        slot_data[i]["pending_state"] = "FREE"
-                        slot_data[i]["pending_start"] = time.time()
-                    elif time.time() - slot_data[i]["pending_start"] >= 7.0:
-                        slot_data[i]["status"] = "FREE"
-                        slot_data[i]["time_in"] = 0
-                        slot_data[i]["pending_state"] = None
-                        
-                        if slot_data[i].get("db_status") != "reserved":
-                            update_supabase_bg(slot_ids[i], "empty", "available")
+                if empty_strikes > 0:
+                    print(f"[{self.label}] Camera feed restored!")
+                empty_strikes = 0
+
+            display_frame = frame.copy()
+            frame_counter += 1
+
+            # Run AI every 15 frames to save CPU
+            if frame_counter % 15 == 0 or not last_results:
+                with model_lock:
+                    last_results = model.predict(display_frame, verbose=False, conf=0.4, imgsz=416, device="cpu")
+
+            results = last_results
+            vehicle_centers = []
+            for r in results:
+                for box in r.boxes:
+                    x1, y1, x2, y2 = box.xyxy[0]
+                    cx = int((x1 + x2) / 2)
+                    cy = int(y2)
+                    vehicle_centers.append((cx, cy))
+                    cv2.circle(display_frame, (cx, cy), 5, (255, 0, 0), -1)
+                    cv2.rectangle(display_frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 165, 0), 2)
+
+            # Slot logic
+            with self.data_lock:
+                for i, slot in enumerate(self.all_slots):
+                    is_occupied = any(
+                        cv2.pointPolygonTest(slot, center, False) >= 0
+                        for center in vehicle_centers
+                    )
+                    slot_label = self.slot_labels[i]
+
+                    if is_occupied:
+                        if self.slot_data[i]["status"] == "FREE":
+                            if self.slot_data[i].get("pending_state") != "FULL":
+                                self.slot_data[i]["pending_state"] = "FULL"
+                                self.slot_data[i]["pending_start"] = time.time()
+                            elif time.time() - self.slot_data[i]["pending_start"] >= 7.0:
+                                self.slot_data[i]["status"] = "FULL"
+                                self.slot_data[i]["time_in"] = time.time()
+                                self.slot_data[i]["pending_state"] = None
+                                if self.slot_data[i].get("db_status") != "reserved":
+                                    update_supabase_bg(self.slot_ids[i], "occupied", "occupied")
+                                else:
+                                    update_supabase_bg(self.slot_ids[i], "occupied", None)
                         else:
-                            update_supabase_bg(slot_ids[i], "empty", None)
-                else:
-                    slot_data[i]["pending_state"] = None
+                            self.slot_data[i]["pending_state"] = None
 
-                if slot_data[i]["status"] == "FULL" and slot_data[i].get("pending_state") == "FREE":
-                    color = (0, 165, 255)  # Orange for clearing
-                    pending_secs = int(7 - (time.time() - slot_data[i]["pending_start"]))
-                    text = f"{slot_label}: CLEARING ({pending_secs}s)"
-                else:
-                    color = (0, 255, 0)  # Green
-                    text = f"{slot_label}: FREE"
-                    free_count += 1
+                        elapsed = int(time.time() - self.slot_data[i]["time_in"])
+                        mins, secs = divmod(elapsed, 60)
+                        if self.slot_data[i]["status"] == "FREE" and self.slot_data[i].get("pending_state") == "FULL":
+                            color = (0, 255, 255)
+                            pending_secs = int(7 - (time.time() - self.slot_data[i]["pending_start"]))
+                            text = f"{slot_label}: DETECTING ({pending_secs}s)"
+                        else:
+                            color = (0, 0, 255)
+                            text = f"{slot_label}: FULL ({mins}m {secs}s)"
+                    else:
+                        if self.slot_data[i]["status"] == "FULL":
+                            if self.slot_data[i].get("pending_state") != "FREE":
+                                self.slot_data[i]["pending_state"] = "FREE"
+                                self.slot_data[i]["pending_start"] = time.time()
+                            elif time.time() - self.slot_data[i]["pending_start"] >= 7.0:
+                                self.slot_data[i]["status"] = "FREE"
+                                self.slot_data[i]["time_in"] = 0
+                                self.slot_data[i]["pending_state"] = None
+                                if self.slot_data[i].get("db_status") != "reserved":
+                                    update_supabase_bg(self.slot_ids[i], "empty", "available")
+                                else:
+                                    update_supabase_bg(self.slot_ids[i], "empty", None)
+                        else:
+                            self.slot_data[i]["pending_state"] = None
 
-            cv2.polylines(display_frame, [slot], True, color, 3)
-            cv2.putText(display_frame, text, (slot[0][0], slot[0][1] - 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-# ---------------------------------------------------------
-# 9. UI RENDERING & FLASK SYNC
-# ---------------------------------------------------------
-    for point in current_points:
-        cv2.circle(display_frame, point, 5, (0, 0, 255), -1)
-    if len(current_points) > 1:
-        cv2.polylines(display_frame, [np.array(current_points, np.int32)], False, (0, 0, 255), 2)
+                        if self.slot_data[i]["status"] == "FULL" and self.slot_data[i].get("pending_state") == "FREE":
+                            color = (0, 165, 255)
+                            pending_secs = int(7 - (time.time() - self.slot_data[i]["pending_start"]))
+                            text = f"{slot_label}: CLEARING ({pending_secs}s)"
+                        else:
+                            color = (0, 255, 0)
+                            text = f"{slot_label}: FREE"
 
-    if paused:
-        cv2.putText(display_frame, "PAUSED", (10, 140),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 3)
+                    cv2.polylines(display_frame, [slot], True, color, 3)
+                    cv2.putText(display_frame, text, (slot[0][0], slot[0][1] - 15),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-    with frame_lock:
-        shared_frame = display_frame.copy()
+            # Push annotated frame for web streaming
+            with shared_frames_lock:
+                shared_frames[self.camera_id] = display_frame.copy()
 
-    cv2.imshow("Smart Traffic Agent", display_frame)
+    def start(self):
+        """Start both the DB sync and AI loop in background threads."""
+        threading.Thread(target=self.sync_db_loop, daemon=True).start()
+        threading.Thread(target=self.ai_loop, daemon=True).start()
+        print(f"[{self.label}] Worker started. Stream: /video_feed/{self.camera_id}")
 
-    key = cv2.waitKey(30) & 0xFF
-    if key == ord('q'):
-        break
-    elif key == ord('p'):
-        paused = not paused
+# =============================================================
+# 8. LAUNCH ALL CAMERA WORKERS
+# =============================================================
+print(f"\nStarting {len(CAMERAS)} camera worker(s)...\n")
+for cam_config in CAMERAS:
+    worker = CameraWorker(cam_config)
+    worker.start()
+    time.sleep(1)  # Stagger startup slightly
 
-# ---------------------------------------------------------
-# 10. CLEANUP
-# ---------------------------------------------------------
-cap.release()
-cv2.destroyAllWindows()
-print("Stream closed. Goodbye!")
+print("\nAll cameras running. Press CTRL+C to stop.\n")
+
+# Keep main thread alive
+try:
+    while True:
+        time.sleep(60)
+except KeyboardInterrupt:
+    print("\nShutting down. Goodbye!")

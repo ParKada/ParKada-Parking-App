@@ -59,9 +59,19 @@ export default function AdminParkingSlots() {
 
   const handleUpdateCameraZone = async (slotId: string, points: {x:number, y:number}[]) => {
     try {
+      // Convert percentage points to pixel coordinates (1024x576 is the Python stream resolution)
+      // Python reads: [[x, y], [x, y], [x, y], [x, y]] as integers
+      const STREAM_W = 1024;
+      const STREAM_H = 576;
+      const pixelCoords = points.map(p => [Math.round((p.x / 100) * STREAM_W), Math.round((p.y / 100) * STREAM_H)]);
+
       const { error } = await supabase
         .from('parking_slots')
-        .update({ camera_id: expandedCameraId, camera_zone_points: points })
+        .update({ 
+          camera_id: expandedCameraId, 
+          camera_zone_points: points,  // Web UI format (percentages)
+          coordinates: pixelCoords      // Python AI node format (pixels)
+        })
         .eq('id', slotId);
 
       if (error) throw error;
@@ -75,7 +85,7 @@ export default function AdminParkingSlots() {
     try {
       const { error } = await supabase
         .from('parking_slots')
-        .update({ camera_id: null, camera_zone_points: null })
+        .update({ camera_id: null, camera_zone_points: null, coordinates: null })
         .eq('id', slotId);
 
       if (error) throw error;
@@ -543,16 +553,20 @@ export default function AdminParkingSlots() {
     );
   }
 
-  const getCameraUrl = () => {
-    const publicUrl = import.meta.env.VITE_CAMERA_PUBLIC_URL || "https://your-cloudflare-tunnel.com";
-    const lanUrl = import.meta.env.VITE_CAMERA_LAN_URL || "http://192.168.1.100:5000";
+  const getCameraUrl = (cameraId?: string) => {
+    const lanBase = import.meta.env.VITE_CAMERA_LAN_URL || "http://192.168.8.156:5000";
+    const publicBase = import.meta.env.VITE_CAMERA_PUBLIC_URL || "";
     
-    if (userRole === "superadmin" || userRole === "manager" || userRole === "super_admin") {
-      return `${publicUrl}/video_feed`;
-    } else if (userRole === "guard") {
-      return `${lanUrl}/video_feed`;
+    // Use the camera-specific stream path if a cameraId is provided
+    const path = cameraId ? `/video_feed/${cameraId}` : "/video_feed";
+    
+    // Super admins and managers use the Cloudflare public URL (internet access)
+    // Guards use the LAN URL (same WiFi as the camera machine)
+    if (userRole === "superadmin" || userRole === "super_admin") {
+      return publicBase ? `${publicBase}${path}` : `${lanBase}${path}`;
     }
-    return "";
+    // Everyone else (manager, guard) uses the local LAN stream directly — no Cloudflare needed
+    return `${lanBase}${path}`;
   };
 
   const activeLot = lots.find((l) => l.id === selectedLotId);
@@ -1049,7 +1063,7 @@ export default function AdminParkingSlots() {
                     >
                        <div className="aspect-video bg-black flex items-center justify-center relative">
                            <img 
-                             src={cam.stream_url || getCameraUrl()} 
+                             src={cam.stream_url || getCameraUrl(cam.id)} 
                              className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity" 
                              onError={(e) => e.currentTarget.style.display = 'none'}
                            />
@@ -1180,7 +1194,7 @@ export default function AdminParkingSlots() {
                  </div>
                  <div className="w-full aspect-video flex items-center justify-center relative bg-black">
                     <img 
-                      src={cameras.find(c => c.id === expandedCameraId)?.stream_url || getCameraUrl()} 
+                      src={cameras.find(c => c.id === expandedCameraId)?.stream_url || getCameraUrl(expandedCameraId ?? undefined)} 
                       className="w-full h-auto max-h-[70vh] object-contain opacity-90"
                       onError={(e) => {
                          e.currentTarget.style.display = 'none';
