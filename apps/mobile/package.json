@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "eas-build-pre-install": "npm install -g pnpm@9",
+    "eas-build-pre-install": "npm install -g pnpm@9 && pnpm install --no-frozen-lockfile",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
