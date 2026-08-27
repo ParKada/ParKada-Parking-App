@@ -30,13 +30,20 @@
         "googleMaps": {
           "apiKey": "AIzaSyAe_BSz6u4xkx2UkgT5lKU0RXwhk_TQUeU"
         }
-      }
+      },
+      "package": "parkada.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2b235d62-32e8-407a-9876-3d4926f63bbc"
+      }
+    }
   }
 }
