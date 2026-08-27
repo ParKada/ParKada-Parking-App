@@ -126,7 +126,7 @@ export default function ParkingMapPage() {
       try {
         setLoading(true);
         const [lotsRes, slotsRes] = await Promise.all([
-          supabase.from('parking_lots').select(`id, name, address, latitude, longitude, open_hours, rate_per_hour, type, status, is_accredited, average_rating, total_reviews`),
+          supabase.from('parking_lots').select(`id, name, address, latitude, longitude, open_hours, rate_per_hour, type, status, is_accredited, average_rating, total_reviews`).neq('maintenance_mode', true),
           supabase.from('parking_slots').select('*')
         ]);
         if (lotsRes.data) setLots(lotsRes.data);

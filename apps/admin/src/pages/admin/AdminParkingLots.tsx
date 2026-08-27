@@ -10,7 +10,7 @@ import { useLocation } from "wouter";
 import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
-import { RefreshCw, Building2, Plus, Trash2, MapPin, Tag, Ban, CheckCircle2, Award, XCircle } from "lucide-react";
+import { RefreshCw, Building2, Plus, Trash2, MapPin, Tag, Ban, CheckCircle2, Award, XCircle, Smartphone, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,7 @@ export default function AdminParkingLots() {
   const [, setLocation] = useLocation();
   const [lots, setLots] = useState<ParkingLot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const userRole = localStorage.getItem("admin_role") || "";
 
   // Add form state
   const [isAdding, setIsAdding] = useState(false);
@@ -183,6 +184,54 @@ export default function AdminParkingLots() {
       }
     } catch (err: any) {
       toast.error("An unexpected error occurred.");
+    }
+  };
+
+  const handleToggleDeployment = async (id: string, currentMaintenanceMode: boolean, name: string) => {
+    // If maintenance_mode is true, it is currently HIDDEN.
+    // So if currentMaintenanceMode is true, we want to Deploy (set maintenance_mode to false).
+    // If currentMaintenanceMode is false, we want to Hide (set maintenance_mode to true).
+    const isCurrentlyDeployed = !currentMaintenanceMode;
+    const action = isCurrentlyDeployed ? "Hide (Undeploy)" : "Deploy";
+    const newMaintenanceMode = isCurrentlyDeployed; // If currently deployed, we set maintenance to true to hide it.
+    
+    if (!window.confirm(`Are you sure you want to ${action} ${name}? ${newMaintenanceMode ? "It will be hidden from the user mobile app." : "It will now appear in the user mobile app."}`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('parking_lots')
+        .update({ maintenance_mode: newMaintenanceMode })
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      toast.success(`${name} is now ${newMaintenanceMode ? "Hidden from App" : "Deployed to App"}`);
+      fetchLots();
+    } catch (error) {
+      console.error(error);
+      toast.error(`Failed to ${action} lot.`);
+    }
+  };
+
+  const handleToggleAccreditation = async (id: string, currentStatus: boolean, name: string) => {
+    const action = currentStatus ? "Unaccredit" : "Accredit";
+    const newStatus = !currentStatus;
+    
+    if (!window.confirm(`Are you sure you want to ${action} ${name}?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('parking_lots')
+        .update({ is_accredited: newStatus })
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      toast.success(`${name} is now ${newStatus ? "Accredited" : "Unaccredited"}`);
+      fetchLots();
+    } catch (error) {
+      console.error(error);
+      toast.error(`Failed to ${action} lot.`);
     }
   };
 
@@ -376,20 +425,19 @@ export default function AdminParkingLots() {
                     return (
                       <tr
                         key={lot.id}
-                        onClick={() => isAccredited && handleGoToSlots(lot.id)}
+                        onClick={() => handleGoToSlots(lot.id)}
                         className={cn(
                           "transition-all cursor-pointer group",
                           lot.status === "suspended" ? "bg-slate-50 opacity-75" : "",
-                          isAccredited && lot.status !== "suspended" ? "hover:bg-emerald-50" : ""
+                          lot.status !== "suspended" ? "hover:bg-emerald-50" : ""
                         )}
                       >
                         <td className="p-4">
                           <div className="flex flex-wrap items-center gap-2">
                             <p
                               className={cn(
-                                "font-bold text-base",
-                                lot.status === "suspended" ? "text-slate-400" : 
-                                isAccredited ? "text-foreground group-hover:text-emerald-700" : "text-foreground"
+                                "font-bold text-base transition-colors",
+                                lot.status === "suspended" ? "text-slate-400" : "text-foreground group-hover:text-emerald-700"
                               )}
                             >
                               {lot.name}
@@ -418,14 +466,42 @@ export default function AdminParkingLots() {
                         </td>
                         {/* 🔥 Capacity column – now shows only total slots */}
                         <td className="p-4 text-center">
-                          {isAccredited ? (
-                            <span className="font-bold text-foreground">{lot.total_slots}</span>
-                          ) : (
-                            <span className="text-amber-600 text-xs font-bold">Walk‑In Only</span>
-                          )}
+                          <span className="font-bold text-foreground">{lot.total_slots}</span>
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex justify-end gap-1">
+                            {(userRole === 'superadmin' || userRole === 'super_admin') && (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleAccreditation(lot.id, isAccredited, lot.name);
+                                  }}
+                                  className={cn(
+                                    "p-2 rounded-lg transition-all",
+                                    isAccredited ? "text-amber-500 hover:bg-amber-100" : "text-emerald-500 hover:bg-emerald-100"
+                                  )}
+                                  title={isAccredited ? "Unaccredit Lot" : "Accredit Lot"}
+                                >
+                                  {isAccredited ? <XCircle size={18} /> : <Award size={18} />}
+                                </button>
+                                {isAccredited && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleDeployment(lot.id, lot.maintenance_mode === true, lot.name);
+                                    }}
+                                    className={cn(
+                                      "p-2 rounded-lg transition-all",
+                                      lot.maintenance_mode !== true ? "text-indigo-500 hover:bg-indigo-100" : "text-slate-500 hover:bg-slate-200"
+                                    )}
+                                    title={lot.maintenance_mode !== true ? "Hide from User App" : "Deploy to User App"}
+                                  >
+                                    {lot.maintenance_mode !== true ? <Smartphone size={18} /> : <Upload size={18} />}
+                                  </button>
+                                )}
+                              </>
+                            )}
                             {isAccredited && (
                               <button
                                 onClick={(e) => {

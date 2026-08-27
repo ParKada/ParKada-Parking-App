@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import CameraGridEditor from "@/components/parking/CameraGridEditor";
-import { Loader2, Plus, Info, LayoutDashboard, Database, Video, ChevronDown, Check, PenSquare, Trash2, MapPin, MousePointer2, Settings, Smartphone, Maximize, Maximize2, ShieldAlert, User as UserIcon, Camera, Upload, RefreshCw, Car, ArrowLeftRight, ArrowLeft, Eye, EyeOff, Layers, Building2, PenTool, X } from "lucide-react";
+import { Loader2, Plus, Info, LayoutDashboard, Database, Video, ChevronDown, Check, PenSquare, Trash2, MapPin, MousePointer2, Settings, Smartphone, Maximize, Maximize2, Minimize, ShieldAlert, User as UserIcon, Camera, Upload, RefreshCw, Car, ArrowLeftRight, ArrowLeft, Eye, EyeOff, Layers, Building2, PenTool, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@parkada/shared";
@@ -51,11 +51,32 @@ export default function AdminParkingSlots() {
 
   const [showCameraGrid, setShowCameraGrid] = useState(false);
   const [isDrawingGrid, setIsDrawingGrid] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Refs for file uploads
   const frontViewRef = useRef<HTMLInputElement>(null);
   const businessPermitRef = useRef<HTMLInputElement>(null);
   const otherPhotoRef = useRef<HTMLInputElement>(null);
+
+  const fullscreenContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      fullscreenContainerRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   const handleUpdateCameraZone = async (slotId: string, points: {x:number, y:number}[]) => {
     try {
@@ -293,7 +314,6 @@ export default function AdminParkingSlots() {
       let query = supabase
         .from('parking_lots')
         .select('*')
-        .eq('is_accredited', true)      // ← only accredited
         .order('name', { ascending: true }); // ← alphabetical
 
       if ((userRole === 'manager' || userRole === 'guard') && userLotId) {
@@ -1101,14 +1121,7 @@ export default function AdminParkingSlots() {
                             placeholder="e.g. Roof Deck Camera"
                             autoFocus
                           />
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">Public Stream URL (Optional)</label>
-                          <input 
-                            type="url" 
-                            value={newCameraUrl} 
-                            onChange={(e) => setNewCameraUrl(e.target.value)}
-                            className="h-10 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
-                            placeholder="https://your-cloudflare-tunnel.com/video_feed"
-                          />
+
                           <div className="flex gap-2 mt-2">
                             <Button type="submit" size="sm" className="flex-1">Add Camera</Button>
                             <Button type="button" size="sm" variant="ghost" onClick={() => setIsAddingCamera(false)} className="flex-1">Cancel</Button>
@@ -1192,10 +1205,15 @@ export default function AdminParkingSlots() {
                        <ArrowLeft className="w-5 h-5" />
                     </Button>
                  </div>
-                 <div className="w-full aspect-video flex items-center justify-center relative bg-black">
-                    <img 
-                      src={cameras.find(c => c.id === expandedCameraId)?.stream_url || getCameraUrl(expandedCameraId ?? undefined)} 
-                      className="w-full h-auto max-h-[70vh] object-contain opacity-90"
+                 {/* Fullscreen Wrapper */}
+                 <div 
+                   ref={fullscreenContainerRef}
+                   className={cn("flex flex-col w-full", isFullscreen ? "bg-black h-full justify-center" : "overflow-hidden")}
+                 >
+                   <div className={cn("w-full flex items-center justify-center relative bg-black", isFullscreen ? "flex-1 min-h-0" : "aspect-video")}>
+                      <img 
+                        src={cameras.find(c => c.id === expandedCameraId)?.stream_url || getCameraUrl(expandedCameraId ?? undefined)} 
+                        className="w-full h-full object-contain opacity-90"
                       onError={(e) => {
                          e.currentTarget.style.display = 'none';
                          const fallbackMsg = document.getElementById('stream-fallback-expanded');
@@ -1256,75 +1274,23 @@ export default function AdminParkingSlots() {
                             )}
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={toggleFullscreen}
+                          className="h-8 w-8 p-0 text-slate-300 hover:text-white hover:bg-slate-800 ml-2"
+                          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                        >
+                          {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                        </Button>
                       </div>
                     )}
                  </div>
                  </div>
+                 </div>
                  {(userRole === 'superadmin' || userRole === 'super_admin') && (
                    <div className="flex flex-col gap-2">
-                     <div className="py-2 px-1 flex items-center gap-4">
-                       <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap flex-shrink-0 w-32">Stream URL</h4>
-                     
-                     {editingCameraId === expandedCameraId && editingCameraField === 'url' ? (
-                       <>
-                          <input 
-                            type="text"
-                            value={editingCameraUrl}
-                            onChange={(e) => setEditingCameraUrl(e.target.value)}
-                            className="bg-white text-slate-900 px-3 py-2 rounded-lg text-sm outline-none border border-slate-300 shadow-sm focus:border-primary w-full max-w-xl transition-colors"
-                            placeholder="Stream URL (e.g. Cloudflare tunnel)"
-                            autoFocus
-                          />
-                          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                            <Button onClick={() => {
-                                if (window.confirm("Are you sure you want to make these changes?")) {
-                                  const newCameras = cameras.map(c => c.id === expandedCameraId ? { ...c, stream_url: editingCameraUrl.trim() } : c);
-                                  setCameras(newCameras);
-                                  localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(newCameras));
-                                  setEditingCameraId(null);
-                                  setEditingCameraField(null);
-                                }
-                            }} className="bg-green-50 text-green-700 hover:bg-slate-900 hover:text-white font-medium h-9 px-6 transition-colors">Save</Button>
-                            <Button variant="outline" onClick={() => {
-                                setEditingCameraId(null);
-                                setEditingCameraField(null);
-                            }} className="bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white border-transparent shadow-sm font-medium h-9 px-6 transition-colors">Cancel</Button>
-                          </div>
-                       </>
-                     ) : (
-                       <>
-                          <div className="flex items-center gap-3 w-full max-w-xl">
-                            <div className="bg-slate-50 text-slate-600 px-3 py-2 rounded-lg text-sm border border-slate-200 shadow-sm w-full font-mono flex items-center justify-between transition-colors">
-                              <span className="truncate">
-                                {cameras.find(c => c.id === expandedCameraId)?.stream_url 
-                                  ? (showStreamUrl ? cameras.find(c => c.id === expandedCameraId)?.stream_url : "••••••••••••••••••••••••••••••••••••••••••") 
-                                  : "No stream URL configured"}
-                              </span>
-                              {cameras.find(c => c.id === expandedCameraId)?.stream_url && (
-                                <button 
-                                  onClick={() => setShowStreamUrl(!showStreamUrl)}
-                                  className="text-slate-400 hover:text-slate-600 focus:outline-none flex-shrink-0 transition-colors ml-2"
-                                  title={showStreamUrl ? "Hide URL" : "Show URL"}
-                                >
-                                  {showStreamUrl ? <EyeOff size={16} /> : <Eye size={16} />}
-                                </button>
-                              )}
-                            </div>
-                            <button 
-                              onClick={() => {
-                                setEditingCameraId(expandedCameraId);
-                                setEditingCameraUrl(cameras.find(c => c.id === expandedCameraId)?.stream_url || "");
-                                setEditingCameraField('url');
-                              }} 
-                              className="text-slate-400 hover:text-slate-600 focus:outline-none flex-shrink-0 transition-colors p-2"
-                              title="Edit URL"
-                            >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                            </button>
-                          </div>
-                       </>
-                     )}
-                     </div>
+
                      <div className="flex justify-end px-1 pt-4 pb-2 border-t border-slate-200 mt-2">
                         <Button 
                           variant="ghost"
