@@ -1,13 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
+import Constants from 'expo-constants';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// Read from app.config.js extra
+const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || '';
+const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || '';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ Missing Supabase credentials in app.config.js extra');
+}
 
 export const supabase = createClient(
-  supabaseUrl, 
-  supabaseAnonKey, 
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       storage: AsyncStorage,
@@ -17,6 +23,7 @@ export const supabase = createClient(
     },
   }
 );
+
 
 // Tells Supabase to auto-refresh tokens when the app comes back to the foreground
 AppState.addEventListener('change', (state) => {
