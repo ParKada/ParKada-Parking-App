@@ -25,6 +25,7 @@ interface ParkingLot {
   operating_hours: string | null;
   status: "active" | "suspended";
   is_accredited: boolean;
+  maintenance_mode?: boolean;
   created_at: string;
 }
 
