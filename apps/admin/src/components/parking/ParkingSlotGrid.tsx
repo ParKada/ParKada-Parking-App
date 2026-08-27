@@ -112,6 +112,16 @@ export default function ParkingSlotGrid({
             </div>
           )}
 
+          <div className="flex items-center gap-2 mt-1">
+            <span className="w-3.5 h-3.5 flex items-center justify-center rounded-sm bg-amber-500/10 border border-amber-500 text-[8px] font-black text-amber-600 shrink-0">R</span>
+            <span>Reservable</span>
+          </div>
+
+          <div className="flex items-center gap-2 mt-1">
+            <span className="w-3.5 h-3.5 flex items-center justify-center rounded-sm bg-slate-100 text-[8px] font-black text-slate-500 shrink-0">X</span>
+            <span>Walk-in Only</span>
+          </div>
+
         </div>
       </div>
 
@@ -189,15 +199,17 @@ export default function ParkingSlotGrid({
                         }}
                         disabled={!canSelect}
                         className={cn(
-                          "w-12 h-14 rounded-lg border-2 flex flex-col items-center justify-center transition-all text-xs font-bold shrink-0",
+                          "w-12 h-[60px] rounded-lg border-2 flex flex-col items-center justify-center transition-all text-xs font-bold shrink-0",
                           isSelected
                             ? "bg-primary/20 border-primary text-primary scale-105 shadow-md"
                             : config.bg,
                           !isSelected && config.text,
+                          !isSelected && !isWalkIn && "border-amber-500", // Yellow/orange border for reservable
+                          !isSelected && isWalkIn && "border-transparent", // Borderless for walk-in
                           canSelect && "hover:scale-105 hover:shadow-sm active:scale-95 cursor-pointer"
                         )}
                       >
-                        <div className="h-4 flex items-center justify-center mb-0.5">
+                        <div className="h-3 flex items-center justify-center mb-0.5">
                           {(slot as any).physical_status === "occupied" ? (
                             <Car size={14} className="opacity-80" />
                           ) : isPwd ? (
@@ -205,8 +217,6 @@ export default function ParkingSlotGrid({
                               size={14}
                               className={cn(isSelected ? "text-primary" : "text-blue-600")}
                             />
-                          ) : isWalkIn ? (
-                            <X size={14} className="text-current stroke-[4px]" />
                           ) : (
                             <div
                               className={cn(
@@ -216,8 +226,14 @@ export default function ParkingSlotGrid({
                             />
                           )}
                         </div>
-                        <span className="text-[11px] leading-none font-black mt-0.5">
+                        <span className="text-[12px] leading-none font-black mt-1">
                           {slot.label}
+                        </span>
+                        <span className={cn(
+                          "text-[9px] font-black mt-1 uppercase",
+                          isSelected ? "text-primary/70" : isWalkIn ? "text-slate-400" : "text-amber-500"
+                        )}>
+                          {isWalkIn ? "X" : "R"}
                         </span>
                       </button>
                     );

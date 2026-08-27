@@ -28,10 +28,13 @@ export default function MapViewer({ slots, onSelectSlot, selectedSlotId }: MapVi
           const y = typeof slot.ui_y === 'number' ? slot.ui_y : 10;
           const rot = typeof slot.ui_rotation === 'number' ? slot.ui_rotation : 0;
           
+          const isWalkIn = slot.label === "C1" || (slot as any).is_reservable === false || String((slot as any).is_reservable) === "false";
+
           const isMapped = slot.coordinates && slot.coordinates.length > 0;
           let bgColor = "bg-slate-500 border-slate-400"; // unmapped
           if (isMapped) {
             bgColor = slot.status === "available" ? "bg-emerald-500 border-emerald-700" : "bg-rose-500 border-rose-700";
+            if (slot.status === "reserved") bgColor = "bg-amber-500 border-amber-600";
           }
           
           return (
@@ -49,13 +52,15 @@ export default function MapViewer({ slots, onSelectSlot, selectedSlotId }: MapVi
                   height: mapHeight * 0.25,
                 }
               ]}
-              className={`${bgColor} border-b-4 items-center justify-center rounded shadow-sm ${isSelected ? 'border-white border-2 border-b-4' : ''}`}
+              className={`${bgColor} items-center justify-center rounded shadow-sm ${
+                !isWalkIn ? 'border-2 border-amber-400 border-b-4' : 'border-0 border-b-4'
+              } ${isSelected ? 'ring-2 ring-white z-10' : ''}`}
               activeOpacity={0.7}
             >
               <Text className="font-bold text-white text-xs">{slot.label}</Text>
               {isMapped && (
-                <Text className="text-[8px] text-white/80 font-bold mt-0.5">
-                  {slot.status === 'available' ? 'P' : 'X'}
+                <Text className={`text-[8px] font-bold mt-0.5 ${isWalkIn ? 'text-white/70' : 'text-amber-200'}`}>
+                  {isWalkIn ? 'X' : '★'}
                 </Text>
               )}
             </TouchableOpacity>

@@ -22,8 +22,7 @@ export default function AdminReports() {
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [hourlyData, setHourlyData] = useState<any[]>([]);
   const [lotStats, setLotStats] = useState<any[]>([]);
-  const [walkInStats, setWalkInStats] = useState({ totalRevenue: 0, totalTransactions: 0 });
-  const [composition, setComposition] = useState({ online: 0, walkin: 0 });
+  const [composition, setComposition] = useState<any[]>([]);
   const [dailyRevenue, setDailyRevenue] = useState<any[]>([]);
   const [topLots, setTopLots] = useState<any[]>([]);
   const [ocrLogs, setOcrLogs] = useState<any[]>([]);
@@ -33,8 +32,6 @@ export default function AdminReports() {
   const [isRevenueUp, setIsRevenueUp] = useState(true);
   const [bookingsChange, setBookingsChange] = useState("0%");
   const [isBookingsUp, setIsBookingsUp] = useState(true);
-  const [walkInChange, setWalkInChange] = useState("0%");
-  const [isWalkInUp, setIsWalkInUp] = useState(true);
   const [avgChange, setAvgChange] = useState("0%");
   const [isAvgUp, setIsAvgUp] = useState(true);
 
@@ -126,14 +123,14 @@ export default function AdminReports() {
   };
 
   const processStats = (reservations: any[], walkIns: any[], lots: any[]) => {
-    // Walk‑in totals
-    const walkInTotalRevenue = walkIns.reduce((sum, w) => sum + (w.amount_paid || 0), 0);
-    const walkInTotalTransactions = walkIns.length;
-    setWalkInStats({ totalRevenue: walkInTotalRevenue, totalTransactions: walkInTotalTransactions });
-
-    // Revenue composition
-    const onlineTotal = reservations.filter(r => r.status === 'completed').reduce((sum, r) => sum + (r.total_amount || 0), 0);
-    setComposition({ online: onlineTotal, walkin: walkInTotalRevenue });
+    // Revenue composition (Online per lot)
+    const lotCompositionMap: any = {};
+    reservations.filter(r => r.status === 'completed').forEach(r => {
+      const lotName = r.parking_lots?.name || "Unknown";
+      if (!lotCompositionMap[lotName]) lotCompositionMap[lotName] = 0;
+      lotCompositionMap[lotName] += Number(r.total_amount || 0);
+    });
+    setComposition(Object.keys(lotCompositionMap).map(key => ({ name: key, value: lotCompositionMap[key] })));
 
     // KPI Trend Calculation (Last 30 vs Prev 30)
     const now = new Date();
@@ -151,13 +148,6 @@ export default function AdminReports() {
       else if (d >= sixtyDaysAgo && d < thirtyDaysAgo) { prevRev += amount; prevBookings++; }
     });
 
-    walkIns.forEach(w => {
-      const d = new Date(w.entry_time);
-      const amount = Number(w.amount_paid || 0);
-      if (d >= thirtyDaysAgo) { currentWalkinRev += amount; }
-      else if (d >= sixtyDaysAgo && d < thirtyDaysAgo) { prevWalkinRev += amount; }
-    });
-
     const calculateChange = (current: number, previous: number) => {
       if (previous === 0) return current > 0 ? { text: "+100%", up: true } : { text: "0%", up: true };
       const pct = ((current - previous) / previous) * 100;
@@ -166,33 +156,25 @@ export default function AdminReports() {
 
     const revStats = calculateChange(currentRev, prevRev);
     const bookingsStats = calculateChange(currentBookings, prevBookings);
-    const walkinStats = calculateChange(currentWalkinRev, prevWalkinRev);
     const currentAvg = currentBookings > 0 ? currentRev / currentBookings : 0;
     const prevAvg = prevBookings > 0 ? prevRev / prevBookings : 0;
     const avgStats = calculateChange(currentAvg, prevAvg);
 
     setRevenueChange(revStats.text); setIsRevenueUp(revStats.up);
     setBookingsChange(bookingsStats.text); setIsBookingsUp(bookingsStats.up);
-    setWalkInChange(walkinStats.text); setIsWalkInUp(walkinStats.up);
     setAvgChange(avgStats.text); setIsAvgUp(avgStats.up);
 
     // Monthly revenue
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const monthlyMap: any = {};
-    months.forEach(m => monthlyMap[m] = { online: 0, walkin: 0 });
+    months.forEach(m => monthlyMap[m] = { online: 0 });
     reservations.filter(r => r.status === 'completed').forEach(r => {
       const month = months[new Date(r.created_at).getMonth()];
       monthlyMap[month].online += Number(r.total_amount || 0);
     });
-    walkIns.forEach(w => {
-      const month = months[new Date(w.entry_time).getMonth()];
-      monthlyMap[month].walkin += Number(w.amount_paid || 0);
-    });
     setStats(months.map(m => ({
       month: m,
-      online: monthlyMap[m].online,
-      walkin: monthlyMap[m].walkin,
-      total: monthlyMap[m].online + monthlyMap[m].walkin
+      total: monthlyMap[m].online
     })));
 
     // Weekly occupancy
@@ -271,20 +253,14 @@ export default function AdminReports() {
       d.setDate(d.getDate() - i);
       return d.toISOString().split('T')[0];
     }).reverse();
-    last7.forEach(day => dailyMap[day] = { online: 0, walkin: 0 });
+    last7.forEach(day => dailyMap[day] = { online: 0 });
     reservations.filter(r => r.status === 'completed').forEach(r => {
       const day = r.created_at.split('T')[0];
       if (dailyMap[day]) dailyMap[day].online += Number(r.total_amount || 0);
     });
-    walkIns.forEach(w => {
-      const day = w.entry_time.split('T')[0];
-      if (dailyMap[day]) dailyMap[day].walkin += Number(w.amount_paid || 0);
-    });
     setDailyRevenue(last7.map(day => ({
       date: day.slice(5),
-      online: dailyMap[day]?.online || 0,
-      walkin: dailyMap[day]?.walkin || 0,
-      total: (dailyMap[day]?.online || 0) + (dailyMap[day]?.walkin || 0)
+      total: dailyMap[day]?.online || 0
     })));
 
     // Lot performance
@@ -297,30 +273,13 @@ export default function AdminReports() {
         type: r.parking_lots?.type || "unknown",
         onlineBookings: 0,
         onlineRevenue: 0,
-        walkinBookings: 0,
-        walkinRevenue: 0,
       };
       lotMap[lotName].onlineBookings += 1;
       lotMap[lotName].onlineRevenue += Number(r.total_amount || 0);
     });
-    walkIns.forEach(w => {
-      const lotInfo = getLotInfoFromWalkIn(w);
-      if (!lotInfo) return;
-      const lotName = lotInfo.name;
-      if (!lotMap[lotName]) lotMap[lotName] = {
-        name: lotName,
-        type: lotInfo.type,
-        onlineBookings: 0,
-        onlineRevenue: 0,
-        walkinBookings: 0,
-        walkinRevenue: 0,
-      };
-      lotMap[lotName].walkinBookings += 1;
-      lotMap[lotName].walkinRevenue += w.amount_paid || 0;
-    });
     const lotArray = Object.values(lotMap);
     setLotStats(lotArray);
-    setTopLots([...lotArray].sort((a: any, b: any) => (b.onlineRevenue + b.walkinRevenue) - (a.onlineRevenue + a.walkinRevenue)).slice(0, 5));
+    setTopLots([...lotArray].sort((a: any, b: any) => b.onlineRevenue - a.onlineRevenue).slice(0, 5));
   };
 
   // Fixed type: accept RefObject with possible null
@@ -457,8 +416,7 @@ export default function AdminReports() {
         "Parking Lot": lot.name,
         "Type": lot.type,
         "Online Bookings": lot.onlineBookings,
-        "Walk-in Transactions": lot.walkinBookings,
-        "Total Revenue": lot.onlineRevenue + lot.walkinRevenue
+        "Total Revenue": lot.onlineRevenue
       }));
       filename = "Occupancy_Revenue_Report.csv";
     }
@@ -485,9 +443,8 @@ export default function AdminReports() {
     toast.success(`${filename} downloaded successfully!`);
   };
 
-  const totalRevenue = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineRevenue + lot.walkinRevenue, 0);
-  const totalBookings = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineBookings + lot.walkinBookings, 0);
-  const walkInTotal = walkInStats.totalRevenue;
+  const totalRevenue = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineRevenue, 0);
+  const totalBookings = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineBookings, 0);
 
   if (isLoading) {
     return (
@@ -538,10 +495,9 @@ export default function AdminReports() {
         </div>
 
         {/* KPI Cards (always visible) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <KPICard label="Total Revenue" value={`₱${totalRevenue.toLocaleString()}`} change={revenueChange} up={isRevenueUp} />
           <KPICard label="Completed Bookings" value={totalBookings.toString()} change={bookingsChange} up={isBookingsUp} />
-          <KPICard label="Walk‑in Revenue" value={`₱${walkInTotal.toLocaleString()}`} change={walkInChange} up={isWalkInUp} />
           <KPICard label="Avg per Booking" value={`₱${totalBookings > 0 ? (totalRevenue / totalBookings).toFixed(0) : 0}`} change={avgChange} up={isAvgUp} />
         </div>
 
@@ -549,16 +505,17 @@ export default function AdminReports() {
         {showSection("composition") && (
           <div ref={compositionRef} className="bg-white rounded-2xl p-5 border shadow-sm">
             <h3 className="text-lg font-black mb-2">Revenue Composition</h3>
-            {composition.online === 0 && composition.walkin === 0 ? (
+            {composition.length === 0 ? (
               <div className="flex items-center justify-center h-[250px] text-muted-foreground font-medium">
                 No analytics data available.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={[{ name: "Online", value: composition.online }, { name: "Walk‑in", value: composition.walkin }]} dataKey="value" cx="50%" cy="50%" innerRadius={60} outerRadius={90} label>
-                    <Cell fill={COLORS[0]} />
-                    <Cell fill={COLORS[1]} />
+                  <Pie data={composition} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} label>
+                    {composition.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
                   </Pie>
                   <Tooltip formatter={(v) => `₱${v.toLocaleString()}`} />
                 </PieChart>
@@ -590,8 +547,8 @@ export default function AdminReports() {
             <h3 className="text-lg font-black mb-4">Top 5 Parking Lots by Revenue</h3>
             <div className="space-y-3">
               {topLots.map((lot: any, i: number) => {
-                const maxRevenue = topLots[0]?.onlineRevenue + topLots[0]?.walkinRevenue || 1;
-                const percent = ((lot.onlineRevenue + lot.walkinRevenue) / maxRevenue) * 100;
+                const maxRevenue = topLots[0]?.onlineRevenue || 1;
+                const percent = (lot.onlineRevenue / maxRevenue) * 100;
                 return (
                   <div key={lot.name} className="flex items-center gap-3">
                     <span className="w-6 text-sm font-bold text-primary">{i + 1}</span>
@@ -599,7 +556,7 @@ export default function AdminReports() {
                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${percent}%` }} />
                     </div>
-                    <span className="text-sm font-bold">₱{(lot.onlineRevenue + lot.walkinRevenue).toLocaleString()}</span>
+                    <span className="font-bold text-sm">₱{lot.onlineRevenue.toLocaleString()}</span>
                   </div>
                 );
               })}
