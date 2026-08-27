@@ -53,14 +53,29 @@ export default function CameraGridEditor({
 
   // Dragging state for existing zones and the pending zone
   const [draggingPoint, setDraggingPoint] = useState<{ slotId: string; pointIndex: number; isPending: boolean } | null>(null);
+  const [draggingPolygon, setDraggingPolygon] = useState<{ slotId: string; startX: number; startY: number; originalPoints: Point[] } | null>(null);
   const [localZones, setLocalZones] = useState<CameraZone[]>(mappedZones);
 
   // Sync local zones when DB updates come in (but not during dragging)
   useEffect(() => {
-    if (!draggingPoint) {
+    if (!draggingPoint && !draggingPolygon) {
       setLocalZones(mappedZones);
     }
-  }, [slots, cameraId, draggingPoint]);
+  }, [slots, cameraId, draggingPoint, draggingPolygon]);
+
+  const [svgSize, setSvgSize] = useState({ w: 1000, h: 1000 });
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const obs = new ResizeObserver(entries => {
+      for (let e of entries) {
+        setSvgSize({ w: e.contentRect.width, h: e.contentRect.height });
+      }
+    });
+    obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  const ptToPx = (p: Point) => `${(p.x / 100) * svgSize.w},${(p.y / 100) * svgSize.h}`;
 
   const getRelativePoint = (e: React.MouseEvent | React.PointerEvent): { x: number; y: number } | null => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -73,7 +88,7 @@ export default function CameraGridEditor({
   // Handle click on the SVG background to add drawing points
   const handleSvgClick = (e: ReactMouseEvent<SVGSVGElement>) => {
     if (!interactive) return;
-    if (draggingPoint) return;
+    if (draggingPoint || draggingPolygon) return;
     if (pendingZone) return; // If pending zone exists, wait for user to confirm/cancel
 
     if (activeSlotId && drawingPoints.length < 4) {
@@ -111,13 +126,24 @@ export default function CameraGridEditor({
     setActiveSlotId(null);
   };
 
-  // Handle clicking inside a formed saved zone to delete it
-  const handleZoneClick = (e: ReactMouseEvent<SVGPolygonElement>, slotId: string) => {
+  // Handle right click inside a formed saved zone to delete it
+  const handleZoneContextMenu = (e: ReactMouseEvent<SVGPolygonElement>, slotId: string) => {
     if (!interactive) return;
+    e.preventDefault();
     e.stopPropagation();
-    if (!draggingPoint && window.confirm("Are you sure you want to delete this mapped zone?")) {
+    if (!draggingPoint && !draggingPolygon && window.confirm("Are you sure you want to delete this mapped zone?")) {
       onDeleteZone(slotId);
     }
+  };
+
+  const handlePointerDownPolygon = (e: React.PointerEvent, slotId: string, points: Point[]) => {
+    if (!interactive) return;
+    if (e.button === 2) return; // Ignore right clicks
+    e.stopPropagation();
+    const pt = getRelativePoint(e);
+    if (!pt) return;
+    setDraggingPolygon({ slotId, startX: pt.x, startY: pt.y, originalPoints: points });
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   // --- Pointer drag handlers for saved zones ---
@@ -137,7 +163,28 @@ export default function CameraGridEditor({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!interactive || !draggingPoint) return;
+    if (!interactive) return;
+    
+    if (draggingPolygon) {
+      const pt = getRelativePoint(e);
+      if (!pt) return;
+      const dx = pt.x - draggingPolygon.startX;
+      const dy = pt.y - draggingPolygon.startY;
+
+      setLocalZones(prev => prev.map(zone => {
+        if (zone.slotId === draggingPolygon.slotId) {
+          const newPoints = draggingPolygon.originalPoints.map(p => ({
+            x: Math.max(0, Math.min(p.x + dx, 100)),
+            y: Math.max(0, Math.min(p.y + dy, 100))
+          }));
+          return { ...zone, points: newPoints };
+        }
+        return zone;
+      }));
+      return;
+    }
+
+    if (!draggingPoint) return;
     const pt = getRelativePoint(e);
     if (!pt) return;
 
@@ -163,7 +210,18 @@ export default function CameraGridEditor({
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (!interactive || !draggingPoint) return;
+    if (!interactive) return;
+
+    if (draggingPolygon) {
+      e.stopPropagation();
+      const zone = localZones.find(z => z.slotId === draggingPolygon.slotId);
+      if (zone) onSaveZone(zone.slotId, zone.points);
+      setDraggingPolygon(null);
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      return;
+    }
+
+    if (!draggingPoint) return;
     e.stopPropagation();
 
     if (!draggingPoint.isPending) {
@@ -210,15 +268,16 @@ export default function CameraGridEditor({
         {localZones.map(zone => (
           <g key={zone.slotId}>
             <polygon
-              points={zone.points.map(p => `${p.x}%,${p.y}%`).join(' ')}
+              points={zone.points.map(ptToPx).join(' ')}
               fill={getColorForStatus(zone.status)}
               stroke={getBorderColorForStatus(zone.status)}
               strokeWidth="2"
               className={cn(
                 "transition-all duration-300",
-                interactive ? "hover:fill-red-500/50 cursor-pointer" : ""
+                interactive ? "hover:fill-red-500/20 hover:stroke-red-500 cursor-move" : ""
               )}
-              onClick={(e) => handleZoneClick(e, zone.slotId)}
+              onPointerDown={(e) => handlePointerDownPolygon(e, zone.slotId, zone.points)}
+              onContextMenu={(e) => handleZoneContextMenu(e, zone.slotId)}
             />
             <text
               x={`${zone.points.reduce((sum, p) => sum + p.x, 0) / 4}%`}
@@ -253,11 +312,10 @@ export default function CameraGridEditor({
         {pendingZone && (
           <g>
             <polygon
-              points={pendingZone.points.map(p => `${p.x}%,${p.y}%`).join(' ')}
-              fill="rgba(251, 191, 36, 0.3)"
-              stroke="rgb(251, 191, 36)"
-              strokeWidth="2.5"
-              strokeDasharray="6 3"
+              points={pendingZone.points.map(ptToPx).join(' ')}
+              fill="rgba(255, 255, 255, 0.1)"
+              stroke="white"
+              strokeWidth="1"
               className="pointer-events-none"
             />
             <text
@@ -293,15 +351,14 @@ export default function CameraGridEditor({
         {activeSlotId && drawingPoints.length > 0 && (
           <g>
             {drawingPoints.map((p, i) => (
-              <circle key={i} cx={`${p.x}%`} cy={`${p.y}%`} r="5" fill="orange" stroke="white" strokeWidth="2" />
+              <circle key={i} cx={`${p.x}%`} cy={`${p.y}%`} r="5" fill="white" stroke="white" strokeWidth="1" />
             ))}
             {drawingPoints.length > 1 && (
               <polyline
-                points={drawingPoints.map(p => `${p.x}%,${p.y}%`).join(' ')}
+                points={drawingPoints.map(ptToPx).join(' ')}
                 fill="none"
-                stroke="orange"
-                strokeWidth="2"
-                strokeDasharray="4 4"
+                stroke="white"
+                strokeWidth="1"
               />
             )}
           </g>

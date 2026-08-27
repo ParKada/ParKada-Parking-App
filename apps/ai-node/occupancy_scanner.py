@@ -46,12 +46,13 @@ CAMERAS = [
     {
         "label":      "Camera 1 (Right)",
         "rtsp_url":   "rtsp://admincamnew:admincamnew@192.168.8.154:554/stream1",
-        "camera_id":  "cam1_b2a68b16-a627-4dd0-8ea2-217634de4e18",  # <-- Paste the camera_id from your dashboard
+        "camera_id":  "cam1_b2a68b16-a627-4dd0-8ea2-217634de4e18",
     },
+    # Camera 2 is currently OFFLINE — re-enable when camera is back online
     {
-        "label":      "Camera 2 (Left)",
-        "rtsp_url":   "rtsp://admincam:admincam@192.168.8.159:554/stream1",  # <-- e.g. rtsp://admin:pass@192.168.8.155:554/stream1
-        "camera_id":  "cam2_b2a68b16-a627-4dd0-8ea2-217634de4e18",  # <-- Paste the camera_id from your dashboard
+         "label":      "Camera 2 (Left)",
+         "rtsp_url":   "rtsp://admincam:admincam@192.168.8.159:554/stream1",
+         "camera_id":  "cam2_b2a68b16-a627-4dd0-8ea2-217634de4e18",
     },
 ]
 
@@ -123,8 +124,7 @@ def generate_frames(camera_id):
             frame = shared_frames.get(camera_id)
 
         if frame is not None:
-            stream_frame = cv2.resize(frame, (1024, 576))
-            ret, buffer = cv2.imencode('.jpg', stream_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 28])
+            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 28])
             if ret:
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
@@ -141,6 +141,7 @@ def index():
 
 @app.route('/video_feed/<camera_id>')
 def video_feed(camera_id):
+    print(f"[FLASK] Incoming request for video stream: {camera_id}")
     return Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 def run_flask():
@@ -226,6 +227,7 @@ class CameraWorker:
                             else:
                                 idx = self.slot_ids.index(db_id)
                                 self.slot_data[idx]["db_status"] = db_status
+                                self.all_slots[idx] = np.array(coords, np.int32)
 
                     # Handle deletions
                     for i in range(len(self.slot_ids) - 1, -1, -1):
@@ -263,7 +265,7 @@ class CameraWorker:
                     print(f"[{self.label}] Camera feed restored!")
                 empty_strikes = 0
 
-            display_frame = frame.copy()
+            display_frame = cv2.resize(frame.copy(), (1024, 576))
             frame_counter += 1
 
             # Run AI every 15 frames to save CPU
@@ -279,8 +281,6 @@ class CameraWorker:
                     cx = int((x1 + x2) / 2)
                     cy = int(y2)
                     vehicle_centers.append((cx, cy))
-                    cv2.circle(display_frame, (cx, cy), 5, (255, 0, 0), -1)
-                    cv2.rectangle(display_frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 165, 0), 2)
 
             # Slot logic
             with self.data_lock:
@@ -340,9 +340,10 @@ class CameraWorker:
                             color = (0, 255, 0)
                             text = f"{slot_label}: FREE"
 
-                    cv2.polylines(display_frame, [slot], True, color, 3)
-                    cv2.putText(display_frame, text, (slot[0][0], slot[0][1] - 15),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                        cv2.polylines(display_frame, [slot.reshape((-1, 1, 2))], True, color, 1)
+                        text = f"{self.slot_labels[i]}: {self.slot_data[i]['status']}"
+                        cv2.putText(display_frame, text, (slot[0][0], slot[0][1] - 15),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
             # Push annotated frame for web streaming
             with shared_frames_lock:

@@ -80,18 +80,32 @@ export default function AdminParkingSlots() {
 
   const handleUpdateCameraZone = async (slotId: string, points: {x:number, y:number}[]) => {
     try {
-      // Convert percentage points to pixel coordinates (1024x576 is the Python stream resolution)
-      // Python reads: [[x, y], [x, y], [x, y], [x, y]] as integers
-      const STREAM_W = 1024;
-      const STREAM_H = 576;
+      let STREAM_W = 1024;
+      let STREAM_H = 576;
+      const img = document.getElementById('expanded-camera-feed') as HTMLImageElement;
+      if (img && img.naturalWidth && img.naturalHeight) {
+        STREAM_W = img.naturalWidth;
+        STREAM_H = img.naturalHeight;
+      }
+      
       const pixelCoords = points.map(p => [Math.round((p.x / 100) * STREAM_W), Math.round((p.y / 100) * STREAM_H)]);
+
+      // Optimistic update so UI doesn't bounce back
+      setSlots(prev => prev.map(s => s.id === slotId ? { 
+        ...s, 
+        camera_id: expandedCameraId, 
+        camera_zone_points: points, 
+        coordinates: pixelCoords,
+        status: 'available'
+      } : s));
 
       const { error } = await supabase
         .from('parking_slots')
         .update({ 
           camera_id: expandedCameraId, 
-          camera_zone_points: points,  // Web UI format (percentages)
-          coordinates: pixelCoords      // Python AI node format (pixels)
+          camera_zone_points: points,
+          coordinates: pixelCoords,
+          status: 'available'
         })
         .eq('id', slotId);
 
@@ -104,9 +118,18 @@ export default function AdminParkingSlots() {
 
   const handleDeleteCameraZone = async (slotId: string) => {
     try {
+      // Optimistic update so drawing disappears instantly
+      setSlots(prev => prev.map(s => s.id === slotId ? { 
+        ...s, 
+        camera_id: null, 
+        camera_zone_points: null, 
+        coordinates: null,
+        status: 'unmapped'
+      } : s));
+
       const { error } = await supabase
         .from('parking_slots')
-        .update({ camera_id: null, camera_zone_points: null, coordinates: null })
+        .update({ camera_id: null, camera_zone_points: null, coordinates: null, status: 'unmapped' })
         .eq('id', slotId);
 
       if (error) throw error;
@@ -1084,15 +1107,19 @@ export default function AdminParkingSlots() {
                        <div className="aspect-video bg-black flex items-center justify-center relative">
                            <img 
                              src={cam.stream_url || getCameraUrl(cam.id)} 
-                             className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity" 
+                             className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity relative z-10" 
+                             onLoad={(e) => {
+                               const fallback = document.getElementById(`fallback-grid-${cam.id}`);
+                               if (fallback) fallback.style.display = 'none';
+                             }}
                              onError={(e) => e.currentTarget.style.display = 'none'}
                            />
                            {activeLot.name.includes("Thesis Demo") && (
-                             <div className="absolute top-3 right-3 bg-red-600/90 text-white text-[10px] font-extrabold px-2 py-1 rounded-md flex items-center gap-1.5 shadow-lg backdrop-blur-sm z-10">
+                             <div className="absolute top-3 right-3 bg-red-600/90 text-white text-[10px] font-extrabold px-2 py-1 rounded-md flex items-center gap-1.5 shadow-lg backdrop-blur-sm z-20">
                                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
                              </div>
                            )}
-                           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                           <div id={`fallback-grid-${cam.id}`} className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 z-0">
                               <Camera size={32} className="mb-2 opacity-50" />
                               <p className="text-sm font-bold text-slate-300">Camera Offline</p>
                            </div>
@@ -1143,8 +1170,9 @@ export default function AdminParkingSlots() {
               </div>
             ) : (
               // EXPANDED SINGLE CAMERA VIEW
-              <div className="flex flex-col gap-4">
-                <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-800 flex flex-col">
+              <div className="flex flex-col xl:flex-row gap-6 items-start w-full">
+                {/* Main Video Area (Left) */}
+                <div className="bg-[#0f172a] rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col w-full xl:w-3/4 flex-shrink-0">
                  <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50 w-full overflow-hidden">
                     <div className="flex items-center gap-3 w-full mr-4">
                       <Camera className="text-primary w-5 h-5 flex-shrink-0" />
@@ -1208,12 +1236,13 @@ export default function AdminParkingSlots() {
                  {/* Fullscreen Wrapper */}
                  <div 
                    ref={fullscreenContainerRef}
-                   className={cn("flex flex-col w-full", isFullscreen ? "bg-black h-full justify-center" : "overflow-hidden")}
+                   className={cn("flex flex-col w-full", isFullscreen ? "bg-black h-full items-center justify-center" : "")}
                  >
-                   <div className={cn("w-full flex items-center justify-center relative bg-black", isFullscreen ? "flex-1 min-h-0" : "aspect-video")}>
+                   <div className={cn("relative bg-black", isFullscreen ? "h-full aspect-video max-w-full" : "w-full aspect-video overflow-hidden")}>
                       <img 
+                        id="expanded-camera-feed"
                         src={cameras.find(c => c.id === expandedCameraId)?.stream_url || getCameraUrl(expandedCameraId ?? undefined)} 
-                        className="w-full h-full object-contain opacity-90"
+                        className="absolute inset-0 w-full h-full object-contain opacity-90"
                       onError={(e) => {
                          e.currentTarget.style.display = 'none';
                          const fallbackMsg = document.getElementById('stream-fallback-expanded');
@@ -1242,75 +1271,119 @@ export default function AdminParkingSlots() {
                       />
                     )}
                  </div>
-                 <div className="p-3 bg-slate-950/50 border-t border-slate-800 flex justify-between items-center">
-                    <p className="text-xs text-slate-400">Live feed processing via edge node.</p>
-                    
-                    {/* Toolbar for Camera Grid */}
-                    {userRole !== 'guard' && (
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => setShowCameraGrid(!showCameraGrid)}
-                          className={cn("h-8 px-3 text-xs border-slate-700 bg-transparent transition-colors", showCameraGrid ? "text-blue-400 border-blue-400 bg-blue-400/10" : "text-slate-300 hover:text-white hover:bg-slate-800")}
-                        >
-                          {showCameraGrid ? <EyeOff size={14} className="mr-1.5" /> : <Eye size={14} className="mr-1.5" />}
-                          {showCameraGrid ? "Hide Grid" : "Show Grid"}
-                        </Button>
-                        {(userRole === 'superadmin' || userRole === 'super_admin') && (
+                 
+                 {/* Footer Toolbar - Becomes floating buttons in Fullscreen */}
+                 <div className={cn(
+                    "p-3 border-t border-slate-800 transition-all z-50",
+                    isFullscreen 
+                      ? "absolute bottom-4 right-4 w-auto border-none bg-transparent p-0 block" 
+                      : "relative grid grid-cols-3 items-center w-full bg-slate-950/50"
+                 )}>
+                    {/* Empty Left Column for Grid Balance */}
+                    {!isFullscreen && <div></div>}
+
+                    {/* Centered Text */}
+                    {!isFullscreen && (
+                      <div className="flex justify-center text-center">
+                        <p className="text-xs text-slate-400">Live feed processing via edge node.</p>
+                      </div>
+                    )}
+
+                    {/* Action Buttons (Right-aligned in normal mode) */}
+                    <div className={cn("flex items-center gap-2 relative z-10", isFullscreen ? "bg-slate-950/60 p-1.5 rounded-xl border border-white/10 shadow-lg backdrop-blur-md" : "justify-end")}>
+                      {userRole !== 'guard' && (
+                        <>
                           <Button 
                             size="sm" 
-                            variant={isDrawingGrid ? "default" : "outline"}
-                            onClick={() => {
-                              if (!isDrawingGrid) setShowCameraGrid(true); // Always show grid when entering drawing mode
-                              setIsDrawingGrid(!isDrawingGrid);
-                            }}
-                            className={cn("h-8 px-3 text-xs transition-colors", isDrawingGrid ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-slate-700 bg-transparent text-slate-300 hover:text-white hover:bg-slate-800")}
+                            variant="outline" 
+                            onClick={() => setShowCameraGrid(!showCameraGrid)}
+                            className={cn("h-8 px-3 text-xs transition-colors", showCameraGrid ? "text-blue-400 border-blue-400 bg-blue-400/10" : "text-slate-300 border-slate-700 bg-slate-900/40 hover:bg-slate-800 hover:text-white")}
                           >
-                            {isDrawingGrid ? (
-                              <><Check size={14} className="mr-1.5" /> Done</>
-                            ) : (
-                              <><PenTool size={14} className="mr-1.5" /> Draw Zones</>
-                            )}
+                            {showCameraGrid ? <EyeOff size={14} className="mr-1.5" /> : <Eye size={14} className="mr-1.5" />}
+                            {showCameraGrid ? "Hide Grid" : "Show Grid"}
                           </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={toggleFullscreen}
-                          className="h-8 w-8 p-0 text-slate-300 hover:text-white hover:bg-slate-800 ml-2"
-                          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                        >
-                          {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-                        </Button>
+                          {(userRole === 'superadmin' || userRole === 'super_admin') && (
+                            <Button 
+                              size="sm" 
+                              variant={isDrawingGrid ? "default" : "outline"}
+                              onClick={() => {
+                                if (!isDrawingGrid) setShowCameraGrid(true); // Always show grid when entering drawing mode
+                                setIsDrawingGrid(!isDrawingGrid);
+                              }}
+                              className={cn("h-8 px-3 text-xs transition-colors", isDrawingGrid ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-slate-700 bg-slate-900/40 text-slate-300 hover:text-white hover:bg-slate-800")}
+                            >
+                              {isDrawingGrid ? (
+                                <><Check size={14} className="mr-1.5" /> Done</>
+                              ) : (
+                                <><PenTool size={14} className="mr-1.5" /> Edit Zones</>
+                              )}
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={toggleFullscreen}
+                            className="h-8 w-8 p-0 text-slate-300 hover:text-white hover:bg-slate-800 ml-1 border border-slate-700 bg-slate-900/40"
+                            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                          >
+                            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                 </div>
+                 </div>
+                 </div>
+ 
+             {/* Camera Selection Sidebar (Right) */}
+                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col w-full xl:w-[calc(25%-1.5rem)] flex-shrink-0">
+                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                       <Camera className="w-5 h-5 text-primary" /> Camera Views
+                    </h3>
+                    <div className="flex flex-col gap-3">
+                      {cameras.map(cam => (
+                         <button 
+                            key={cam.id}
+                            onClick={() => {
+                              setExpandedCameraId(cam.id);
+                              setIsDrawingGrid(false);
+                            }}
+                            className={cn(
+                              "p-3 rounded-xl border text-left flex flex-col gap-1 transition-all", 
+                              cam.id === expandedCameraId 
+                                ? "bg-slate-900 border-slate-900 text-white shadow-md ring-4 ring-slate-900/10" 
+                                : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                            )}
+                         >
+                            <span className="text-sm font-bold truncate w-full leading-tight">{cam.name}</span>
+                            <span className={cn("text-[10px] font-semibold uppercase tracking-wider", cam.id === expandedCameraId ? "text-slate-400" : "text-slate-400")}>
+                              {cam.id === expandedCameraId ? "Currently Viewing" : "Click to View"}
+                            </span>
+                         </button>
+                      ))}
+                    </div>
+
+                    {(userRole === 'superadmin' || userRole === 'super_admin') && (
+                      <div className="pt-4 mt-4 border-t border-slate-200 flex justify-end">
+                         <Button 
+                           variant="ghost"
+                           onClick={() => {
+                             const cam = cameras.find(c => c.id === expandedCameraId);
+                             if (cam && window.confirm(`Are you sure you want to delete camera: ${cam.name}?`)) {
+                               const newCameras = cameras.filter(c => c.id !== expandedCameraId);
+                               setCameras(newCameras);
+                               localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(newCameras));
+                               setExpandedCameraId(null);
+                             }
+                           }}
+                           className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 h-9 px-4 transition-colors font-medium rounded-lg w-full"
+                         >
+                           <Trash2 size={16} className="mr-2" /> Delete Camera
+                         </Button>
                       </div>
                     )}
                  </div>
-                 </div>
-                 </div>
-                 {(userRole === 'superadmin' || userRole === 'super_admin') && (
-                   <div className="flex flex-col gap-2">
-
-                     <div className="flex justify-end px-1 pt-4 pb-2 border-t border-slate-200 mt-2">
-                        <Button 
-                          variant="ghost"
-                          onClick={() => {
-                            const cam = cameras.find(c => c.id === expandedCameraId);
-                            if (cam && window.confirm(`Are you sure you want to delete camera: ${cam.name}?`)) {
-                              const newCameras = cameras.filter(c => c.id !== expandedCameraId);
-                              setCameras(newCameras);
-                              localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(newCameras));
-                              setExpandedCameraId(null);
-                            }
-                          }}
-                          className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 h-9 px-4 transition-colors font-medium rounded-lg"
-                        >
-                          <Trash2 size={16} className="mr-2" /> Delete Camera
-                        </Button>
-                     </div>
-                   </div>
-                 )}
-              </div>
+               </div>
             )}
           </div>
         )}
