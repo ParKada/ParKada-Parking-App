@@ -9,12 +9,10 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
-      "node": "20.x"
+      "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true,
-      "node": "20.x"
+      "autoIncrement": true
     }
   },
   "submit": {
