@@ -40,19 +40,19 @@ supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 #   The camera_id is stored in your browser localStorage. Check the
 #   browser console: localStorage.getItem('cameras_<lot_id>')
 # =============================================================
-TARGET_LOT_ID = "b2a68b16-a627-4dd0-8ea2-217634de4e18"
+TARGET_LOT_ID = "f064a8de-058e-408a-8dd3-a2fcfbfefe88"
 
 CAMERAS = [
     {
         "label":      "Camera 1 (Right)",
         "rtsp_url":   "rtsp://admincamnew:admincamnew@192.168.8.154:554/stream1",
-        "camera_id":  "cam1_b2a68b16-a627-4dd0-8ea2-217634de4e18",
+        "camera_id":  "cam1_f064a8de-058e-408a-8dd3-a2fcfbfefe88",
     },
     # Camera 2 is currently OFFLINE — re-enable when camera is back online
     {
          "label":      "Camera 2 (Left)",
          "rtsp_url":   "rtsp://admincam:admincam@192.168.8.159:554/stream1",
-         "camera_id":  "cam2_b2a68b16-a627-4dd0-8ea2-217634de4e18",
+         "camera_id":  "cam2_f064a8de-058e-408a-8dd3-a2fcfbfefe88",
     },
 ]
 

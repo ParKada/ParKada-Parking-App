@@ -2297,7 +2297,7 @@ export default function AdminParkingSlots() {
                         expandedCameraId && (
                           <CameraGridEditor
                             interactive={isDrawingGrid}
-                            slots={slots}
+                            slots={selectedFloorIndex === -1 ? slots : slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)}
                             cameraId={expandedCameraId}
                             onSaveZone={handleUpdateCameraZone}
                             onDeleteZone={handleDeleteCameraZone}
