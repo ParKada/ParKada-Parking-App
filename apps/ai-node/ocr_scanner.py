@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # 1. SETUP SECURE CONNECTIONS & MODELS
 # ---------------------------------------------------------
 # Look for .env in the root directory
-dotenv_path = os.path.join(os.path.dirname(__file__), '../../.env')
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
 VITE_SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
