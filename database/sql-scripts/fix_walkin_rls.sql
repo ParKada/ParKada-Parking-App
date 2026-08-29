@@ -24,3 +24,10 @@ CREATE POLICY "Allow all admins to read walk-ins" ON public.walk_in_records
 FOR SELECT
 TO authenticated
 USING (true);
+-- Enable update for all admins
+DROP POLICY IF EXISTS "Allow all admins to update walk-ins" ON public.walk_in_records;
+CREATE POLICY "Allow all admins to update walk-ins" ON public.walk_in_records
+FOR UPDATE
+TO authenticated
+USING (true)
+WITH CHECK (true);

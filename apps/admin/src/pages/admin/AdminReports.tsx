@@ -86,11 +86,11 @@ export default function AdminReports() {
       let walkInQuery = supabase
         .from('walk_in_records')
         .select(`
-          id, amount_paid, entry_time, slot_id,
-          parking_slots (lot_id, parking_lots (id, name, type))
+          id, amount_paid, entry_time, exit_time, created_at, lot_id,
+          parking_lots (id, name, type)
         `);
       if (userRole === 'manager' && userLotId) {
-        walkInQuery = walkInQuery.eq('parking_slots.lot_id', userLotId);
+        walkInQuery = walkInQuery.eq('lot_id', userLotId);
       }
       const { data: walkInData, error: walkError } = await walkInQuery;
       if (walkError) throw walkError;
@@ -123,12 +123,19 @@ export default function AdminReports() {
   };
 
   const processStats = (reservations: any[], walkIns: any[], lots: any[]) => {
+    const completedWalkIns = walkIns.filter(w => w.exit_time !== null);
+
     // Revenue composition (Online per lot)
     const lotCompositionMap: any = {};
     reservations.filter(r => r.status === 'completed').forEach(r => {
       const lotName = r.parking_lots?.name || "Unknown";
       if (!lotCompositionMap[lotName]) lotCompositionMap[lotName] = 0;
       lotCompositionMap[lotName] += Number(r.total_amount || 0);
+    });
+    completedWalkIns.forEach(w => {
+      const lotName = w.parking_lots?.name || "Unknown";
+      if (!lotCompositionMap[lotName]) lotCompositionMap[lotName] = 0;
+      lotCompositionMap[lotName] += Number(w.amount_paid || 0);
     });
     setComposition(Object.keys(lotCompositionMap).map(key => ({ name: key, value: lotCompositionMap[key] })));
 
@@ -146,6 +153,12 @@ export default function AdminReports() {
       const amount = Number(r.total_amount || 0);
       if (d >= thirtyDaysAgo) { currentRev += amount; currentBookings++; }
       else if (d >= sixtyDaysAgo && d < thirtyDaysAgo) { prevRev += amount; prevBookings++; }
+    });
+    completedWalkIns.forEach(w => {
+      const d = new Date(w.exit_time);
+      const amount = Number(w.amount_paid || 0);
+      if (d >= thirtyDaysAgo) { currentRev += amount; currentWalkinRev += amount; }
+      else if (d >= sixtyDaysAgo && d < thirtyDaysAgo) { prevRev += amount; prevWalkinRev += amount; }
     });
 
     const calculateChange = (current: number, previous: number) => {
@@ -167,14 +180,18 @@ export default function AdminReports() {
     // Monthly revenue
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const monthlyMap: any = {};
-    months.forEach(m => monthlyMap[m] = { online: 0 });
+    months.forEach(m => monthlyMap[m] = { online: 0, walkin: 0 });
     reservations.filter(r => r.status === 'completed').forEach(r => {
       const month = months[new Date(r.created_at).getMonth()];
       monthlyMap[month].online += Number(r.total_amount || 0);
     });
+    completedWalkIns.forEach(w => {
+      const month = months[new Date(w.exit_time).getMonth()];
+      monthlyMap[month].walkin += Number(w.amount_paid || 0);
+    });
     setStats(months.map(m => ({
       month: m,
-      total: monthlyMap[m].online
+      total: monthlyMap[m].online + monthlyMap[m].walkin
     })));
 
     // Weekly occupancy
@@ -183,6 +200,10 @@ export default function AdminReports() {
     days.forEach(d => weeklyMap[d] = 0);
     reservations.forEach(r => {
       const day = days[new Date(r.created_at).getDay()];
+      weeklyMap[day] += 1;
+    });
+    completedWalkIns.forEach(w => {
+      const day = days[new Date(w.entry_time).getDay()];
       weeklyMap[day] += 1;
     });
     const maxExpected = 20;
@@ -241,6 +262,12 @@ export default function AdminReports() {
         if (hourlyMap[standardHour] !== undefined) hourlyMap[standardHour] += 1;
       }
     });
+    completedWalkIns.forEach(w => {
+      if (w.entry_time) {
+        const standardHour = new Date(w.entry_time).getHours();
+        if (hourlyMap[standardHour] !== undefined) hourlyMap[standardHour] += 1;
+      }
+    });
     setHourlyData(Object.keys(hourlyMap).map(h => ({
       hour: `${h}:00`,
       pattern: Math.min(hourlyMap[h] * 15, 100)
@@ -253,14 +280,18 @@ export default function AdminReports() {
       d.setDate(d.getDate() - i);
       return d.toISOString().split('T')[0];
     }).reverse();
-    last7.forEach(day => dailyMap[day] = { online: 0 });
+    last7.forEach(day => dailyMap[day] = { online: 0, walkin: 0 });
     reservations.filter(r => r.status === 'completed').forEach(r => {
       const day = r.created_at.split('T')[0];
       if (dailyMap[day]) dailyMap[day].online += Number(r.total_amount || 0);
     });
+    completedWalkIns.forEach(w => {
+      const day = w.exit_time.split('T')[0];
+      if (dailyMap[day]) dailyMap[day].walkin += Number(w.amount_paid || 0);
+    });
     setDailyRevenue(last7.map(day => ({
       date: day.slice(5),
-      total: dailyMap[day]?.online || 0
+      total: (dailyMap[day]?.online || 0) + (dailyMap[day]?.walkin || 0)
     })));
 
     // Lot performance
@@ -276,6 +307,17 @@ export default function AdminReports() {
       };
       lotMap[lotName].onlineBookings += 1;
       lotMap[lotName].onlineRevenue += Number(r.total_amount || 0);
+    });
+    completedWalkIns.forEach(w => {
+      const lotName = w.parking_lots?.name || "Unknown";
+      if (!lotMap[lotName]) lotMap[lotName] = {
+        name: lotName,
+        type: w.parking_lots?.type || "unknown",
+        onlineBookings: 0, // We could rename this to totalBookings but for now just add to online
+        onlineRevenue: 0,
+      };
+      lotMap[lotName].onlineBookings += 1;
+      lotMap[lotName].onlineRevenue += Number(w.amount_paid || 0);
     });
     const lotArray = Object.values(lotMap);
     setLotStats(lotArray);

@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
-import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer } from "lucide-react";
+import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface WalkInRecord {
@@ -43,7 +43,8 @@ export default function AdminWalkInRecords() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [guardId, setGuardId] = useState<string | null>(null);
-  const [dateFilter, setDateFilter] = useState<"active" | "today" | "week" | "month" | "custom">("active");
+  const [recordType, setRecordType] = useState<"active" | "archived" | "all">("active");
+  const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "custom">("today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [checkoutConfirm, setCheckoutConfirm] = useState<WalkInRecord | null>(null);
@@ -97,27 +98,29 @@ export default function AdminWalkInRecords() {
         query = query.eq("lot_id", userLotId);
       }
 
-      // Date filters & Active/Archive split
-      if (dateFilter === "active") {
+      // Record Type Filter
+      if (recordType === "active") {
         query = query.is("exit_time", null);
-      } else {
+      } else if (recordType === "archived") {
         query = query.not("exit_time", "is", null);
-        const now = new Date();
-        if (dateFilter === "today") {
-          const start = new Date(now.setHours(0, 0, 0, 0)).toISOString();
-          const end = new Date(now.setHours(23, 59, 59, 999)).toISOString();
-          query = query.gte("exit_time", start).lte("exit_time", end);
-        } else if (dateFilter === "week") {
-          const start = new Date(now.setDate(now.getDate() - 7)).toISOString();
-          query = query.gte("exit_time", start);
-        } else if (dateFilter === "month") {
-          const start = new Date(now.setMonth(now.getMonth() - 1)).toISOString();
-          query = query.gte("exit_time", start);
-        } else if (dateFilter === "custom" && customStart && customEnd) {
-          const start = new Date(customStart).toISOString();
-          const end = new Date(customEnd + "T23:59:59").toISOString();
-          query = query.gte("exit_time", start).lte("exit_time", end);
-        }
+      }
+
+      // Date Filter
+      const now = new Date();
+      if (dateFilter === "today") {
+        const start = new Date(now.setHours(0, 0, 0, 0)).toISOString();
+        const end = new Date(now.setHours(23, 59, 59, 999)).toISOString();
+        query = query.gte("entry_time", start).lte("entry_time", end);
+      } else if (dateFilter === "week") {
+        const start = new Date(now.setDate(now.getDate() - 7)).toISOString();
+        query = query.gte("entry_time", start);
+      } else if (dateFilter === "month") {
+        const start = new Date(now.setMonth(now.getMonth() - 1)).toISOString();
+        query = query.gte("entry_time", start);
+      } else if (dateFilter === "custom" && customStart && customEnd) {
+        const start = new Date(customStart).toISOString();
+        const end = new Date(customEnd + "T23:59:59").toISOString();
+        query = query.gte("entry_time", start).lte("entry_time", end);
       }
 
       const { data: recordsData, error: recordsError } = await query;
@@ -380,18 +383,17 @@ export default function AdminWalkInRecords() {
   };
 
   const renderTable = (data: WalkInRecord[], emptyMsg: string) => {
-    const colCount = dateFilter === "active" ? 6 : 9;
+    const colCount = recordType === "active" ? 5 : 8;
     return (
     <Table>
       <TableHeader>
         <TableRow className="bg-slate-50">
           <TableHead className="py-3">Time Recorded</TableHead>
-          {dateFilter !== "active" && <TableHead>Slot</TableHead>}
           <TableHead>Plate</TableHead>
           <TableHead>Base Amount</TableHead>
-          {dateFilter !== "active" && <TableHead>Overtime Fee</TableHead>}
+          {recordType !== "active" && <TableHead>Overtime Fee</TableHead>}
           <TableHead>Total Bill</TableHead>
-          {dateFilter !== "active" && <TableHead>Exit Time</TableHead>}
+          {recordType !== "active" && <TableHead>Exit Time</TableHead>}
           <TableHead>Status</TableHead>
           <TableHead className="text-right">Action</TableHead>
         </TableRow>
@@ -412,21 +414,15 @@ export default function AdminWalkInRecords() {
             return (
               <TableRow key={rec.id} className="border-t">
                 <TableCell className="text-xs whitespace-nowrap">{new Date(rec.entry_time).toLocaleString()}</TableCell>
-                {dateFilter !== "active" && (
-                  <TableCell>
-                    <span className="font-mono font-medium">{slotLabel}</span>
-                    <span className="text-xs text-muted-foreground ml-1">({lotName})</span>
-                  </TableCell>
-                )}
                 <TableCell className="font-mono">{rec.plate_number}</TableCell>
                 <TableCell>₱{base.toFixed(2)}</TableCell>
-                {dateFilter !== "active" && (
+                {recordType !== "active" && (
                   <TableCell className={overtime > 0 ? "text-rose-600 font-bold" : ""}>
                     {overtime > 0 ? `+₱${overtime.toFixed(2)}` : "—"}
                   </TableCell>
                 )}
                 <TableCell className="font-bold">₱{total.toFixed(2)}</TableCell>
-                {dateFilter !== "active" && (
+                {recordType !== "active" && (
                   <TableCell className="text-xs">
                     {rec.exit_time ? new Date(rec.exit_time).toLocaleString() : "—"}
                   </TableCell>
@@ -472,7 +468,7 @@ export default function AdminWalkInRecords() {
 
   useEffect(() => {
     fetchRecords();
-  }, [dateFilter, customStart, customEnd]);
+  }, [dateFilter, customStart, customEnd, recordType]);
 
   // ================= RENDER =================
   return (
@@ -513,31 +509,51 @@ export default function AdminWalkInRecords() {
         <div className="bg-white rounded-2xl p-5 shadow-sm border">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setDateFilter("active")}
-                className={cn(
-                  "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
-                  dateFilter === "active" ? "bg-amber-500 text-white shadow-md" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                )}
-              >
-                Active Walk-ins
-              </button>
-              
-              <div className="w-px bg-slate-200 mx-1 self-stretch" />
-              
-              <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
-                {["today", "week", "month", "custom"].map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setDateFilter(f as any)}
-                    className={cn(
-                      "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
-                      dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
-                    )}
-                  >
-                    {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRecordType("all")}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    recordType === "all" ? "bg-blue-600 text-white shadow-md" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  )}
+                >
+                  All Records
+                </button>
+                <button
+                  onClick={() => setRecordType("active")}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    recordType === "active" ? "bg-amber-500 text-white shadow-md" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                  )}
+                >
+                  Active Walk-ins
+                </button>
+                <button
+                  onClick={() => setRecordType("archived")}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    recordType === "archived" ? "bg-emerald-600 text-white shadow-md" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  )}
+                >
+                  Archived
+                </button>
+                
+                <div className="w-px bg-slate-200 mx-2 self-stretch" />
+                
+                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
+                  {["today", "week", "month", "custom"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setDateFilter(f as any)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
+                        dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
+                      )}
+                    >
+                      {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
+                    </button>
+                  ))}
+                </div>
               </div>
               {dateFilter === "custom" && (
                 <div className="flex gap-2">
@@ -609,15 +625,17 @@ export default function AdminWalkInRecords() {
       {/* Main Table */}
       <div className="mb-8">
         <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-          {dateFilter === "active" ? (
-            <><Clock className="text-amber-600" size={20} /> Active Walk-ins</>
+          {recordType === "active" ? (
+            <><Clock className="text-amber-600" size={20} /> Active Walk-ins ({getDateRangeText()})</>
+          ) : recordType === "archived" ? (
+            <><CheckCircle className="text-emerald-600" size={20} /> Archived Records ({getDateRangeText()})</>
           ) : (
-            <><CheckCircle className="text-green-600" size={20} /> Archived Records ({getDateRangeText()})</>
+            <><List className="text-blue-600" size={20} /> All Records ({getDateRangeText()})</>
           )}
         </h3>
         <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            {renderTable(records, dateFilter === "active" ? "No active walk-ins found." : "No archived records found for the selected period.")}
+            {renderTable(records, "No records found for the selected period.")}
           </div>
         </div>
       </div>
@@ -630,7 +648,6 @@ export default function AdminWalkInRecords() {
             <h3 className="text-lg font-bold mb-4">Checkout Walk-in</h3>
             <div className="space-y-4">
               <p><span className="font-medium">Plate:</span> {checkoutConfirm.plate_number}</p>
-              <p><span className="font-medium">Slot:</span> {checkoutConfirm.parking_slots?.label || "None"} ({checkoutConfirm.parking_slots?.parking_lots?.name || "N/A"})</p>
               <p><span className="font-medium">Entry:</span> {new Date(checkoutConfirm.entry_time).toLocaleString()}</p>
               <p><span className="font-medium">Base amount:</span> ₱{checkoutConfirm.amount_paid.toFixed(2)}</p>
               
