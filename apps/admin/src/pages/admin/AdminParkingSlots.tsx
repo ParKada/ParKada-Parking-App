@@ -723,7 +723,7 @@ export default function AdminParkingSlots() {
             ui_x: newX,
             ui_y: newY,
             is_pwd: newSlotIsPwd,
-            is_reservable: newSlotIsReservable,
+            is_reservable: activeLot?.type === "public" ? false : newSlotIsReservable,
             floor_index: selectedFloorIndex,
           },
         ])
@@ -767,7 +767,7 @@ export default function AdminParkingSlots() {
       const updates = {
         label: editSlotLabel.trim().toUpperCase(),
         is_pwd: editSlotIsPwd,
-        is_reservable: editSlotIsReservable,
+        is_reservable: activeLot?.type === "public" ? false : editSlotIsReservable,
       };
 
       const oldSlot = slots.find(s => s.id === editingSlot.id);
@@ -806,7 +806,7 @@ export default function AdminParkingSlots() {
     currentStatus: boolean,
     slotLabel: string
   ) => {
-    if (userRole === "guard") return;
+    if (userRole === "guard" || activeLot?.type === "public") return;
 
     const newStatus = !currentStatus;
 
@@ -1283,40 +1283,44 @@ export default function AdminParkingSlots() {
                                     autoFocus
                                   />
 
-                                  <label className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
-                                    Type
-                                  </label>
-                                  <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-900/50 p-1 rounded-xl">
-                                    <button
-                                      type="button"
-                                      disabled={newSlotIsPwd}
-                                      onClick={() =>
-                                        setNewSlotIsReservable(true)
-                                      }
-                                      className={cn(
-                                        "py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                                        newSlotIsReservable
-                                          ? "bg-amber-500 text-white shadow-sm"
-                                          : "text-slate-400 hover:text-white"
-                                      )}
-                                    >
-                                      Reservable
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setNewSlotIsReservable(false)
-                                      }
-                                      className={cn(
-                                        "py-1.5 text-xs font-bold rounded-lg transition-all",
-                                        !newSlotIsReservable
-                                          ? "bg-amber-500 text-white shadow-sm"
-                                          : "text-slate-400 hover:text-white"
-                                      )}
-                                    >
-                                      Walk-In
-                                    </button>
-                                  </div>
+                                  {activeLot?.type !== "public" && (
+                                    <>
+                                      <label className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
+                                        Type
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-900/50 p-1 rounded-xl">
+                                        <button
+                                          type="button"
+                                          disabled={newSlotIsPwd}
+                                          onClick={() =>
+                                            setNewSlotIsReservable(true)
+                                          }
+                                          className={cn(
+                                            "py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                                            newSlotIsReservable
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "text-slate-400 hover:text-white"
+                                          )}
+                                        >
+                                          Reservable
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setNewSlotIsReservable(false)
+                                          }
+                                          className={cn(
+                                            "py-1.5 text-xs font-bold rounded-lg transition-all",
+                                            !newSlotIsReservable
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "text-slate-400 hover:text-white"
+                                          )}
+                                        >
+                                          Walk-In
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
 
                                   <div className="flex items-center space-x-2">
                                     <input
@@ -1338,7 +1342,7 @@ export default function AdminParkingSlots() {
                                       PWD / Priority Slot?
                                     </label>
                                   </div>
-                                  {newSlotIsPwd && (
+                                  {newSlotIsPwd && activeLot?.type !== "public" && (
                                     <div className="mt-2 text-[10px] text-amber-500 font-medium">
                                       * PWD slots cannot be made reservable and
                                       are automatically set to Walk-In.
@@ -1389,40 +1393,44 @@ export default function AdminParkingSlots() {
                                     autoFocus
                                   />
 
-                                  <label className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
-                                    Type
-                                  </label>
-                                  <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-900/50 p-1 rounded-xl">
-                                    <button
-                                      type="button"
-                                      disabled={editSlotIsPwd}
-                                      onClick={() =>
-                                        setEditSlotIsReservable(true)
-                                      }
-                                      className={cn(
-                                        "py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                                        editSlotIsReservable
-                                          ? "bg-amber-500 text-white shadow-sm"
-                                          : "text-slate-400 hover:text-white"
-                                      )}
-                                    >
-                                      Reservable
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setEditSlotIsReservable(false)
-                                      }
-                                      className={cn(
-                                        "py-1.5 text-xs font-bold rounded-lg transition-all",
-                                        !editSlotIsReservable
-                                          ? "bg-amber-500 text-white shadow-sm"
-                                          : "text-slate-400 hover:text-white"
-                                      )}
-                                    >
-                                      Walk-In
-                                    </button>
-                                  </div>
+                                  {activeLot?.type !== "public" && (
+                                    <>
+                                      <label className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
+                                        Type
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-900/50 p-1 rounded-xl">
+                                        <button
+                                          type="button"
+                                          disabled={editSlotIsPwd}
+                                          onClick={() =>
+                                            setEditSlotIsReservable(true)
+                                          }
+                                          className={cn(
+                                            "py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                                            editSlotIsReservable
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "text-slate-400 hover:text-white"
+                                          )}
+                                        >
+                                          Reservable
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setEditSlotIsReservable(false)
+                                          }
+                                          className={cn(
+                                            "py-1.5 text-xs font-bold rounded-lg transition-all",
+                                            !editSlotIsReservable
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "text-slate-400 hover:text-white"
+                                          )}
+                                        >
+                                          Walk-In
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
 
                                   <div className="flex items-center space-x-2">
                                     <input
@@ -1444,7 +1452,7 @@ export default function AdminParkingSlots() {
                                       PWD / Priority Slot?
                                     </label>
                                   </div>
-                                  {editSlotIsPwd && (
+                                  {editSlotIsPwd && activeLot?.type !== "public" && (
                                     <div className="mt-2 text-[10px] text-amber-500 font-medium">
                                       * PWD slots cannot be made reservable and
                                       are automatically set to Walk-In.
@@ -2586,7 +2594,14 @@ export default function AdminParkingSlots() {
                                   variant="outline"
                                   className="border-amber-200 text-amber-700 bg-amber-50"
                                 >
-                                  PWD / Reserved
+                                  PWD
+                                </Badge>
+                              ) : isReservable ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-blue-200 text-blue-700 bg-blue-50"
+                                >
+                                  Reservable
                                 </Badge>
                               ) : (
                                 <span className="text-muted-foreground text-xs font-medium">

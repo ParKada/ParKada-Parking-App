@@ -36,6 +36,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const [adminEmail, setAdminEmail] = useState<string>("Loading...");
   const [initials, setInitials] = useState<string>("A");
   const [userId, setUserId] = useState<string | null>(null);
+  const [lotType, setLotType] = useState<string | null>(null);
   
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -72,7 +73,15 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       }
     };
 
+    const fetchLotType = async () => {
+      if (adminLotId) {
+        const { data } = await supabase.from('parking_lots').select('type').eq('id', adminLotId).single();
+        if (data) setLotType(data.type);
+      }
+    };
+
     fetchUser();
+    fetchLotType();
     fetchNotifications();
 
     const notifChannel = supabase
@@ -172,7 +181,11 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     }
   };
 
-  const filteredNavItems = allNavItems.filter(item => item.allowedRoles.includes(adminRole));
+  const filteredNavItems = allNavItems.filter(item => {
+    if (!item.allowedRoles.includes(adminRole)) return false;
+    if (item.path === "/admin/reservations" && lotType === "public") return false;
+    return true;
+  });
   const unreadCount = notifications.filter(n => n.read === false).length;
 
   return (

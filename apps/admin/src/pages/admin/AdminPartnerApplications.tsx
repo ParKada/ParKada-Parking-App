@@ -321,7 +321,7 @@ export default function AdminPartnerApplications() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div><span className="text-gray-500 block">Business Type</span><span className="font-medium uppercase">{selectedApp.business_type?.replace('_', ' ')}</span></div>
                       <div><span className="text-gray-500 block">Est. Year</span><span className="font-medium">{selectedApp.year_established}</span></div>
-                      <div><span className="text-gray-500 block">DTI/SEC No.</span><span className="font-medium">{selectedApp.business_registration_number}</span></div>
+                      <div><span className="text-gray-500 block">Registration ({selectedApp.registration_type || 'Unknown'})</span><span className="font-medium">{selectedApp.business_registration_number}</span></div>
                       <div><span className="text-gray-500 block">TIN</span><span className="font-medium">{selectedApp.tin}</span></div>
                     </div>
                   </section>

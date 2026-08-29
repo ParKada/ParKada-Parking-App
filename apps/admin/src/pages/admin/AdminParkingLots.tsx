@@ -125,6 +125,7 @@ export default function AdminParkingLots() {
           operating_hours: newOpeningTime === "24 Hours" ? "24 Hours" : `${newOpeningTime} - ${newClosingTime}`,
           status: "active",
           is_accredited: newIsAccredited,
+          maintenance_mode: newType === "public",
         },
       ]);
 
