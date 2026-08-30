@@ -9,8 +9,31 @@ export default function SignupLogin() {
   const [password, setPassword] = useState('');
   const [showOtp, setShowOtp] = useState(false);
   const [otp, setOtp] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      return toast.error("Please enter your email address");
+    }
+    
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/change-password`,
+      });
+      if (error) throw error;
+      
+      toast.success("Password reset link sent! Please check your email.");
+      setShowForgotPassword(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send reset link");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +104,41 @@ export default function SignupLogin() {
         </div>
 
         <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
-          {showOtp ? (
+          {showForgotPassword ? (
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Reset your password</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">We will send you an email with a link to reset your password.</p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 bg-primary text-white font-semibold rounded-xl shadow-md hover:bg-primary/90 focus:ring-4 focus:ring-primary/30 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+              >
+                {isLoading ? 'Sending Link...' : 'Send Reset Link'}
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(false)}
+                className="w-full py-2 px-4 text-gray-500 font-semibold text-sm hover:text-gray-900 transition-colors mt-2"
+              >
+                Back to Login
+              </button>
+            </form>
+          ) : showOtp ? (
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-gray-700">Verification Code</label>
@@ -127,9 +184,13 @@ export default function SignupLogin() {
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-gray-700">Password</label>
-                <Link to="/forgot-password" className="text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+                <button 
+                  type="button" 
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                >
                   Forgot?
-                </Link>
+                </button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -154,12 +215,14 @@ export default function SignupLogin() {
           </form>
           )}
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account?{' '}
-            <Link to="/register" className="font-semibold text-primary hover:underline">
-              Register here
-            </Link>
-          </div>
+          {!showForgotPassword && (
+            <div className="mt-6 text-center text-sm text-gray-500">
+              Don't have an account?{' '}
+              <Link to="/register" className="font-semibold text-primary hover:underline">
+                Register here
+              </Link>
+            </div>
+          )}
         </div>
         
         <div className="mt-8 text-center">

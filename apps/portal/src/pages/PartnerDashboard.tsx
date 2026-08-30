@@ -15,11 +15,62 @@ export default function PartnerDashboard() {
   const [newPassword, setNewPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
+  // Staff state
+  const [staffAccounts, setStaffAccounts] = useState<any[]>([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(false);
+  const [resettingStaffId, setResettingStaffId] = useState<string | null>(null);
+  const [staffNewPassword, setStaffNewPassword] = useState('');
+
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    if (application?.status === 'account_activated' && application?.linked_lot_id) {
+      fetchStaffAccounts();
+    }
+  }, [application]);
+
+  const fetchStaffAccounts = async () => {
+    setIsLoadingStaff(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("get-partner-staff", {
+        body: { application_id: application.id }
+      });
+      if (error) throw error;
+      setStaffAccounts(data.data || []);
+    } catch (err: any) {
+      console.error("Failed to load staff:", err);
+      toast.error("Failed to load staff accounts");
+    } finally {
+      setIsLoadingStaff(false);
+    }
+  };
+
+  const handleResetStaffPassword = async (staffId: string) => {
+    if (!staffNewPassword || staffNewPassword.length < 6) {
+      return toast.error("Password must be at least 6 characters");
+    }
+    try {
+      const { error } = await supabase.functions.invoke("reset-staff-password", {
+        body: {
+          application_id: application.id,
+          staff_id: staffId,
+          new_password: staffNewPassword
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Staff password reset successfully!");
+      setResettingStaffId(null);
+      setStaffNewPassword('');
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reset password");
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -254,6 +305,73 @@ export default function PartnerDashboard() {
             >
               Go to Admin Portal <ExternalLink size={18} />
             </a>
+            
+            {/* Staff Accounts Section */}
+            <div className="mt-8 pt-8 border-t border-green-200">
+              <h3 className="text-lg font-bold text-green-900 flex items-center gap-2 mb-4">
+                Staff Accounts
+              </h3>
+              <p className="text-sm text-green-800 mb-4">
+                Here are the staff members (guards/attendants) registered to your establishment. For security, passwords are encrypted. If a staff member forgets their password, you can reset it here.
+              </p>
+              
+              {isLoadingStaff ? (
+                <div className="text-sm text-gray-500">Loading staff accounts...</div>
+              ) : staffAccounts.length === 0 ? (
+                <div className="bg-white p-6 rounded-xl border border-green-100 shadow-sm text-center text-sm text-gray-500">
+                  No staff accounts found. You can add them from the Admin Portal.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {staffAccounts.map((staff: any) => (
+                    <div key={staff.id} className="bg-white p-4 rounded-xl border border-green-100 shadow-sm flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-gray-900">{staff.full_name}</div>
+                        <div className="text-sm text-gray-500">{staff.email}</div>
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded uppercase">
+                          {staff.role}
+                        </span>
+                      </div>
+                      
+                      {resettingStaffId === staff.id ? (
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="text" 
+                            value={staffNewPassword}
+                            onChange={(e) => setStaffNewPassword(e.target.value)}
+                            placeholder="New password"
+                            className="w-32 px-3 py-1.5 border border-gray-300 rounded-md text-sm outline-none focus:border-primary"
+                          />
+                          <button 
+                            onClick={() => handleResetStaffPassword(staff.id)}
+                            className="px-3 py-1.5 bg-primary text-white rounded-md text-sm font-semibold hover:bg-primary/90 flex items-center gap-1"
+                          >
+                            <Save size={14} /> Save
+                          </button>
+                          <button 
+                            onClick={() => setResettingStaffId(null)}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setResettingStaffId(staff.id);
+                            setStaffNewPassword(Math.random().toString(36).slice(-8) + "Aa1@"); // Gen random temp password
+                          }}
+                          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-md text-sm font-semibold hover:bg-gray-50 flex items-center gap-1"
+                        >
+                          <KeyRound size={14} /> Reset Password
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       );

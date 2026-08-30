@@ -338,7 +338,25 @@ export default function AdminLogin() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-semibold">Password</Label>
+                <div className="flex justify-between items-center">
+                  <Label className="text-sm font-semibold">Password</Label>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      toast.info("Forgot your Lot Manager password?", {
+                        description: "Please log in to your ParKada Partner Portal account (where you submitted your application) to view or change your admin dashboard password.",
+                        duration: 8000,
+                        action: {
+                          label: "Go to Portal",
+                          onClick: () => window.open('http://localhost:5173', '_blank')
+                        }
+                      });
+                    }}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
                 <div className="relative">
                   <Input
                     type={showPass ? "text" : "password"}
