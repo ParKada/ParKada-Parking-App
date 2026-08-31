@@ -93,7 +93,7 @@ export default function AdminParkingSlots() {
 
   const handleUndo = async () => {
     if (undoHistory.length === 0) {
-      toast.info("Nothing to undo.");
+      toast.info(t("Nothing to undo.", "Nothing to undo."));
       return;
     }
     const lastAction = undoHistory[undoHistory.length - 1];
@@ -311,7 +311,6 @@ export default function AdminParkingSlots() {
                 camera_id: expandedCameraId,
                 camera_zone_points: points,
                 coordinates: pixelCoords,
-                status: "available",
               }
             : s
         )
@@ -323,7 +322,6 @@ export default function AdminParkingSlots() {
           camera_id: expandedCameraId,
           camera_zone_points: points,
           coordinates: pixelCoords,
-          status: "available",
         })
         .eq("id", slotId);
 
@@ -371,10 +369,15 @@ export default function AdminParkingSlots() {
   const handleAddCamera = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCameraName.trim()) return;
+    
+    // Use cam1_lotId or cam2_lotId for the first two cameras to match the AI Node exactly
+    const nextIdx = cameras.length + 1;
+    const newId = nextIdx <= 2 ? `cam${nextIdx}_${selectedLotId}` : `cam${Date.now()}`;
+    
     const newCameras = [
       ...cameras,
       {
-        id: `cam${Date.now()}`,
+        id: newId,
         name: newCameraName.trim(),
         stream_url: newCameraUrl.trim(),
       },
@@ -476,7 +479,7 @@ export default function AdminParkingSlots() {
     )
       return;
 
-    const toastId = toast.loading("Deleting photo...");
+    const toastId = toast.loading(t("Deleting photo...", "Deleting photo..."));
     try {
       const currentOthers = activeLot.other_photos || [];
       const newOthers = currentOthers.filter((u: string) => u !== urlToDelete);
@@ -488,11 +491,11 @@ export default function AdminParkingSlots() {
 
       if (dbError) throw dbError;
 
-      toast.success("Photo deleted", { id: toastId });
+      toast.success(t("Photo deleted", "Photo deleted"), { id: toastId });
       fetchLots();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Delete failed: ${error.message}`, { id: toastId });
+      toast.error(t(`Delete failed: ${error.message}`, `Delete failed: ${error.message}`), { id: toastId });
     }
   };
 
@@ -507,7 +510,7 @@ export default function AdminParkingSlots() {
     )
       return;
 
-    const toastId = toast.loading("Deleting photo...");
+    const toastId = toast.loading(t("Deleting photo...", "Deleting photo..."));
     try {
       const updateField =
         type === "front_view" ? "front_view_url" : "business_permit_url";
@@ -518,11 +521,11 @@ export default function AdminParkingSlots() {
 
       if (dbError) throw dbError;
 
-      toast.success("Photo deleted", { id: toastId });
+      toast.success(t("Photo deleted", "Photo deleted"), { id: toastId });
       fetchLots();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Delete failed: ${error.message}`, { id: toastId });
+      toast.error(t(`Delete failed: ${error.message}`, `Delete failed: ${error.message}`), { id: toastId });
     }
   };
 
@@ -571,7 +574,24 @@ export default function AdminParkingSlots() {
     const storedCameras = localStorage.getItem(`cameras_${selectedLotId}`);
     if (storedCameras) {
       try {
-        setCameras(JSON.parse(storedCameras));
+        let parsedCameras = JSON.parse(storedCameras);
+        // MIGRATION: Ensure first two cameras match Python AI Node expectations
+        let changed = false;
+        parsedCameras = parsedCameras.map((cam: any, idx: number) => {
+          if (idx === 0 && !cam.id.startsWith("cam1_")) {
+            changed = true;
+            return { ...cam, id: `cam1_${selectedLotId}` };
+          }
+          if (idx === 1 && !cam.id.startsWith("cam2_")) {
+            changed = true;
+            return { ...cam, id: `cam2_${selectedLotId}` };
+          }
+          return cam;
+        });
+        setCameras(parsedCameras);
+        if (changed) {
+          localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(parsedCameras));
+        }
       } catch (e) {
         setCameras([]);
       }
@@ -683,7 +703,7 @@ export default function AdminParkingSlots() {
       return;
 
     if (!newSlotLabel.trim()) {
-      toast.error("Please enter a slot label.");
+      toast.error(t("Please enter a slot label.", "Pakisuyo enter a slot label."));
       return;
     }
 
@@ -863,7 +883,7 @@ export default function AdminParkingSlots() {
     if (!activeLot) return;
     const currentFloors = activeLot.floors || ["Main Floor"];
     if (currentFloors.length <= 1) {
-      toast.error("Cannot delete the only floor.");
+      toast.error(t("Cannot delete the only floor.", "Cannot delete the only floor."));
       return;
     }
 

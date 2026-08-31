@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp, ArrowLeft, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
-const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
+const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/ParKada-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
 
 export default function AdminTermsPage() {
   const [, setLocation] = useLocation();
@@ -144,7 +144,7 @@ export default function AdminTermsPage() {
 
         <div className="mt-8 pt-4 border-t border-border text-center">
           <p className="text-xs text-muted-foreground">
-            © 2026 ParKada App. All rights reserved. | De La Salle Lipa • IT3C Group 9
+            © 2026 ParKada App. All rights reserved. | De La Salle Lipa • IT4C Group 9
           </p>
           <Button
             onClick={() => setLocation("/set-password")}

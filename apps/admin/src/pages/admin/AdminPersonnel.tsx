@@ -20,8 +20,10 @@ import {
   UserCheck 
 } from "lucide-react";
 import { supabase } from "@parkada/shared"; 
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminPersonnel() {
+  const { t } = useLanguage();
   const [lots, setLots] = useState<any[]>([]);
   const [managers, setManagers] = useState<any[]>([]);
   
@@ -67,7 +69,7 @@ export default function AdminPersonnel() {
   const handleInviteManager = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminEmail || !adminLotId || !adminPassword || !adminName) {
-      return toast.error("Please fill in all fields (Name, Email, Password, Lot).");
+      return toast.error(t("Please fill in all fields (Name, Email, Password, Lot).", "Pakisuyo fill in all fields (Name, Email, Password, Lot)."));
     }
 
     setIsSubmitting(true);
@@ -84,7 +86,7 @@ export default function AdminPersonnel() {
 
       if (error) throw error;
 
-      toast.success(`Admin account created for ${adminEmail}.`);
+      toast.success(t(`Admin account created for ${adminEmail}.`, `Admin account created for ${adminEmail}.`));
       setAdminEmail("");
       setAdminPassword("");
       setAdminName("");
@@ -92,7 +94,7 @@ export default function AdminPersonnel() {
       fetchManagers(); 
     } catch (error: any) {
       console.error(error);
-      toast.error(`Error: ${error.message}`);
+      toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
     } finally {
       setIsSubmitting(false);
     }
@@ -116,11 +118,11 @@ export default function AdminPersonnel() {
 
       if (error) throw error;
 
-      toast.success(`Manager account successfully ${newStatus.toLowerCase()}!`);
+      toast.success(t(`Manager account successfully ${newStatus.toLowerCase()}!`, `Manager account nang matagumpay ${newStatus.toLowerCase()}!`));
       fetchManagers();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Error: ${error.message}`);
+      toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
     }
   };
 

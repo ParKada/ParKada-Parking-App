@@ -11,10 +11,12 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@parkada/shared";
+import { useLanguage } from "@/hooks/useLanguage";
 
-const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
+const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/ParKada-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
 
 export default function SetPasswordPage() {
+  const { t } = useLanguage();
   const [, setLocation] = useLocation();
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
@@ -27,7 +29,7 @@ export default function SetPasswordPage() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error("Session expired. Please request a new invitation.");
+        toast.error(t("Session expired. Please request a new invitation.", "Session expired. Pakisuyo request a new invitation."));
         setLocation("/admin");
       }
     };
@@ -56,15 +58,15 @@ export default function SetPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 8) {
-      toast.error("Password must be at least 8 characters long.");
+      toast.error(t("Password must be at least 8 characters long.", "Password must be at least 8 characters long."));
       return;
     }
     if (strength === "Weak Password") {
-      toast.error("Please use a stronger password (letters and numbers).");
+      toast.error(t("Please use a stronger password (letters and numbers).", "Pakisuyo use a stronger password (letters and numbers)."));
       return;
     }
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match.");
+      toast.error(t("Passwords do not match.", "Passwords do not match."));
       return;
     }
     setLoading(true);
@@ -72,7 +74,7 @@ export default function SetPasswordPage() {
     // 1. Get current session to obtain user id
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     if (sessionError || !session?.user?.id) {
-      toast.error("Unable to verify your identity. Please try the invitation link again.");
+      toast.error(t("Unable to verify your identity. Please try the invitation link again.", "Unable to verify your identity. Pakisuyo try the invitation link again."));
       setLocation("/admin");
       setLoading(false);
       return;
@@ -95,12 +97,12 @@ export default function SetPasswordPage() {
 
     if (updateError) {
       console.warn("Could not update profile status:", updateError);
-      toast.warning("Password set, but account activation status could not be updated. Please contact support.");
+      toast.warning(t("Password set, but account activation status could not be updated. Please contact support.", "Password set, but account activation status could not be updated. Pakisuyo contact support."));
     } else {
-      toast.success("Account activated!");
+      toast.success(t("Account activated!", "Account activated!"));
     }
 
-    toast.success("Password set! You can now log in.");
+    toast.success(t("Password set! You can now log in.", "Password set! You can now log in."));
     setLocation("/admin");
     setLoading(false);
   };

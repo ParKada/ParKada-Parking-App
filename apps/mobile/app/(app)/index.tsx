@@ -9,7 +9,7 @@ import { Picker } from "@react-native-picker/picker";
 import { supabase } from "../../lib/supabase";
 import ActiveReservationTimer from "../../components/ActiveReservationTimer";
 
-const MAP_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-lipa-map-bf9Bjp7jKhLR43sJchAZUD.webp";
+const MAP_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/ParKada-lipa-map-bf9Bjp7jKhLR43sJchAZUD.webp";
 
 const parseOpenHoursToMins = (timeStr: string) => {
   const match = timeStr.trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);

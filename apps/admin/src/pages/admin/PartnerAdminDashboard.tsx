@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminDashboard (Supabase Connected - Super Admin & Manager)
+ * ParKada — AdminDashboard (Supabase Connected - Super Admin & Manager)
  * Real‑time updates, TypeScript, map view, clickable cards, skeleton loading.
  * UPDATED: Parking Lots Overview shows only accredited lots.
  */
@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useLanguage } from "@/hooks/useLanguage";
 
 // ==================== TypeScript Interfaces ====================
 interface ParkingSlot {
@@ -79,6 +80,7 @@ const customMapIcon = L.divIcon({
 });
 
 export default function PartnerAdminDashboard() {
+  const { t } = useLanguage();
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -289,7 +291,7 @@ export default function PartnerAdminDashboard() {
       setRecentReservations(formattedReservations);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to load dashboard data");
+      toast.error(t("Failed to load dashboard data", "Nabigong load dashboard data"));
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

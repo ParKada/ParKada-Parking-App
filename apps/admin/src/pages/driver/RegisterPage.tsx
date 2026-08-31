@@ -1,5 +1,5 @@
 /*
- * iParkBayan — RegisterPage (Connected to Supabase)
+ * ParKada — RegisterPage (Connected to Supabase)
  * Multi-step registration: Personal -> Vehicle -> OTP Verification -> Success
  * OTP Resend Logic: Countdown starts after first resend (second request)
  * Fixed: Resend code error handling & session check
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner"; 
+import { useLanguage } from "@/hooks/useLanguage";
 
 // Allowed 4-Wheel Car Brands in the Philippines
 const ALLOWED_CAR_BRANDS = [
@@ -21,6 +22,7 @@ const ALLOWED_CAR_BRANDS = [
 const PH_MOBILE_REGEX = /^09\d{9}$/;
 
 export default function RegisterPage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -104,28 +106,28 @@ export default function RegisterPage() {
 
   const handleNextStep = async () => {
     if (!fullName || !email || !phoneNumber || !password || !confirmPassword) {
-      toast.error("Please fill in all personal details.");
+      toast.error(t("Please fill in all personal details.", "Pakisuyo fill in all personal details."));
       return;
     }
 
     if (!PH_MOBILE_REGEX.test(phoneNumber)) {
-      toast.error("Please enter a valid Philippine mobile number (e.g., 09XXXXXXXXX).");
+      toast.error(t("Please enter a valid Philippine mobile number (e.g., 09XXXXXXXXX).", "Pakisuyo enter a valid Philippine mobile number (e.g., 09XXXXXXXXX)."));
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      toast.error("Please enter a valid email address.");
+      toast.error(t("Please enter a valid email address.", "Pakisuyo enter a valid email address."));
       return;
     }
 
     if (getPasswordStrength(password) !== "Very Strong Password") {
-      toast.error("Password must be Very Strong (at least 8 chars, uppercase, lowercase, number, and special character).");
+      toast.error(t("Password must be Very Strong (at least 8 chars, uppercase, lowercase, number, and special character).", "Password must be Very Strong (at least 8 chars, uppercase, lowercase, number, and special character)."));
       return;
     }
 
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match.");
+      toast.error(t("Passwords do not match.", "Passwords do not match."));
       return;
     }
 
@@ -142,18 +144,18 @@ export default function RegisterPage() {
 
   const handleSendOtp = async () => {
     if (!plateNumber || !vehicleBrand || !vehicleModel || !vehicleColor) {
-      toast.error("Please fill in all vehicle details.");
+      toast.error(t("Please fill in all vehicle details.", "Pakisuyo fill in all vehicle details."));
       return;
     }
 
     const plateRegex = /^[A-Z]{3}[\s-]?[0-9]{3,4}$/i;
     if (!plateRegex.test(plateNumber.trim())) {
-      toast.error("Invalid Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234).");
+      toast.error(t("Invalid Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234).", "Mali ang Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234)."));
       return;
     }
 
     if (!agreeTc) {
-      toast.error("Please agree to the Terms & Conditions and Privacy Policy.");
+      toast.error(t("Please agree to the Terms & Conditions and Privacy Policy.", "Pakisuyo agree to the Terms & Conditions and Privacy Policy."));
       return;
     }
 
@@ -174,7 +176,7 @@ export default function RegisterPage() {
 
       if (authError) {
         if (authError.message.includes("already registered")) {
-          toast.info("Account already exists. Sending you to OTP verification.");
+          toast.info(t("Account already exists. Sending you to OTP verification.", "Account already exists. Sending you to OTP verification."));
           await handleResendOtp(true);
           setStep(3);
           return;
@@ -182,7 +184,7 @@ export default function RegisterPage() {
         throw authError;
       }
 
-      toast.success("Verification code sent to your email!");
+      toast.success(t("Verification code sent to your email!", "Verification code sent to your email!"));
       setStep(3);
     } catch (error: any) {
       toast.error(error.message || "Failed to register. Please try again.");
@@ -195,7 +197,7 @@ export default function RegisterPage() {
   const handleResendOtp = async (isSilent = false) => {
     // Check cooldown
     if (countdown > 0 && !isSilent) {
-      toast.info(`Please wait ${Math.ceil(countdown / 60)} minutes before requesting a new code.`);
+      toast.info(t(`Please wait ${Math.ceil(countdown / 60)} minutes before requesting a new code.`, `Pakisuyo wait ${Math.ceil(countdown / 60)} minutes before requesting a new code.`));
       return;
     }
     
@@ -211,7 +213,7 @@ export default function RegisterPage() {
         // If resend fails, maybe the user hasn't completed signup? Provide fallback
         console.error("Resend error:", error);
         if (error.message.includes("User already confirmed")) {
-          toast.error("This email is already verified. Please login.");
+          toast.error(t("This email is already verified. Please login.", "This email is already verified. Pakisuyo login."));
           navigate("/login");
           return;
         }
@@ -224,7 +226,7 @@ export default function RegisterPage() {
         if (newResendCount >= RESEND_TIMER_START_AFTER) {
           setCountdown(120); // 2 minutes
         }
-        toast.success("New verification code sent to your email!");
+        toast.success(t("New verification code sent to your email!", "New verification code sent to your email!"));
       }
     } catch (error: any) {
       if (!isSilent) {
@@ -238,12 +240,12 @@ export default function RegisterPage() {
   const handleVerifyOtpAndSave = async () => {
     if (lockoutTime && Date.now() < lockoutTime) {
       const remainingMins = Math.ceil((lockoutTime - Date.now()) / 60000);
-      toast.error(`Too many attempts. Please try again in ${remainingMins} minutes.`);
+      toast.error(t(`Too many attempts. Please try again in ${remainingMins} minutes.`, `Too many attempts. Pakisuyo try again in ${remainingMins} minutes.`));
       return;
     }
 
     if (otpCode.length !== 6) {
-      toast.error("Please enter the 8-digit code.");
+      toast.error(t("Please enter the 8-digit code.", "Pakisuyo enter the 8-digit code."));
       return;
     }
 
@@ -365,7 +367,7 @@ export default function RegisterPage() {
           <p className="text-slate-500 text-sm mb-8 px-4 leading-relaxed">
             You can verify your account later in the app settings to unlock full features.
           </p>
-          <Button onClick={() => { toast.success("Welcome to ParKada: Your Parking Buddy"); setTimeout(() => navigate("/home"), 500); }} className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white" style={{ background: "oklch(0.22 0.07 255)" }}>
+          <Button onClick={() => { toast.success(t("Welcome to ParKada: Your Parking Buddy", "Welcome to ParKada: Your Parking Buddy")); setTimeout(() => navigate("/home"), 500); }} className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white" style={{ background: "oklch(0.22 0.07 255)" }}>
             Start Parking
           </Button>
         </div>

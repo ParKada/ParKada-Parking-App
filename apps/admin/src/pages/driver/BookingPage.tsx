@@ -1,5 +1,5 @@
 /*
- * iParkBayan — MyBookingPage (Connected to Supabase)
+ * ParKada — MyBookingPage (Connected to Supabase)
  * Design: Civic Tech / Filipino Urban Identity
  * UPDATED: One rating per transaction (added reservation_id to parking_reviews)
  * MODIFIED: Entire card is clickable to view receipt (instead of separate "View Ticket" button)
@@ -12,6 +12,7 @@ import { supabase } from "@parkada/shared";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/hooks/useLanguage";
 
 // Helper functions (unchanged)
 const formatTimeFromISO = (isoString: string) => {
@@ -59,6 +60,7 @@ function RatingStars({ value, onChange }: { value: number; onChange: (rating: nu
 }
 
 export default function MyReservationsPage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   const [reservations, setReservations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +121,7 @@ export default function MyReservationsPage() {
 
   const submitRating = async () => {
     if (rating === 0) {
-      toast.error("Please select a rating");
+      toast.error(t("Please select a rating", "Pakisuyo select a rating"));
       return;
     }
     setSubmitting(true);
@@ -138,7 +140,7 @@ export default function MyReservationsPage() {
         });
       if (error) throw error;
 
-      toast.success("Thank you for your review!");
+      toast.success(t("Thank you for your review!", "Thank you for your review!"));
       setShowRatingModal(false);
 
       setReservations(prev => prev.map(r =>

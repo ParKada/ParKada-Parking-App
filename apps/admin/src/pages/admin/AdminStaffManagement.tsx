@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ManageGuards (Manager Creation & Roster for Guards)
+ * ParKada — ManageGuards (Manager Creation & Roster for Guards)
  * Added: Strong password indication, eye icon to toggle visibility.
  */
 import { useState, useEffect } from "react";
@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@parkada/shared"; 
 import { createClient } from "@supabase/supabase-js";
+import { useLanguage } from "@/hooks/useLanguage";
 
 // Secondary Client gamit ang ANON KEY para hindi ma-logout si Manager
 const authSupabase = createClient(
@@ -38,6 +39,7 @@ const authSupabase = createClient(
 );
 
 export default function ManageGuards() {
+  const { t } = useLanguage();
   const [managerLotId, setManagerLotId] = useState<string | null>(null);
   const [managerLotName, setManagerLotName] = useState<string>("");
   const [guards, setGuards] = useState<any[]>([]);
@@ -110,16 +112,16 @@ export default function ManageGuards() {
   const handleAddGuard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guardName || !guardEmail || !guardPassword) {
-      return toast.error("Pakikumpleto ang lahat ng fields.");
+      return toast.error(t("Pakikumpleto ang lahat ng fields.", "Pakikumpleto ang lahat ng fields."));
     }
     if (guardPassword.length < 8) {
-      return toast.error("Password must be at least 8 characters long.");
+      return toast.error(t("Password must be at least 8 characters long.", "Password must be at least 8 characters long."));
     }
     if (passwordStrength === "Weak Password") {
-      return toast.error("Please use a stronger password (letters and numbers).");
+      return toast.error(t("Please use a stronger password (letters and numbers).", "Pakisuyo use a stronger password (letters and numbers)."));
     }
     if (!managerLotId) {
-      return toast.error("System Error: No lot assigned to your account.");
+      return toast.error(t("System Error: No lot assigned to your account.", "System Problema: No lot assigned to your account."));
     }
 
     setIsSubmitting(true);
@@ -161,13 +163,13 @@ export default function ManageGuards() {
         if (updateError) throw updateError;
       }
 
-      toast.success(`Guard account para kay ${guardName} nagawa na!`);
+      toast.success(t(`Guard account para kay ${guardName} nagawa na!`, `Guard account para kay ${guardName} nagawa na!`));
       setGuardName(""); setGuardEmail(""); setGuardPassword("");
       setShowPassword(false);
       fetchManagerDataAndGuards(); 
     } catch (error: any) {
       console.error(error);
-      toast.error(`Error: ${error.message}`);
+      toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
     } finally {
       setIsSubmitting(false);
     }
@@ -191,11 +193,11 @@ export default function ManageGuards() {
 
       if (error) throw error;
 
-      toast.success(`Access ni ${name} ay na-${newStatus.toLowerCase()} na.`);
+      toast.success(t(`Access ni ${name} ay na-${newStatus.toLowerCase()} na.`, `Access ni ${name} ay na-${newStatus.toLowerCase()} na.`));
       fetchManagerDataAndGuards();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Error: ${error.message}`);
+      toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
     }
   };
 
@@ -213,11 +215,11 @@ export default function ManageGuards() {
 
       if (error) throw error;
       
-      toast.success(`Ang account ni ${name} ay permanenteng natanggal.`);
+      toast.success(t(`Ang account ni ${name} ay permanenteng natanggal.`, `Ang account ni ${name} ay permanenteng natanggal.`));
       fetchManagerDataAndGuards();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Error: ${error.message}`);
+      toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
     }
   };
 

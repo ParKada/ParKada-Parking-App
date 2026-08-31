@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@parkada/shared";
 import DarkVeil from "@/components/ui/dark-veil"; 
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -32,6 +33,7 @@ const allNavItems = [
 ];
 
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
+  const { t } = useLanguage();
   const [location, setLocation] = useLocation();
   const [adminEmail, setAdminEmail] = useState<string>("Loading...");
   const [initials, setInitials] = useState<string>("A");
@@ -146,7 +148,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
     if (!error) {
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      toast.success("All notifications marked as read");
+      toast.success(t("All notifications marked as read", "All notifications marked as read"));
     }
   };
 
@@ -158,7 +160,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         { event: 'UPDATE', schema: 'public', table: 'admin_profiles', filter: `id=eq.${userId}` },
         async (payload: any) => {
           if (payload.new.status === 'Suspended') {
-            toast.error("⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde.", { duration: 8000 });
+            toast.error(t("⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde.", "⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde."), { duration: 8000 });
             await supabase.auth.signOut();
             localStorage.removeItem('admin_role');
             localStorage.removeItem('admin_lot_id');
@@ -174,10 +176,10 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       await supabase.auth.signOut();
       localStorage.removeItem('admin_role');
       localStorage.removeItem('admin_lot_id');
-      toast.success("Successfully logged out");
+      toast.success(t("Successfully logged out", "Successfully logged out"));
       setLocation("/admin");
     } catch (error) {
-      toast.error("Error logging out");
+      toast.error(t("Error logging out", "Problema logging out"));
     }
   };
 

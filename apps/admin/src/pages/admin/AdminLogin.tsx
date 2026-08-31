@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminLogin (Multi-Tenant / Lot-Specific)
+ * ParKada — AdminLogin (Multi-Tenant / Lot-Specific)
  * Design: Civic Tech / Filipino Urban Identity
  * Full-screen admin login with navy sidebar and form
  */
@@ -13,10 +13,12 @@ import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
 import { supabase } from "@parkada/shared";
 import TrueFocus from "@/components/ui/focus";
 import DarkVeil from "@/components/ui/dark-veil"; 
+import { useLanguage } from "@/hooks/useLanguage";
 
 const OCCUPIED_SLOT_STATUSES = ["occupied", "reserved", "booked", "active"];
 
 export default function AdminLogin() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -106,13 +108,13 @@ export default function AdminLogin() {
     }
 
     if (profileData.role === "guard") {
-      toast.success("Welcome, Guard! Opening scanner...");
+      toast.success(t("Welcome, Guard! Opening scanner...", "Welcome, Guard! Opening scanner..."));
       navigate("/admin/scanner");
     } else if (profileData.role === "manager") {
-      toast.success("Welcome, Lot Manager!");
+      toast.success(t("Welcome, Lot Manager!", "Welcome, Lot Manager!"));
       navigate("/admin/dashboard");
     } else {
-      toast.success("Welcome, Super Admin!");
+      toast.success(t("Welcome, Super Admin!", "Welcome, Super Admin!"));
       navigate("/admin/dashboard");
     }
   };
@@ -120,7 +122,7 @@ export default function AdminLogin() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      toast.error("Please fill in all fields");
+      toast.error(t("Please fill in all fields", "Pakisuyo fill in all fields"));
       return;
     }
 
@@ -135,7 +137,7 @@ export default function AdminLogin() {
       if (authError) {
         if (authError.message.toLowerCase().includes("email not confirmed")) {
           setNeedsVerification(true);
-          toast.success("Verification required. Please enter the OTP sent to your email.");
+          toast.success(t("Verification required. Please enter the OTP sent to your email.", "Verification required. Pakisuyo enter the OTP sent to your email."));
           return;
         }
         throw authError;
@@ -157,7 +159,7 @@ export default function AdminLogin() {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otp) {
-      toast.error("Please enter the verification code.");
+      toast.error(t("Please enter the verification code.", "Pakisuyo enter the verification code."));
       return;
     }
 
@@ -254,7 +256,7 @@ export default function AdminLogin() {
           {/* Bottom: Footer */}
           <div>
             <p className="text-white/50 text-xs tracking-wide font-medium">
-              IT3C Group 9 · De La Salle Lipa · 2026
+              IT4C Group 9 · De La Salle Lipa · 2026
             </p>
             <p className="text-white/50 text-xs tracking-wide font-medium mt-1">
               Alcantara · Cadeliña · Lique · Mendez

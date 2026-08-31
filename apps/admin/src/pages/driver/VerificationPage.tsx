@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const VALID_ID_OPTIONS = [
   "Philippine Identification (PhilID / ePhilID)",
@@ -24,6 +25,7 @@ const VALID_ID_OPTIONS = [
 ];
 
 export default function VerificationPage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   
   // States
@@ -76,7 +78,7 @@ export default function VerificationPage() {
         .single();
 
       if (error) {
-        toast.error("Error fetching profile data.");
+        toast.error(t("Error fetching profile data.", "Problema fetching profile data."));
         return;
       }
 
@@ -120,7 +122,7 @@ export default function VerificationPage() {
           videoRef.current.play();
         }
       } catch (fallbackErr) {
-        toast.error("Cannot access camera. Please check permissions.");
+        toast.error(t("Cannot access camera. Please check permissions.", "Cannot access camera. Pakisuyo check permissions."));
         setCameraMode(null);
       }
     }
@@ -140,7 +142,7 @@ export default function VerificationPage() {
       setTimeout(() => {
         setIsAnalyzing(false);
         if (blob.size < 25000) {
-          toast.error("Fake or unreadable ID detected. Please scan clearly.");
+          toast.error(t("Fake or unreadable ID detected. Please scan clearly.", "Fake or unreadable ID detected. Pakisuyo scan clearly."));
           resolve(false);
         } else {
           resolve(true);
@@ -187,7 +189,7 @@ export default function VerificationPage() {
 
   const uploadVerification = async () => {
     if (!validIdType || !idNumber || !address || !birthday || !idFrontBlob || !idBackBlob || !selfieBlob) {
-      toast.error("Please complete all required fields and photos.");
+      toast.error(t("Please complete all required fields and photos.", "Pakisuyo complete all required fields and photos."));
       return;
     }
 
@@ -229,7 +231,7 @@ export default function VerificationPage() {
 
       if (updateError) throw updateError;
 
-      toast.success("Submitted successfully!");
+      toast.success(t("Submitted successfully!", "Submitted nang matagumpay!"));
       setStatus('pending');
     } catch (err: any) {
       toast.error(err.message || "Failed to upload.");

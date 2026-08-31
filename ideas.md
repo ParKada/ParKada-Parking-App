@@ -1,8 +1,9 @@
-# iParkBayan Design Ideas
+# ParKada Design Ideas
 
 ## Context
+
 Smart Parking Space Detection and Reservation System for Lipa City Downtown.
-App name: iParkBayan. Users: Drivers (mobile app) + Administrators (dashboard).
+App name: ParKada. Users: Drivers (mobile app) + Administrators (dashboard).
 
 ---
 
@@ -21,6 +22,7 @@ App name: iParkBayan. Users: Drivers (mobile app) + Administrators (dashboard).
 **Layout Paradigm:** Asymmetric split-screen — left panel for map/grid, right panel for actions. No centered hero sections.
 
 **Signature Elements:**
+
 - Parking grid rendered as bold monospace cells
 - Thick border dividers and exposed structural lines
 - Status indicators styled like traffic lights
@@ -49,6 +51,7 @@ App name: iParkBayan. Users: Drivers (mobile app) + Administrators (dashboard).
 **Layout Paradigm:** Bottom-navigation mobile shell with persistent header. Dashboard uses left sidebar with content area. Parking grid uses a visual floor-plan style layout.
 
 **Signature Elements:**
+
 - Parking slot grid with color-coded cells (green/red/amber)
 - Floating action button for quick reservation
 - Subtle wave/curve dividers referencing Philippine coastal geography
@@ -77,6 +80,7 @@ App name: iParkBayan. Users: Drivers (mobile app) + Administrators (dashboard).
 **Layout Paradigm:** Full-screen map background with floating overlay panels. Parking slots rendered as glowing grid cells.
 
 **Signature Elements:**
+
 - Frosted glass cards with backdrop-blur
 - Glowing border effects on selected slots
 - Animated particle background suggesting city movement

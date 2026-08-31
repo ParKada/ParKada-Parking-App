@@ -235,7 +235,7 @@ export default function ProfilePage() {
         </TouchableOpacity>
 
         <View className="items-center pb-8">
-          <Text className="text-[10px] text-slate-400 font-medium">ParKada v1.0 - De La Salle Lipa IT3C Group 9</Text>
+          <Text className="text-[10px] text-slate-400 font-medium">ParKada v1.0 - De La Salle Lipa IT4C Group 9</Text>
         </View>
         
       </ScrollView>

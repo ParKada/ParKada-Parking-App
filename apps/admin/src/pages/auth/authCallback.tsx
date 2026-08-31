@@ -2,8 +2,10 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AuthCallback() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export default function AuthCallback() {
       const refreshToken = hashParams.get("refresh_token");
 
       if (!accessToken) {
-        toast.error("Invalid invitation link");
+        toast.error(t("Invalid invitation link", "Mali ang invitation link"));
         navigate("/admin/login");
         return;
       }
@@ -45,7 +47,7 @@ export default function AuthCallback() {
         if (error) throw error;
 
         if (data.session) {
-          toast.success("Invitation verified! Please set your password.");
+          toast.success(t("Invitation verified! Please set your password.", "Invitation verified! Pakisuyo set your password."));
           // Manager invitations keep their existing destination.
           window.location.href = "/set-password";
         } else {

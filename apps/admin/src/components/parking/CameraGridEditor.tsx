@@ -245,8 +245,9 @@ export default function CameraGridEditor({
   const getColorForStatus = (status: string) => {
     switch (status) {
       case 'occupied': return 'rgba(239, 68, 68, 0.4)';
-      case 'reserved': return 'rgba(59, 130, 246, 0.4)';
-      case 'maintenance': return 'rgba(245, 158, 11, 0.4)';
+      case 'reserved': return 'rgba(234, 179, 8, 0.4)'; // Yellow
+      case 'detecting': return 'rgba(249, 115, 22, 0.4)'; // Orange
+      case 'maintenance': return 'rgba(245, 158, 11, 0.4)'; // Amber
       case 'available': return 'rgba(16, 185, 129, 0.4)';
       default: return 'rgba(148, 163, 184, 0.4)';
     }
@@ -255,8 +256,9 @@ export default function CameraGridEditor({
   const getBorderColorForStatus = (status: string) => {
     switch (status) {
       case 'occupied': return 'rgb(239, 68, 68)';
-      case 'reserved': return 'rgb(59, 130, 246)';
-      case 'maintenance': return 'rgb(245, 158, 11)';
+      case 'reserved': return 'rgb(234, 179, 8)'; // Yellow
+      case 'detecting': return 'rgb(249, 115, 22)'; // Orange
+      case 'maintenance': return 'rgb(245, 158, 11)'; // Amber
       case 'available': return 'rgb(16, 185, 129)';
       default: return 'rgb(148, 163, 184)';
     }

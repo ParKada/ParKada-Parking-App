@@ -55,19 +55,19 @@ print("Supabase client ready.")
 #   The camera_id is stored in your browser localStorage. Check the
 #   browser console: localStorage.getItem('cameras_<lot_id>')
 # =============================================================
-TARGET_LOT_ID = "f064a8de-058e-408a-8dd3-a2fcfbfefe88"
+TARGET_LOT_ID = "351da04b-3c82-4e1d-a761-73051163d683"
 
 CAMERAS = [
     {
         "label":      "Camera 1 (Right)",
         "rtsp_url":   "rtsp://admincamnew:admincamnew@192.168.8.154:554/stream1",
-        "camera_id":  "cam1_f064a8de-058e-408a-8dd3-a2fcfbfefe88",
+        "camera_id":  "cam1_351da04b-3c82-4e1d-a761-73051163d683",
     },
     # Camera 2 is currently OFFLINE — re-enable when camera is back online
     {
          "label":      "Camera 2 (Left)",
          "rtsp_url":   "rtsp://admincam:admincam@192.168.8.159:554/stream1",
-         "camera_id":  "cam2_f064a8de-058e-408a-8dd3-a2fcfbfefe88",
+         "camera_id":  "cam2_351da04b-3c82-4e1d-a761-73051163d683",
     },
 ]
 
@@ -392,6 +392,7 @@ class CameraWorker:
                         coords  = row.get('coordinates')
                         label   = row.get('label', 'Unknown')
                         db_status = row.get('status')
+                        db_physical = row.get('physical_status')
                         is_reservable = row.get('is_reservable', False)
 
                         if coords:
@@ -404,6 +405,7 @@ class CameraWorker:
                                 self.slot_data.append({
                                     "status": "FREE", "time_in": 0,
                                     "db_status": db_status,
+                                    "db_physical": db_physical,
                                     "is_reservable": is_reservable,
                                     "pending_full_start": None,
                                     "pending_free_start": None,
@@ -413,8 +415,24 @@ class CameraWorker:
                             else:
                                 idx = self.slot_ids.index(db_id)
                                 self.slot_data[idx]["db_status"] = db_status
+                                self.slot_data[idx]["db_physical"] = db_physical
                                 self.slot_data[idx]["is_reservable"] = is_reservable
                                 self.all_slots[idx] = np.array(coords, np.int32).reshape(-1, 2)
+                                
+                                # --- SELF-HEALING SYNC ---
+                                current_status = self.slot_data[idx]["status"]
+                                if current_status == "FULL":
+                                    if db_physical != "occupied" or (db_status not in ["occupied", "reserved"]):
+                                        if db_status != "reserved":
+                                            update_supabase_bg(db_id, "occupied", "occupied")
+                                        else:
+                                            update_supabase_bg(db_id, "occupied", None)
+                                elif current_status == "FREE":
+                                    if db_physical != "empty" or (db_status not in ["available", "unmapped", "reserved"]):
+                                        if db_status != "reserved":
+                                            update_supabase_bg(db_id, "empty", "available")
+                                        else:
+                                            update_supabase_bg(db_id, "empty", None)
 
                     # Handle deletions
                     for i in range(len(self.slot_ids) - 1, -1, -1):
@@ -476,10 +494,6 @@ class CameraWorker:
                     x1, y1, x2, y2 = [int(v) for v in box.xyxy[0]]
                     cx = int((x1 + x2) / 2)
                     cy = int((y1 + y2) / 2)
-
-                    # Draw EVERY detection in magenta for debugging
-                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (255, 0, 255), 1)
-                    cv2.putText(display_frame, f"c:{cls_id} {conf:.2f}", (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
 
                     if cls_id not in VEHICLE_CLASSES:
                         continue  # Skip non-vehicles for occupancy logic
@@ -549,8 +563,9 @@ class CameraWorker:
                         self.slot_data[i]["last_empty_time"] = time.time()
 
                     now = time.time()
-                    CONFIRM_DELAY = 7.0  # seconds required to confirm state change
-                    TOLERANCE = 3.0      # seconds we allow detection to flicker before resetting the timer
+                    CONFIRM_FULL_DELAY = 7.0   # seconds required to confirm parking
+                    CONFIRM_FREE_DELAY = 20.0  # seconds required to confirm leaving (prevents false frees at night/poor visibility)
+                    TOLERANCE = 5.0      # seconds we allow detection to flicker before resetting the timer
 
                     current_status = self.slot_data[i]["status"]
 
@@ -560,7 +575,7 @@ class CameraWorker:
                                 self.slot_data[i]["pending_full_start"] = now
                             
                             # Check if it has been pending long enough
-                            if now - self.slot_data[i]["pending_full_start"] >= CONFIRM_DELAY:
+                            if now - self.slot_data[i]["pending_full_start"] >= CONFIRM_FULL_DELAY:
                                 self.slot_data[i]["status"] = "FULL"
                                 self.slot_data[i]["time_in"] = now
                                 self.slot_data[i]["pending_full_start"] = None
@@ -590,7 +605,7 @@ class CameraWorker:
                         mins, secs = divmod(elapsed, 60)
                         if self.slot_data[i]["pending_full_start"] is not None:
                             color = (0, 255, 255)  # Yellow = detecting
-                            pending_secs = int(CONFIRM_DELAY - (now - self.slot_data[i]["pending_full_start"]))
+                            pending_secs = int(CONFIRM_FULL_DELAY - (now - self.slot_data[i]["pending_full_start"]))
                             text = f"{slot_label}: DETECTING ({max(0, pending_secs)}s)"
                         else:
                             color = (0, 255, 0)  # Green = free
@@ -598,28 +613,43 @@ class CameraWorker:
 
                     else: # current_status == "FULL"
                         if not is_occupied:
+                            if self.slot_data[i]["pending_full_start"] is not None:
+                                if now - self.slot_data[i]["last_occupied_time"] > TOLERANCE:
+                                    self.slot_data[i]["pending_full_start"] = None
+
                             if self.slot_data[i]["pending_free_start"] is None:
                                 self.slot_data[i]["pending_free_start"] = now
                             
-                            if now - self.slot_data[i]["pending_free_start"] >= CONFIRM_DELAY:
-                                self.slot_data[i]["status"] = "FREE"
-                                self.slot_data[i]["time_in"] = 0
-                                self.slot_data[i]["pending_free_start"] = None
-                                if self.slot_data[i].get("db_status") != "reserved":
-                                    update_supabase_bg(self.slot_ids[i], "empty", "available")
-                                else:
-                                    update_supabase_bg(self.slot_ids[i], "empty", None)
+                            if now - self.slot_data[i]["pending_free_start"] >= CONFIRM_FREE_DELAY:
+                                if self.slot_data[i]["pending_full_start"] is None:
+                                    self.slot_data[i]["status"] = "FREE"
+                                    self.slot_data[i]["time_in"] = 0
+                                    self.slot_data[i]["pending_free_start"] = None
+                                    if self.slot_data[i].get("db_status") != "reserved":
+                                        update_supabase_bg(self.slot_ids[i], "empty", "available")
+                                    else:
+                                        update_supabase_bg(self.slot_ids[i], "empty", None)
                         else:
                             if self.slot_data[i]["pending_free_start"] is not None:
-                                if now - self.slot_data[i]["last_empty_time"] > TOLERANCE:
+                                if self.slot_data[i]["pending_full_start"] is None:
+                                    self.slot_data[i]["pending_full_start"] = now
+                                
+                                if now - self.slot_data[i]["pending_full_start"] >= CONFIRM_FULL_DELAY:
                                     self.slot_data[i]["pending_free_start"] = None
+                                    self.slot_data[i]["pending_full_start"] = None
 
                         elapsed = int(now - self.slot_data[i]["time_in"])
                         mins, secs = divmod(elapsed, 60)
+                        
                         if self.slot_data[i]["pending_free_start"] is not None:
-                            color = (0, 165, 255)  # Orange = clearing
-                            pending_secs = int(CONFIRM_DELAY - (now - self.slot_data[i]["pending_free_start"]))
-                            text = f"{slot_label}: CLEARING ({max(0, pending_secs)}s)"
+                            if self.slot_data[i]["pending_full_start"] is not None:
+                                color = (0, 255, 255)  # Yellow = detecting
+                                pending_secs = int(CONFIRM_FULL_DELAY - (now - self.slot_data[i]["pending_full_start"]))
+                                text = f"{slot_label}: DETECTING ({max(0, pending_secs)}s)"
+                            else:
+                                color = (0, 165, 255)  # Orange = clearing
+                                pending_secs = int(CONFIRM_FREE_DELAY - (now - self.slot_data[i]["pending_free_start"]))
+                                text = f"{slot_label}: CLEARING ({max(0, pending_secs)}s)"
                         else:
                             color = (0, 0, 255)  # Red = occupied
                             text = f"{slot_label}: OCCUPIED ({mins}m {secs}s)"

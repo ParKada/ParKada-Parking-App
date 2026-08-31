@@ -1,5 +1,5 @@
 /*
- * iParkBayan — SplashScreen / Landing
+ * ParKada — SplashScreen / Landing
  * Design: Civic Tech / Filipino Urban Identity
  * Features: Auth Check (Auto-Login), Enhanced Navigation & Smart City Traffic Overlay
  */
@@ -183,7 +183,7 @@ export default function SplashScreen() {
         {/* Footer info */}
         <div className="mt-6 pt-6 border-t border-slate-50">
           <p className="text-center text-[9px] font-bold text-slate-300 uppercase tracking-widest">
-            De La Salle Lipa • IT3C Group 9
+            De La Salle Lipa • IT4C Group 9
           </p>
         </div>
       </div>

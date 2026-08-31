@@ -1,5 +1,5 @@
 /*
- * iParkBayan — LoginPage (Connected to Supabase + Forgot Password + Admin Bouncer)
+ * ParKada — LoginPage (Connected to Supabase + Forgot Password + Admin Bouncer)
  * Design: Civic Tech / Filipino Urban Identity
  */
 import { useState } from "react";
@@ -11,10 +11,12 @@ import { toast } from "sonner";
 import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 
 import { supabase } from "@parkada/shared";
+import { useLanguage } from "@/hooks/useLanguage";
 
-const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
+const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/ParKada-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
 
 export default function LoginPage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   
   // Views: 'login' o 'forgot'
@@ -30,7 +32,7 @@ export default function LoginPage() {
     e.preventDefault();
 
     if (!email || !password) {
-      toast.error("Please enter both email and password.");
+      toast.error(t("Please enter both email and password.", "Pakisuyo enter both email and password."));
       return;
     }
 
@@ -61,7 +63,7 @@ export default function LoginPage() {
         }
 
         // 4. Kung regular user, papasukin!
-        toast.success("Login successful! Welcome back.");
+        toast.success(t("Login successful! Welcome back.", "Login successful! Welcome back."));
         navigate("/home"); 
       }
     } catch (error: any) {
@@ -77,7 +79,7 @@ export default function LoginPage() {
     e.preventDefault();
 
     if (!email) {
-      toast.error("Please enter your email address first.");
+      toast.error(t("Please enter your email address first.", "Pakisuyo enter your email address first."));
       return;
     }
 
@@ -89,7 +91,7 @@ export default function LoginPage() {
 
       if (error) throw error;
 
-      toast.success("Password reset link sent! Please check your inbox.");
+      toast.success(t("Password reset link sent! Please check your inbox.", "Password reset link sent! Pakisuyo check your inbox."));
       setView("login"); 
       
     } catch (error: any) {
