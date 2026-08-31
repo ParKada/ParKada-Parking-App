@@ -48,8 +48,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@parkada/shared";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminParkingSlots() {
+  const { t } = useLanguage();
   const [lots, setLots] = useState<any[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string>("");
   const [slots, setSlots] = useState<any[]>([]);
@@ -123,9 +125,9 @@ export default function AdminParkingSlots() {
       }
 
       setUndoHistory(prev => prev.slice(0, -1));
-      toast.success("Undo successful.");
+      toast.success(t("Undo successful.", "Matagumpay na naibalik."));
     } catch (err: any) {
-      toast.error("Failed to undo.");
+      toast.error(t("Failed to undo.", "Nabigong ibalik."));
     }
   };
 
@@ -216,7 +218,7 @@ export default function AdminParkingSlots() {
         })
       );
       setPendingChanges({});
-      toast.success("All changes saved successfully.");
+      toast.success(t("All changes saved successfully.", "Matagumpay na na-save ang lahat ng pagbabago."));
       setShowSaveModal(false);
 
       if (tabToSwitch) {
@@ -227,7 +229,7 @@ export default function AdminParkingSlots() {
       }
     } catch (e: any) {
       console.error(e);
-      toast.error("Failed to save changes.");
+      toast.error(t("Failed to save changes.", "Nabigong i-save ang mga pagbabago."));
     } finally {
       setIsSaving(false);
     }
@@ -326,7 +328,7 @@ export default function AdminParkingSlots() {
         .eq("id", slotId);
 
       if (error) throw error;
-      toast.success("Camera zone saved to Supabase!");
+      toast.success(t("Camera zone saved to Supabase!", "Na-save na sa Supabase ang camera zone!"));
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -360,7 +362,7 @@ export default function AdminParkingSlots() {
         .eq("id", slotId);
 
       if (error) throw error;
-      toast.success("Camera zone deleted from Supabase!");
+      toast.success(t("Camera zone deleted from Supabase!", "Nabura na sa Supabase ang camera zone!"));
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -454,11 +456,11 @@ export default function AdminParkingSlots() {
         throw dbError;
       }
 
-      toast.success("Photo uploaded successfully!", { id: toastId });
+      toast.success(t("Photo uploaded successfully!", "Matagumpay na nai-upload ang litrato!"), { id: toastId });
       fetchLots(); // refresh data
     } catch (error: any) {
       console.error("Upload error caught:", error);
-      toast.error(`Upload failed: ${error.message}`, { id: toastId });
+      toast.error(t(`Upload failed: ${error.message}`, `Nabigo ang pag-upload: ${error.message}`), { id: toastId });
     }
 
     // Reset the input value so the same file can be selected again if needed
@@ -620,11 +622,11 @@ export default function AdminParkingSlots() {
           setSelectedLotId(data[0].id);
         }
       } else {
-        toast.error("No accredited parking lots found for your account.");
+        toast.error(t("No accredited parking lots found for your account.", "Walang nakitang awtorisadong parking lots para sa account mo."));
       }
     } catch (error: any) {
       console.error("Supabase Error:", error.message);
-      toast.error("Failed to fetch parking lots.");
+      toast.error(t("Failed to fetch parking lots.", "Nabigong kunin ang parking lots."));
     } finally {
       setLoadingLots(false);
     }
@@ -644,7 +646,7 @@ export default function AdminParkingSlots() {
       setSlots(sortedData);
     } catch (error: any) {
       console.error("Supabase Error:", error.message);
-      toast.error("Failed to fetch parking slots.");
+      toast.error(t("Failed to fetch parking slots.", "Nabigong kunin ang parking slots."));
     } finally {
       setRefreshing(false);
     }
@@ -667,7 +669,7 @@ export default function AdminParkingSlots() {
   const handleRefresh = async () => {
     if (selectedLotId) {
       await fetchSlots(selectedLotId);
-      toast.success("Live parking data refreshed!");
+      toast.success(t("Live parking data refreshed!", "Na-refresh na ang parking data!"));
     }
   };
 
@@ -731,7 +733,7 @@ export default function AdminParkingSlots() {
 
       if (error) {
         if (error.code === "23505") {
-          toast.error("This slot label already exists in this lot.");
+          toast.error(t("This slot label already exists in this lot.", "Mayroon nang ganitong slot name."));
         } else {
           throw error;
         }
@@ -747,7 +749,7 @@ export default function AdminParkingSlots() {
       }
 
       toast.success(
-        `Slot ${newSlotLabel} added! Draw it on the camera feed to link it.`
+        t(`Slot ${newSlotLabel} added! Draw it on the camera feed to link it.`, `Naidagdag na ang Slot ${newSlotLabel}! Iguhit ito sa camera para mai-link.`)
       );
       setNewSlotLabel("");
       setNewSlotIsPwd(false);
@@ -755,7 +757,7 @@ export default function AdminParkingSlots() {
       setIsAdding(false);
     } catch (error: any) {
       console.error("Supabase Error adding slot:", error.message || error);
-      toast.error(`Error: ${error.message || "Failed to add new slot"}`);
+      toast.error(t(`Error: ${error.message || "Failed to add new slot"}`, `Error: ${error.message || "Nabigong idagdag ang slot"}`));
     }
   };
 
@@ -779,7 +781,7 @@ export default function AdminParkingSlots() {
 
       if (error) {
         if (error.code === "23505") {
-          toast.error("This slot name already exists.");
+          toast.error(t("This slot name already exists.", "Mayroon nang ganitong slot name."));
         } else throw error;
         return;
       }
@@ -793,11 +795,11 @@ export default function AdminParkingSlots() {
           { action: "update", slotId: editingSlot.id, oldData: { ...oldSlot } },
         ]);
       }
-      toast.success("Slot updated!");
+      toast.success(t("Slot updated!", "Na-update ang slot!"));
       setEditingSlot(null);
     } catch (err: any) {
       console.error("Supabase Error editing slot:", err.message || err);
-      toast.error(`Error: ${err.message || "Failed to update slot"}`);
+      toast.error(t(`Error: ${err.message || "Failed to update slot"}`, `Error: ${err.message || "Nabigong i-update ang slot"}`));
     }
   };
 
@@ -829,10 +831,10 @@ export default function AdminParkingSlots() {
     slotStatus: string
   ) => {
     if (slotStatus === "occupied") {
-      toast.error("Cannot delete an occupied slot.");
+      toast.error(t("Cannot delete an occupied slot.", "Hindi mabubura ang okupadong slot."));
       return;
     }
-    if (!window.confirm(`Are you sure you want to delete slot ${slotLabel}?`))
+    if (!window.confirm(t(`Are you sure you want to delete slot ${slotLabel}?`, `Sigurado ka bang gusto mong burahin ang slot na ${slotLabel}?`)))
       return;
 
     try {
@@ -843,7 +845,7 @@ export default function AdminParkingSlots() {
         .eq("id", slotId);
       if (error) throw error;
 
-      toast.success(`Slot ${slotLabel} deleted.`);
+      toast.success(t(`Slot ${slotLabel} deleted.`, `Nabura na ang slot ${slotLabel}.`));
       setSlots(slots.filter(s => s.id !== slotId));
       if (oldSlot) {
         setUndoHistory(prev => [
@@ -853,7 +855,7 @@ export default function AdminParkingSlots() {
       }
     } catch (error: any) {
       console.error("Supabase Error:", error.message || error);
-      toast.error(`Error deleting slot: ${error.message || "Failed"}`);
+      toast.error(t(`Error deleting slot: ${error.message || "Failed"}`, `Error sa pagbura: ${error.message || "Nabigo"}`));
     }
   };
 
@@ -868,14 +870,14 @@ export default function AdminParkingSlots() {
     const slotsOnFloor = slots.filter(s => (s.floor_index || 0) === floorIndex);
     if (slotsOnFloor.length > 0) {
       toast.error(
-        "Cannot delete a floor that has slots. Please delete the slots first."
+        t("Cannot delete a floor that has slots. Please delete the slots first.", "Hindi pwedeng burahin ang palapag na may slots. Burahin muna ang mga slots.")
       );
       return;
     }
 
     if (
       !window.confirm(
-        `Are you sure you want to delete ${currentFloors[floorIndex]}?`
+        t(`Are you sure you want to delete ${currentFloors[floorIndex]}?`, `Sigurado ka bang buburahin ang ${currentFloors[floorIndex]}?`)
       )
     )
       return;
@@ -896,38 +898,38 @@ export default function AdminParkingSlots() {
         )
       );
       setSelectedFloorIndex(0);
-      toast.success("Floor deleted successfully.");
+      toast.success(t("Floor deleted successfully.", "Matagumpay na nabura ang palapag."));
     } catch (error: any) {
       console.error("Failed to delete floor", error.message || error);
-      toast.error(`Error deleting floor: ${error.message || "Failed"}`);
+      toast.error(t(`Error deleting floor: ${error.message || "Failed"}`, `Error sa pagbura ng palapag: ${error.message || "Nabigo"}`));
     }
   };
 
-  const handleUpdateSlotCoordinates = async (
+  const handleUpdateSlotCoordinates = (
     slotId: string,
     updates: Partial<any>
   ) => {
     if (userRole !== "superadmin" && userRole !== "super_admin") return;
-    try {
-      const oldSlot = slots.find(s => s.id === slotId);
-      const { error } = await supabase
-        .from("parking_slots")
-        .update(updates)
-        .eq("id", slotId);
-      if (error) throw error;
-      setSlots(prev =>
-        prev.map(s => (s.id === slotId ? { ...s, ...updates } : s))
-      );
-      if (oldSlot) {
-        setUndoHistory(prev => [
-          ...prev,
-          { action: "update", slotId, oldData: { ...oldSlot } },
-        ]);
-      }
-    } catch (e: any) {
-      console.error("Failed to update layout", e.message);
-      toast.error("Failed to save layout change.");
-    }
+    
+    // Optimistic UI update immediately
+    setSlots(prev =>
+      prev.map(s => (s.id === slotId ? { ...s, ...updates } : s))
+    );
+
+    const slotLabel = slots.find(s => s.id === slotId)?.label || "Slot";
+    
+    // Buffer changes instead of sending directly to Supabase to prevent notification spam
+    setPendingChanges(prev => {
+      const existing = prev[slotId] || {};
+      return {
+        ...prev,
+        [slotId]: {
+          ...existing,
+          ...updates,
+          _label: existing._label || slotLabel,
+        },
+      };
+    });
   };
 
   const handleRenameFloor = async () => {
@@ -950,9 +952,9 @@ export default function AdminParkingSlots() {
         )
       );
       setIsRenamingFloor(false);
-      toast.success(`Renamed floor to: ${renameFloorName}`);
+      toast.success(t(`Renamed floor to: ${renameFloorName}`, `Pinalitan ang pangalan ng palapag sa: ${renameFloorName}`));
     } catch (e: any) {
-      toast.error(e.message || "Failed to rename floor");
+      toast.error(t(e.message || "Failed to rename floor", e.message || "Nabigong palitan ang pangalan"));
     }
   };
 
@@ -975,10 +977,10 @@ export default function AdminParkingSlots() {
       setNewFloorName("");
       setIsAddingFloor(false);
       setSelectedFloorIndex(updatedFloors.length - 1);
-      toast.success(`Added floor: ${newFloorName}`);
+      toast.success(t(`Added floor: ${newFloorName}`, `Naidagdag ang palapag: ${newFloorName}`));
     } catch (e: any) {
       console.error("Failed to add floor", e.message);
-      toast.error("Failed to add floor.");
+      toast.error(t("Failed to add floor.", "Nabigong magdagdag ng palapag."));
     }
   };
 
@@ -1612,6 +1614,17 @@ export default function AdminParkingSlots() {
                                 Add Slot
                               </Button>
                             )}
+                          {Object.keys(pendingChanges).length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-8 px-3 text-xs font-bold transition-colors rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg animate-in fade-in zoom-in"
+                              onClick={handleSavePendingChanges}
+                              disabled={isSaving}
+                            >
+                              {isSaving ? t("Saving...", "Nagsa-save...") : t("Save Layout Changes", "I-save ang Map Layout")}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

@@ -14,10 +14,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { 
   Banknote, Clock, Save, BadgePercent, CalendarClock, CreditCard, 
-  Eye, EyeOff, ShieldAlert, Ban, AlertCircle, Car, Settings, Activity, MapPin, Timer
+  Eye, EyeOff, ShieldAlert, Ban, AlertCircle, Car, Settings, Activity, MapPin, Timer, Languages
 } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminSettings() {
+  const { language, setLanguage, t } = useLanguage();
   const adminRole = localStorage.getItem("admin_role") || "manager";
   const [isSaving, setIsSaving] = useState(false);
   const [adminLotId, setAdminLotId] = useState<string | null>(null);
@@ -153,9 +155,9 @@ export default function AdminSettings() {
           updated_at: new Date().toISOString()
         });
         if (error) throw error;
-        toast.success("Global rules saved successfully!");
+        toast.success(t("Global rules saved successfully!", "Matagumpay na nai-save ang global rules!"));
       } catch (err: any) {
-        toast.error("Failed to save global rules");
+        toast.error(t("Failed to save global rules", "Nabigong i-save ang global rules"));
       } finally {
         setIsSaving(false);
       }
@@ -163,7 +165,7 @@ export default function AdminSettings() {
     }
 
     if (!adminLotId) {
-      toast.error("No assigned lot found.");
+      toast.error(t("No assigned lot found.", "Walang nakitang assigned na parking lot."));
       setIsSaving(false);
       return;
     }
@@ -188,10 +190,10 @@ export default function AdminSettings() {
       }).eq('id', adminLotId);
       
       if (error) throw error;
-      toast.success("Lot configuration saved successfully!");
+      toast.success(t("Lot configuration saved successfully!", "Matagumpay na nai-save ang lot configuration!"));
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to save settings");
+      toast.error(t(err.message || "Failed to save settings", err.message || "Nabigong i-save ang settings"));
     } finally {
       setIsSaving(false);
     }
@@ -356,6 +358,32 @@ export default function AdminSettings() {
                   <div className="flex items-center justify-between pt-2 border-t">
                     <div><p className="text-sm font-bold">Online Payments</p><p className="text-[10px] text-muted-foreground">If disabled, reservations are cash‑only</p></div>
                     <Switch checked={onlinePaymentsEnabled} onCheckedChange={setOnlinePaymentsEnabled} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Language Preferences */}
+              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6">
+                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
+                    <div className="flex bg-slate-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => setLanguage("en")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", language === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLanguage("tl")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", language === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        Tagalog
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
