@@ -11,6 +11,7 @@ import { supabase } from "@parkada/shared";
 import { toPng, toBlob } from "html-to-image";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
+import { useLanguage } from "@/hooks/useLanguage";
 import { 
   MapPin, 
   Clock, 
@@ -33,6 +34,7 @@ const formatTimeFromISO = (isoString: string) => {
 };
 
 export default function DigitalReceiptPage() {
+  const { t } = useLanguage();
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [res, setRes] = useState<any>(null);
@@ -107,7 +109,7 @@ export default function DigitalReceiptPage() {
   const handleSaveImage = async () => {
     if (!ticketRef.current) return;
     
-    toast.loading("Saving ticket to gallery...");
+    toast.loading(t("Saving ticket to gallery...", "Saving ticket to gallery..."));
     try {
       const dataUrl = await toPng(ticketRef.current, { 
         pixelRatio: 3,
@@ -120,18 +122,18 @@ export default function DigitalReceiptPage() {
       link.click();
       
       toast.dismiss();
-      toast.success("Ticket saved successfully!");
+      toast.success(t("Ticket saved successfully!", "Ticket saved nang matagumpay!"));
     } catch (error) {
       toast.dismiss();
       console.error("Save Error:", error);
-      toast.error("Failed to save image.");
+      toast.error(t("Failed to save image.", "Nabigong save image."));
     }
   };
 
   const handleShare = async () => {
     if (!ticketRef.current) return;
     
-    const loadingToast = toast.loading("Opening share menu...");
+    const loadingToast = toast.loading(t("Opening share menu...", "Opening share menu..."));
     
     try {
       const blob = await toBlob(ticketRef.current, { 
@@ -159,7 +161,7 @@ export default function DigitalReceiptPage() {
       if (error.name === 'AbortError') return;
       console.error("Share error:", error);
       handleSaveImage();
-      toast.info("Share not supported on this browser. Saving image instead.");
+      toast.info(t("Share not supported on this browser. Saving image instead.", "Share not supported on this browser. Saving image instead."));
     }
   };
 

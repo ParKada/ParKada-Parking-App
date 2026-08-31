@@ -93,7 +93,7 @@ export default function AdminParkingSlots() {
 
   const handleUndo = async () => {
     if (undoHistory.length === 0) {
-      toast.info("Nothing to undo.");
+      toast.info(t("Nothing to undo.", "Nothing to undo."));
       return;
     }
     const lastAction = undoHistory[undoHistory.length - 1];
@@ -476,7 +476,7 @@ export default function AdminParkingSlots() {
     )
       return;
 
-    const toastId = toast.loading("Deleting photo...");
+    const toastId = toast.loading(t("Deleting photo...", "Deleting photo..."));
     try {
       const currentOthers = activeLot.other_photos || [];
       const newOthers = currentOthers.filter((u: string) => u !== urlToDelete);
@@ -488,11 +488,11 @@ export default function AdminParkingSlots() {
 
       if (dbError) throw dbError;
 
-      toast.success("Photo deleted", { id: toastId });
+      toast.success(t("Photo deleted", "Photo deleted"), { id: toastId });
       fetchLots();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Delete failed: ${error.message}`, { id: toastId });
+      toast.error(t(`Delete failed: ${error.message}`, `Delete failed: ${error.message}`), { id: toastId });
     }
   };
 
@@ -507,7 +507,7 @@ export default function AdminParkingSlots() {
     )
       return;
 
-    const toastId = toast.loading("Deleting photo...");
+    const toastId = toast.loading(t("Deleting photo...", "Deleting photo..."));
     try {
       const updateField =
         type === "front_view" ? "front_view_url" : "business_permit_url";
@@ -518,11 +518,11 @@ export default function AdminParkingSlots() {
 
       if (dbError) throw dbError;
 
-      toast.success("Photo deleted", { id: toastId });
+      toast.success(t("Photo deleted", "Photo deleted"), { id: toastId });
       fetchLots();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Delete failed: ${error.message}`, { id: toastId });
+      toast.error(t(`Delete failed: ${error.message}`, `Delete failed: ${error.message}`), { id: toastId });
     }
   };
 
@@ -683,7 +683,7 @@ export default function AdminParkingSlots() {
       return;
 
     if (!newSlotLabel.trim()) {
-      toast.error("Please enter a slot label.");
+      toast.error(t("Please enter a slot label.", "Pakisuyo enter a slot label."));
       return;
     }
 
@@ -863,7 +863,7 @@ export default function AdminParkingSlots() {
     if (!activeLot) return;
     const currentFloors = activeLot.floors || ["Main Floor"];
     if (currentFloors.length <= 1) {
-      toast.error("Cannot delete the only floor.");
+      toast.error(t("Cannot delete the only floor.", "Cannot delete the only floor."));
       return;
     }
 

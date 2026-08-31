@@ -14,10 +14,12 @@ import {
 import { Download, TrendingUp, TrendingDown, MapPin, Clock, Calendar, FileText, Camera, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const COLORS = ["#0f172a", "#10b981", "#f59e0b"];
 
 export default function AdminReports() {
+  const { t } = useLanguage();
   const [stats, setStats] = useState<any[]>([]);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [hourlyData, setHourlyData] = useState<any[]>([]);
@@ -116,7 +118,7 @@ export default function AdminReports() {
       processStats(reservationsData || [], walkInData || [], lotsData || []);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to load analytics data.");
+      toast.error(t("Failed to load analytics data.", "Nabigong load analytics data."));
     } finally {
       setIsLoading(false);
     }
@@ -386,7 +388,7 @@ export default function AdminReports() {
     }
 
     if (!content) {
-      toast.error("No content to export.");
+      toast.error(t("No content to export.", "No content to export."));
       return;
     }
 
@@ -395,7 +397,7 @@ export default function AdminReports() {
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      toast.error("Popup blocked. Please allow popups for this site.");
+      toast.error(t("Popup blocked. Please allow popups for this site.", "Popup blocked. Pakisuyo allow popups for this site."));
       return;
     }
 
@@ -464,7 +466,7 @@ export default function AdminReports() {
     }
 
     if (exportData.length === 0) {
-      toast.error("No data available to export.");
+      toast.error(t("No data available to export.", "No data available to export."));
       return;
     }
 
@@ -482,7 +484,7 @@ export default function AdminReports() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success(`${filename} downloaded successfully!`);
+    toast.success(t(`${filename} downloaded successfully!`, `${filename} downloaded nang matagumpay!`));
   };
 
   const totalRevenue = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineRevenue, 0);

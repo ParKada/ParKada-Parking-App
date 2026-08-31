@@ -15,6 +15,7 @@ import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
 import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer, List } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface WalkInRecord {
   id: string;
@@ -32,6 +33,7 @@ interface WalkInRecord {
 }
 
 export default function AdminWalkInRecords() {
+  const { t } = useLanguage();
   const [slots, setSlots] = useState<{ id: string; label: string; lot_name: string; lot_rate: number }[]>([]);
   const [records, setRecords] = useState<WalkInRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +82,7 @@ export default function AdminWalkInRecords() {
       }));
       setSlots(formatted);
     } else {
-      toast.error("Failed to load walk‑in slots");
+      toast.error(t("Failed to load walk‑in slots", "Nabigong load walk‑in slots"));
     }
   };
 
@@ -125,7 +127,7 @@ export default function AdminWalkInRecords() {
 
       const { data: recordsData, error: recordsError } = await query;
       if (recordsError) {
-        toast.error(`Fetch error: ${recordsError.message}`);
+        toast.error(t(`Fetch error: ${recordsError.message}`, `Fetch error: ${recordsError.message}`));
         throw recordsError;
       }
 
@@ -158,7 +160,7 @@ export default function AdminWalkInRecords() {
       setRecords(combined);
     } catch (err: any) {
       console.error(err);
-      toast.error(`Failed to load records: ${err.message}`);
+      toast.error(t(`Failed to load records: ${err.message}`, `Nabigong load records: ${err.message}`));
     } finally {
       setLoading(false);
     }
@@ -304,7 +306,7 @@ export default function AdminWalkInRecords() {
       printWindow.document.close();
       printWindow.print();
     } else {
-      toast.error('Unable to open print window. Please allow pop-ups.');
+      toast.error(t('Unable to open print window. Please allow pop-ups.', 'Unable to open print window. Pakisuyo allow pop-ups.'));
     }
   };
 
@@ -312,11 +314,11 @@ export default function AdminWalkInRecords() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.plate_number || !form.amount_paid) {
-      toast.error("Please fill in plate number and amount");
+      toast.error(t("Please fill in plate number and amount", "Pakisuyo fill in plate number and amount"));
       return;
     }
     if (!guardId) {
-      toast.error("Guard identity not found");
+      toast.error(t("Guard identity not found", "Guard identity not found"));
       return;
     }
     setSubmitting(true);
@@ -335,7 +337,7 @@ export default function AdminWalkInRecords() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Walk‑in recorded");
+      toast.success(t("Walk‑in recorded", "Walk‑in recorded"));
       setForm({ plate_number: "", amount_paid: "", notes: "" });
       setShowForm(false);
       fetchRecords();
@@ -361,7 +363,7 @@ export default function AdminWalkInRecords() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success(`Checked out at ${new Date(exitTime).toLocaleTimeString()}. Overtime +₱${overtimeFee}`);
+      toast.success(t(`Checked out at ${new Date(exitTime).toLocaleTimeString()}. Overtime +₱${overtimeFee}`, `Checked out at ${new Date(exitTime).toLocaleTimeString()}. Overtime +₱${overtimeFee}`));
       fetchRecords();
     }
     setCheckoutConfirm(null);

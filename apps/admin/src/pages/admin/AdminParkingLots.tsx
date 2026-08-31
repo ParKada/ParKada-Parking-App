@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { RefreshCw, Building2, Plus, Trash2, MapPin, Tag, Ban, CheckCircle2, Award, XCircle, Smartphone, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/useLanguage";
 
 // ==================== TypeScript Interface ====================
 interface ParkingLot {
@@ -30,6 +31,7 @@ interface ParkingLot {
 }
 
 export default function AdminParkingLots() {
+  const { t } = useLanguage();
   const [, setLocation] = useLocation();
   const [lots, setLots] = useState<ParkingLot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,7 +81,7 @@ export default function AdminParkingLots() {
       setLots(sorted);
     } catch (error: any) {
       console.error("Fetch Error:", error.message);
-      toast.error("Failed to fetch parking lots.");
+      toast.error(t("Failed to fetch parking lots.", "Nabigong fetch parking lots."));
     } finally {
       setIsLoading(false);
     }
@@ -96,20 +98,20 @@ export default function AdminParkingLots() {
 
       if (error) throw error;
       if (!data || data.length === 0) {
-        toast.error("Access Denied: You do not have permission to update parking lots.");
+        toast.error(t("Access Denied: You do not have permission to update parking lots.", "Access Denied: You do not have permission to update parking lots."));
         return;
       }
-      toast.success(`${name} is now ${newStatus}`);
+      toast.success(t(`${name} is now ${newStatus}`, `${name} is now ${newStatus}`));
       fetchLots(true);
     } catch (err: any) {
-      toast.error("Failed to update status.");
+      toast.error(t("Failed to update status.", "Nabigong update status."));
     }
   };
 
   const handleAddLot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newAddress.trim()) {
-      toast.error("Please fill in the name and address.");
+      toast.error(t("Please fill in the name and address.", "Pakisuyo fill in the name and address."));
       return;
     }
 
@@ -130,7 +132,7 @@ export default function AdminParkingLots() {
       ]);
 
       if (error) throw error;
-      toast.success("Parking Lot added successfully!");
+      toast.success(t("Parking Lot added successfully!", "Parking Lot added nang matagumpay!"));
       setNewName("");
       setNewAddress("");
       setNewType("private");
@@ -161,7 +163,7 @@ export default function AdminParkingLots() {
         .eq("lot_id", id);
 
       if (slotCount && slotCount > 0) {
-        toast.error(`Bawal burahin. May ${slotCount} slots pa sa loob ng building na ito.`);
+        toast.error(t(`Bawal burahin. May ${slotCount} slots pa sa loob ng building na ito.`, `Bawal burahin. May ${slotCount} slots pa sa loob ng building na ito.`));
         return;
       }
 
@@ -171,21 +173,21 @@ export default function AdminParkingLots() {
         .eq("lot_id", id);
 
       if (historyCount && historyCount > 0) {
-        toast.error("Bawal burahin! May transaction history na ang location na ito. I-suspend mo na lang.");
+        toast.error(t("Bawal burahin! May transaction history na ang location na ito. I-suspend mo na lang.", "Bawal burahin! May transaction history na ang location na ito. I-suspend mo na lang."));
         return;
       }
 
       const { data, error } = await supabase.from("parking_lots").delete().eq("id", id).select();
       if (error) {
-        toast.error("Database restriction: Hindi mabura ang location.");
+        toast.error(t("Database restriction: Hindi mabura ang location.", "Database restriction: Hindi mabura ang location."));
       } else if (!data || data.length === 0) {
-        toast.error("Access Denied: You do not have permission to delete parking lots.");
+        toast.error(t("Access Denied: You do not have permission to delete parking lots.", "Access Denied: You do not have permission to delete parking lots."));
       } else {
-        toast.success(`${name} deleted successfully!`);
+        toast.success(t(`${name} deleted successfully!`, `${name} deleted nang matagumpay!`));
         fetchLots(true);
       }
     } catch (err: any) {
-      toast.error("An unexpected error occurred.");
+      toast.error(t("An unexpected error occurred.", "An unexpected error occurred."));
     }
   };
 
@@ -207,11 +209,11 @@ export default function AdminParkingLots() {
         
       if (error) throw error;
       
-      toast.success(`${name} is now ${newMaintenanceMode ? "Hidden from App" : "Deployed to App"}`);
+      toast.success(t(`${name} is now ${newMaintenanceMode ? "Hidden from App" : "Deployed to App"}`, `${name} is now ${newMaintenanceMode ? "Hidden from App" : "Deployed to App"}`));
       fetchLots();
     } catch (error) {
       console.error(error);
-      toast.error(`Failed to ${action} lot.`);
+      toast.error(t(`Failed to ${action} lot.`, `Nabigong ${action} lot.`));
     }
   };
 
@@ -229,11 +231,11 @@ export default function AdminParkingLots() {
         
       if (error) throw error;
       
-      toast.success(`${name} is now ${newStatus ? "Accredited" : "Unaccredited"}`);
+      toast.success(t(`${name} is now ${newStatus ? "Accredited" : "Unaccredited"}`, `${name} is now ${newStatus ? "Accredited" : "Unaccredited"}`));
       fetchLots();
     } catch (error) {
       console.error(error);
-      toast.error(`Failed to ${action} lot.`);
+      toast.error(t(`Failed to ${action} lot.`, `Nabigong ${action} lot.`));
     }
   };
 

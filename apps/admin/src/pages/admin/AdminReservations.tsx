@@ -13,6 +13,7 @@ import { RefreshCw, CheckCircle, XCircle, Clock, Search, CalendarDays, AlertTria
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const PENALTY_RATE_PER_HOUR = 50;
 const PAGE_SIZE = 20;
@@ -38,6 +39,7 @@ const format12HourTime = (dateInput: Date | string | null): string => {
 };
 
 export default function AdminReservations() {
+  const { t } = useLanguage();
   const [reservations, setReservations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -146,7 +148,7 @@ export default function AdminReservations() {
       setHasMore((data?.length || 0) === PAGE_SIZE);
       if (!reset) setPage(prev => prev + 1);
     } catch (error: any) {
-      toast.error("Failed to fetch reservations.");
+      toast.error(t("Failed to fetch reservations.", "Nabigong fetch reservations."));
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -198,7 +200,7 @@ export default function AdminReservations() {
       toast.success(fine > 0 ? `Completed with ₱${fine} fine!` : `Marked as ${newStatus}`);
       fetchReservations(true);
     } catch (error: any) {
-      toast.error("Update failed.");
+      toast.error(t("Update failed.", "Update failed."));
     }
   };
 
@@ -313,10 +315,10 @@ export default function AdminReservations() {
         printWindow.document.close();
         printWindow.print();
       } else {
-        toast.error('Unable to open print window. Please allow pop-ups.');
+        toast.error(t('Unable to open print window. Please allow pop-ups.', 'Unable to open print window. Pakisuyo allow pop-ups.'));
       }
     } catch (err: any) {
-      toast.error("Failed to prepare report.");
+      toast.error(t("Failed to prepare report.", "Nabigong prepare report."));
       console.error(err);
     }
   };

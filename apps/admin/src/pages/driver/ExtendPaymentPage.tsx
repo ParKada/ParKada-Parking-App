@@ -6,8 +6,10 @@ import { supabase } from "@parkada/shared";
 import { toast } from 'sonner';
 import { CheckCircle2, Wallet, Loader2, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function ExtendPaymentPage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   const [amount, setAmount] = useState<string | null>(null);
   const [hours, setHours] = useState<string | null>(null);
@@ -92,11 +94,11 @@ export default function ExtendPaymentPage() {
         sessionStorage.removeItem('extendFee');
 
         setSuccess(true);
-        toast.success('Extension successful!');
+        toast.success(t('Extension successful!', 'Extension successful!'));
         setTimeout(() => navigate('/home'), 2000);
       } catch (err: any) {
         console.error(err);
-        toast.error('Payment failed: ' + err.message);
+        toast.error(t('Payment failed: ', 'Payment failed: ') + err.message);
         setProcessing(false);
       }
     }, 2000);

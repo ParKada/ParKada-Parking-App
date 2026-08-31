@@ -21,6 +21,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 export default function AdminSettings() {
   const { language, setLanguage, t } = useLanguage();
   const adminRole = localStorage.getItem("admin_role") || "manager";
+  const [localLanguage, setLocalLanguage] = useState(language);
   const [isSaving, setIsSaving] = useState(false);
   const [adminLotId, setAdminLotId] = useState<string | null>(null);
   
@@ -147,7 +148,21 @@ export default function AdminSettings() {
     
     if (adminRole === "super_admin") {
       try {
-        const { error } = await supabase.from('system_settings').upsert({
+        // Use service key to bypass RLS for system_settings (since this is restricted to super_admin anyway)
+        const { createClient } = await import('@supabase/supabase-js');
+        const adminSupabase = createClient(
+          import.meta.env.VITE_SUPABASE_URL,
+          import.meta.env.VITE_SUPABASE_SERVICE_KEY,
+          {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false
+            }
+          }
+        );
+
+        const { error } = await adminSupabase.from('system_settings').upsert({
           id: 1,
           max_concurrent_reservations: parseInt(maxConcurrentReservations),
           max_vehicles_per_user: parseInt(maxVehiclesPerUser),
@@ -155,9 +170,11 @@ export default function AdminSettings() {
           updated_at: new Date().toISOString()
         });
         if (error) throw error;
+        setLanguage(localLanguage);
         toast.success(t("Global rules saved successfully!", "Matagumpay na nai-save ang global rules!"));
       } catch (err: any) {
-        toast.error(t("Failed to save global rules", "Nabigong i-save ang global rules"));
+        console.error("Global Rules Save Error:", err);
+        toast.error(t(`Failed to save global rules: ${err.message || err.details || JSON.stringify(err)}`, `Nabigong i-save ang global rules: ${err.message || err.details || JSON.stringify(err)}`));
       } finally {
         setIsSaving(false);
       }
@@ -190,6 +207,7 @@ export default function AdminSettings() {
       }).eq('id', adminLotId);
       
       if (error) throw error;
+      setLanguage(localLanguage);
       toast.success(t("Lot configuration saved successfully!", "Matagumpay na nai-save ang lot configuration!"));
     } catch (err: any) {
       console.error(err);
@@ -212,7 +230,7 @@ export default function AdminSettings() {
 
         <form onSubmit={handleSaveSettings}>
           {adminRole === "super_admin" ? (
-            <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-2xl mx-auto">
+            <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto">
               <div className="flex items-center gap-3"><div className="bg-violet-500/10 p-2 rounded-xl text-violet-600"><CalendarClock size={20} /></div><h3 className="font-bold text-lg">Global Reservation Limits</h3></div>
               
               <div className="space-y-5">
@@ -225,7 +243,7 @@ export default function AdminSettings() {
                   <div className="w-24"><Input type="number" className="h-12 rounded-xl text-center" value={maxVehiclesPerUser} onChange={(e) => setMaxVehiclesPerUser(e.target.value)} required /></div>
                 </div>
               </div>
-              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-2xl mx-auto mt-6">
+              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto mt-6">
                 <div className="flex items-center gap-3"><div className="bg-amber-500/10 p-2 rounded-xl text-amber-600"><Settings size={20} /></div><h3 className="font-bold text-lg">System Toggles</h3></div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -362,31 +380,7 @@ export default function AdminSettings() {
                 </div>
               </div>
 
-              {/* Language Preferences */}
-              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6">
-                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
-                    <div className="flex bg-slate-100 rounded-lg p-1">
-                      <button
-                        type="button"
-                        onClick={() => setLanguage("en")}
-                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", language === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
-                      >
-                        English
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLanguage("tl")}
-                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", language === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
-                      >
-                        Tagalog
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+
 
               {/* Payment Gateway (mock) */}
               <div className="bg-slate-50 rounded-3xl border p-6 space-y-4">
@@ -400,8 +394,34 @@ export default function AdminSettings() {
             </div>
           )}
 
+          {/* Language Preferences */}
+          <div className="mt-8 bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto">
+            <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
+                <div className="flex bg-slate-100 rounded-lg p-1">
+                  <button
+                    type="button"
+                    onClick={() => setLocalLanguage("en")}
+                    className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocalLanguage("tl")}
+                    className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                  >
+                    Tagalog
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Save Button */}
-          <div className="mt-8 bg-white border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+          <div className="mt-8 bg-white border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm max-w-3xl mx-auto">
             <div className="flex items-center gap-4 text-slate-600">
               <div className="bg-slate-100 p-3 rounded-full"><ShieldAlert size={24} /></div>
               <div>

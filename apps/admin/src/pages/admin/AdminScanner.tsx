@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Html5Qrcode } from "html5-qrcode";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const isUUID = (uuid: string) => {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
@@ -41,6 +42,7 @@ const formatTimeRange = (start: string | null, end: string | null) => {
 };
 
 export default function AdminScanner() {
+  const { t } = useLanguage();
   const [managerLotId, setManagerLotId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -216,7 +218,7 @@ export default function AdminScanner() {
   const startScanner = async () => {
     const element = document.getElementById("qr-reader");
     if (!element) {
-      toast.error("Scanner element not found");
+      toast.error(t("Scanner element not found", "Scanner element not found"));
       return false;
     }
     if (scannerRef.current) {
@@ -288,11 +290,11 @@ export default function AdminScanner() {
     } catch (err: any) {
       console.error("Camera permission error:", err);
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        toast.error("Camera permission denied. Please allow camera access in your browser settings.");
+        toast.error(t("Camera permission denied. Please allow camera access in your browser settings.", "Camera permission denied. Pakisuyo allow camera access in your browser settings."));
       } else if (err.name === "NotFoundError") {
-        toast.error("No camera found on this device.");
+        toast.error(t("No camera found on this device.", "No camera found on this device."));
       } else {
-        toast.error("Could not access camera: " + (err.message || "Unknown error"));
+        toast.error(t("Could not access camera: ", "Could not access camera: ") + (err.message || "Unknown error"));
       }
       setCameraError(err.message || "Camera access failed");
     }
@@ -301,7 +303,7 @@ export default function AdminScanner() {
   const handleManualSearch = async (val: string) => {
     if (!val) return;
     if (!managerLotId) {
-      toast.error("Parking Lot not assigned to your account.");
+      toast.error(t("Parking Lot not assigned to your account.", "Parking Lot not assigned to your account."));
       return;
     }
     setIsLoading(true);
@@ -326,18 +328,18 @@ export default function AdminScanner() {
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        toast.error("No active or pending booking found.");
+        toast.error(t("No active or pending booking found.", "No active or pending booking found."));
         setBookingData(null);
       } else {
         const priorityBooking = data.find(b => b.status.toLowerCase() === 'active') ||
                                 data.find(b => ['pending', 'booked', 'reserved'].includes(b.status.toLowerCase())) ||
                                 data[0];
         setBookingData(priorityBooking);
-        toast.success(`Booking found for ${priorityBooking.plate_number}!`);
+        toast.success(t(`Booking found for ${priorityBooking.plate_number}!`, `Booking found for ${priorityBooking.plate_number}!`));
       }
     } catch (err: any) {
       console.error("Search error:", err);
-      toast.error("Search failed.");
+      toast.error(t("Search failed.", "Search failed."));
     } finally {
       setIsLoading(false);
     }
@@ -365,12 +367,12 @@ export default function AdminScanner() {
       await supabase.from("parking_slots").update({ status: "available" }).eq("id", bookingData.parking_slots.id);
     }
     // On entrance (active), do NOT change slot status – keep it 'reserved'
-    toast.success(`Successfully updated to ${newStatus}!`);
+    toast.success(t(`Successfully updated to ${newStatus}!`, `Successfully updated to ${newStatus}!`));
     await Promise.all([fetchExpectedArrivals(), fetchParkedVehicles(), fetchHistory()]);
     setBookingData((prev: any) => ({ ...prev, status: newStatus }));
   } catch (err: any) {
     console.error("Update error:", err);
-    toast.error("Update failed: " + (err.message || "Unknown error"));
+    toast.error(t("Update failed: ", "Update failed: ") + (err.message || "Unknown error"));
   } finally {
     setIsLoading(false);
   }

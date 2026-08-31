@@ -10,8 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import AdminLayout from "@/components/AdminLayout";
 import { Rnd } from "react-rnd";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminPartnerApplications() {
+  const { t } = useLanguage();
   const [applications, setApplications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -44,6 +46,8 @@ export default function AdminPartnerApplications() {
       let query = supabase
         .from('partner_applications')
         .select('*')
+        .not('user_id', 'is', null) // Only show applications with a linked account
+        .neq('status', 'draft') // Filter out junk/draft entries
         .order('created_at', { ascending: false });
 
       if (filter !== 'all') {
@@ -58,7 +62,7 @@ export default function AdminPartnerApplications() {
       if (error) throw error;
       setApplications(data || []);
     } catch (err: any) {
-      toast.error('Failed to load applications: ' + err.message);
+      toast.error(t('Failed to load applications: ', 'Nabigong load applications: ') + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -81,17 +85,17 @@ export default function AdminPartnerApplications() {
         notes: extraData.review_notes || extraData.rejection_reason || `Status updated to ${newStatus}`
       });
 
-      toast.success(`Application status updated to ${newStatus}`);
+      toast.success(t(`Application status updated to ${newStatus}`, `Application status updated to ${newStatus}`));
       fetchApplications();
       setIsViewModalOpen(false);
     } catch (err: any) {
-      toast.error('Update failed: ' + err.message);
+      toast.error(t('Update failed: ', 'Update failed: ') + err.message);
     }
   };
 
   const handleApprove = async () => {
     if (!adminEmail || !adminPassword) {
-      return toast.error("Please provide an email and temporary password.");
+      return toast.error(t("Please provide an email and temporary password.", "Pakisuyo provide an email and temporary password."));
     }
     
     setIsApproving(true);
@@ -122,7 +126,7 @@ export default function AdminPartnerApplications() {
 
       if (error) throw error;
       
-      toast.success("Account created and application approved!");
+      toast.success(t("Account created and application approved!", "Account created and application approved!"));
       setIsApproveModalOpen(false);
       setIsViewModalOpen(false);
       fetchApplications();

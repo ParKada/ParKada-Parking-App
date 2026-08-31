@@ -21,8 +21,10 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@parkada/shared";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function ReservationConfirmPage() {
+  const { t } = useLanguage();
   const params = useParams<{ slotId: string }>();
   const [, navigate] = useLocation();
   
@@ -134,7 +136,7 @@ export default function ReservationConfirmPage() {
 
       setNewReservationId(newRes.id);
       setIsSuccess(true);
-      toast.success("Reservation successful!");
+      toast.success(t("Reservation successful!", "Reservation successful!"));
 
     } catch (err: any) {
       console.error("Reservation error:", err);

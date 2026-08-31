@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Html5QrcodeScanner } from "html5-qrcode";
+import { useLanguage } from "@/hooks/useLanguage";
 
 // Helper function para ma-check kung UUID ba ang tinype ng user
 const isUUID = (uuid: string) => {
@@ -19,6 +20,7 @@ const isUUID = (uuid: string) => {
 };
 
 export default function AdminScanner() {
+  const { t } = useLanguage();
   const [managerLotId, setManagerLotId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -93,7 +95,7 @@ export default function AdminScanner() {
         },
         (payload) => {
           setBookingData((prev: any) => ({ ...prev, ...payload.new }));
-          toast.info(`Status updated to ${payload.new.status.toUpperCase()}`);
+          toast.info(t(`Status updated to ${payload.new.status.toUpperCase()}`, `Status updated to ${payload.new.status.toUpperCase()}`));
         }
       )
       .subscribe();
@@ -107,7 +109,7 @@ export default function AdminScanner() {
   const handleManualSearch = async (val: string) => {
     if (!val) return;
     if (!managerLotId) {
-      toast.error("Parking Lot not assigned to your account.");
+      toast.error(t("Parking Lot not assigned to your account.", "Parking Lot not assigned to your account."));
       return;
     }
 
@@ -144,16 +146,16 @@ export default function AdminScanner() {
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        toast.error("No active or pending booking found.");
+        toast.error(t("No active or pending booking found.", "No active or pending booking found."));
         setBookingData(null);
       } else {
         const priorityBooking = data.find(b => b.status.toLowerCase() === 'active') || data[0];
         setBookingData(priorityBooking);
-        toast.success(`Booking found for ${priorityBooking.plate_number}!`);
+        toast.success(t(`Booking found for ${priorityBooking.plate_number}!`, `Booking found for ${priorityBooking.plate_number}!`));
       }
     } catch (err: any) {
       console.error("Search error:", err);
-      toast.error("Search failed.");
+      toast.error(t("Search failed.", "Search failed."));
     } finally {
       setIsLoading(false);
     }
@@ -193,9 +195,9 @@ export default function AdminScanner() {
           .eq("id", bookingData.parking_slots.id);
       }
 
-      toast.success(`Successfully updated to ${newStatus}!`);
+      toast.success(t(`Successfully updated to ${newStatus}!`, `Successfully updated to ${newStatus}!`));
     } catch (err) {
-      toast.error("Update failed.");
+      toast.error(t("Update failed.", "Update failed."));
     } finally {
       setIsLoading(false);
     }
