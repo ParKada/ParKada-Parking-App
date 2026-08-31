@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminSettings (Global System Configuration)
+ * ParKada — AdminSettings (Global System Configuration)
  * Reservation‑only, no advance booking, no grace period.
  * Added: concurrent limits, overtime fee, maintenance mode, etc.
  */
@@ -387,7 +387,7 @@ export default function AdminSettings() {
                 <div className="flex justify-between items-center"><div className="flex items-center gap-3"><div className="bg-white p-2 rounded-xl shadow-sm"><CreditCard size={20} /></div><h3 className="font-bold text-lg">Payment Gateway</h3></div><span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-1 rounded-md">Coming Soon</span></div>
                 <div className="space-y-3">
                   <div><Label className="text-[10px] font-bold uppercase">Merchant ID</Label><Input type="text" className="h-10 rounded-lg bg-white font-mono text-sm mt-1" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
-                  <div><Label className="text-[10px] font-bold uppercase">Production API Key</Label><div className="relative mt-1"><Input type={showKey ? "text" : "password"} className="h-10 rounded-lg bg-white font-mono text-sm pr-10" defaultValue="pk_live_51HXXXXXiparkbayangcash" /><button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
+                  <div><Label className="text-[10px] font-bold uppercase">Production API Key</Label><div className="relative mt-1"><Input type={showKey ? "text" : "password"} className="h-10 rounded-lg bg-white font-mono text-sm pr-10" defaultValue="pk_live_51HXXXXXParKadagcash" /><button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
                 </div>
               </div>
               </div>

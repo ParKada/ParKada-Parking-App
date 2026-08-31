@@ -81,7 +81,7 @@ export default function AuthLanding() {
         {/* Footer info */}
         <View className="mt-6 pt-6 border-t border-slate-50">
           <Text className="text-center text-[9px] font-bold text-slate-300 uppercase tracking-widest">
-            De La Salle Lipa • IT3C Group 9
+            De La Salle Lipa • IT4C Group 9
           </Text>
         </View>
       </View>

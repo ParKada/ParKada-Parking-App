@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminScanner (Manager QR & Manual Check-in)
+ * ParKada — AdminScanner (Manager QR & Manual Check-in)
  * Design: Civic Tech / Filipino Urban Identity
  */
 import { useState, useEffect } from "react";

@@ -1,5 +1,5 @@
 /*
- * ParKada (formerly iParkBayan) — ParkingMapPage
+ * ParKada (formerly ParKada) — ParkingMapPage
  * Clean Satellite View + Navigation (Waze & GMaps) + Real-time Geolocation + In-App Route Directions + Supabase Real-time
  * ADDED: Near Me Button, Estimated Travel Time, Favorites
  * FIXED: Waze starting point, Search auto-center

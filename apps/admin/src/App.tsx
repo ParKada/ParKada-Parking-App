@@ -1,5 +1,5 @@
 /*
- * iParkBayan — App.tsx (Fixed Route Priority & Background Auto Updater)
+ * ParKada — App.tsx (Fixed Route Priority & Background Auto Updater)
  * Added hash detection for invitation links.
  */
 import { Toaster } from "@/components/ui/sonner";

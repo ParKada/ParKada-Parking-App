@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminReservations (Added Booked Status & Cross-Midnight Fix)
+ * ParKada — AdminReservations (Added Booked Status & Cross-Midnight Fix)
  * Fixed: Time display in 12‑hour format, fine calculation uses actual timestamps.
  * Added: Pagination (Load More) + manual refresh button.
  * Added: Date filters (Today, Last 7 days, Last 30 days, Custom) + Print PDF report.

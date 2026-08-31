@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminReports (Real‑time & Role‑Based)
+ * ParKada — AdminReports (Real‑time & Role‑Based)
  * Dropdown controls visibility; export includes only visible reports.
  * Fixed TypeScript error; removed print buttons from popup.
  */

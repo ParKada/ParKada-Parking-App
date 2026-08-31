@@ -1,5 +1,5 @@
 /*
- * iParkBayan — RegisterPage (Connected to Supabase)
+ * ParKada — RegisterPage (Connected to Supabase)
  * Multi-step registration: Personal -> Vehicle -> OTP Verification -> Success
  * OTP Resend Logic: Countdown starts after first resend (second request)
  * Fixed: Resend code error handling & session check

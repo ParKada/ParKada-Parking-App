@@ -1,5 +1,5 @@
 /*
- * iParkBayan — SlotSelectionPage (Final Fix for Walk-in Visibility)
+ * ParKada — SlotSelectionPage (Final Fix for Walk-in Visibility)
  */
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";

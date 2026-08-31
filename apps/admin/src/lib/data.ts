@@ -236,7 +236,7 @@ export const mockNotifications: Notification[] = [
   {
     id: "n4",
     title: "Reservation Completed",
-    message: "Your parking session at SM City Lipa has ended. Thank you for using iParkBayan!",
+    message: "Your parking session at SM City Lipa has ended. Thank you for using ParKada!",
     time: "2 days ago",
     read: true,
     type: "system",

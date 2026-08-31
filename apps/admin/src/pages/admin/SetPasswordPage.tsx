@@ -13,7 +13,7 @@ import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@parkada/shared";
 import { useLanguage } from "@/hooks/useLanguage";
 
-const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
+const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/ParKada-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
 
 export default function SetPasswordPage() {
   const { t } = useLanguage();

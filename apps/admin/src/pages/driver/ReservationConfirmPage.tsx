@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ReservationConfirmPage (Payment Gateway & Details)
+ * ParKada — ReservationConfirmPage (Payment Gateway & Details)
  * Design: Civic Tech / Filipino Urban Identity
  * UPDATED: Real-time start_time/end_time, active status, extension/fine columns
  * FIXED: Uses Edge Function to prevent double booking.

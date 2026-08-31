@@ -1,5 +1,5 @@
 /*
- * iParkBayan — VehiclesPage (Supabase Connected & Real-time Alerts)
+ * ParKada — VehiclesPage (Supabase Connected & Real-time Alerts)
  * Updated: Added car brand dropdown (same as registration) and LTO plate validation.
  * Removed back arrow button.
  */

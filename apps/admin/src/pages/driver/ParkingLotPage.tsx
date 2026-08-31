@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ParkingLotPage (With Clickable Reviews Modal using parking_reviews)
+ * ParKada — ParkingLotPage (With Clickable Reviews Modal using parking_reviews)
  * Fixed: Slot labels sorted alphabetically by row letter, then numerically by number.
  * Removed redundant back arrow (MobileLayout already handles back navigation).
  */

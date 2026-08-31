@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ProfilePage (GCash-style Verification Logic)
+ * ParKada — ProfilePage (GCash-style Verification Logic)
  * Updated: Verification is now "Coming Soon" (disabled)
  * Vehicle management requires verified status.
  * Removed redundant menu items; added Payment Methods & Favorite Slots (both Coming Soon).
@@ -271,7 +271,7 @@ export default function ProfilePage() {
 
         <div className="pt-4 text-center pb-8">
           <p className="text-[10px] text-slate-400 font-medium">
-            ParKada v1.0. - De La Salle Lipa IT3C Group 9
+            ParKada v1.0. - De La Salle Lipa IT4C Group 9
           </p>
         </div>
 

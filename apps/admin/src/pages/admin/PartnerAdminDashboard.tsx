@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminDashboard (Supabase Connected - Super Admin & Manager)
+ * ParKada — AdminDashboard (Supabase Connected - Super Admin & Manager)
  * Real‑time updates, TypeScript, map view, clickable cards, skeleton loading.
  * UPDATED: Parking Lots Overview shows only accredited lots.
  */

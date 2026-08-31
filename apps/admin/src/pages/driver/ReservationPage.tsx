@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ReservationPage (With Verification Check + Park Now Logic)
+ * ParKada — ReservationPage (With Verification Check + Park Now Logic)
  * Unverified users: Walk-in only, view map, navigate, save favorites
  * Verified users: Full reservation capabilities with online payment
  * "Park Now" system: Start time is always current time when booking

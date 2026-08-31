@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminLogin (Multi-Tenant / Lot-Specific)
+ * ParKada — AdminLogin (Multi-Tenant / Lot-Specific)
  * Design: Civic Tech / Filipino Urban Identity
  * Full-screen admin login with navy sidebar and form
  */
@@ -256,7 +256,7 @@ export default function AdminLogin() {
           {/* Bottom: Footer */}
           <div>
             <p className="text-white/50 text-xs tracking-wide font-medium">
-              IT3C Group 9 · De La Salle Lipa · 2026
+              IT4C Group 9 · De La Salle Lipa · 2026
             </p>
             <p className="text-white/50 text-xs tracking-wide font-medium mt-1">
               Alcantara · Cadeliña · Lique · Mendez

@@ -1,5 +1,5 @@
 /*
- * iParkBayan — MyBookingPage (Connected to Supabase)
+ * ParKada — MyBookingPage (Connected to Supabase)
  * Design: Civic Tech / Filipino Urban Identity
  * UPDATED: One rating per transaction (added reservation_id to parking_reviews)
  * MODIFIED: Entire card is clickable to view receipt (instead of separate "View Ticket" button)

@@ -1,5 +1,5 @@
 /*
- * iParkBayan — DigitalReceiptPage
+ * ParKada — DigitalReceiptPage
  * Design: Civic Tech / Official Ticket Aesthetic
  * Removed back arrow navigation (redundant).
  */
@@ -117,7 +117,7 @@ export default function DigitalReceiptPage() {
       });
       
       const link = document.createElement("a");
-      link.setAttribute("download", `iParkBayan-Ticket-${res?.plate_number || 'Receipt'}.png`);
+      link.setAttribute("download", `ParKada-Ticket-${res?.plate_number || 'Receipt'}.png`);
       link.setAttribute("href", dataUrl);
       link.click();
       
@@ -143,12 +143,12 @@ export default function DigitalReceiptPage() {
       
       if (!blob) throw new Error("Failed to generate image.");
 
-      const file = new File([blob], `iParkBayan-Ticket.png`, { type: "image/png" });
+      const file = new File([blob], `ParKada-Ticket.png`, { type: "image/png" });
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: "iParkBayan Parking Ticket",
+          title: "ParKada Parking Ticket",
           text: `Here is my official ticket for ${res?.parking_lots?.name}.`,
         });
         toast.dismiss(loadingToast);

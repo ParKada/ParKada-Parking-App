@@ -311,7 +311,6 @@ export default function AdminParkingSlots() {
                 camera_id: expandedCameraId,
                 camera_zone_points: points,
                 coordinates: pixelCoords,
-                status: "available",
               }
             : s
         )
@@ -323,7 +322,6 @@ export default function AdminParkingSlots() {
           camera_id: expandedCameraId,
           camera_zone_points: points,
           coordinates: pixelCoords,
-          status: "available",
         })
         .eq("id", slotId);
 
@@ -371,10 +369,15 @@ export default function AdminParkingSlots() {
   const handleAddCamera = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCameraName.trim()) return;
+    
+    // Use cam1_lotId or cam2_lotId for the first two cameras to match the AI Node exactly
+    const nextIdx = cameras.length + 1;
+    const newId = nextIdx <= 2 ? `cam${nextIdx}_${selectedLotId}` : `cam${Date.now()}`;
+    
     const newCameras = [
       ...cameras,
       {
-        id: `cam${Date.now()}`,
+        id: newId,
         name: newCameraName.trim(),
         stream_url: newCameraUrl.trim(),
       },
@@ -571,7 +574,24 @@ export default function AdminParkingSlots() {
     const storedCameras = localStorage.getItem(`cameras_${selectedLotId}`);
     if (storedCameras) {
       try {
-        setCameras(JSON.parse(storedCameras));
+        let parsedCameras = JSON.parse(storedCameras);
+        // MIGRATION: Ensure first two cameras match Python AI Node expectations
+        let changed = false;
+        parsedCameras = parsedCameras.map((cam: any, idx: number) => {
+          if (idx === 0 && !cam.id.startsWith("cam1_")) {
+            changed = true;
+            return { ...cam, id: `cam1_${selectedLotId}` };
+          }
+          if (idx === 1 && !cam.id.startsWith("cam2_")) {
+            changed = true;
+            return { ...cam, id: `cam2_${selectedLotId}` };
+          }
+          return cam;
+        });
+        setCameras(parsedCameras);
+        if (changed) {
+          localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(parsedCameras));
+        }
       } catch (e) {
         setCameras([]);
       }

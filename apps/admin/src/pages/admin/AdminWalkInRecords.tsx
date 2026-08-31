@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminWalkInRecords
+ * ParKada — AdminWalkInRecords
  * Real‑time entry/exit, one‑click checkout with overtime confirmation,
  * overtime = ₱10 per hour beyond the first 3 hours.
  * PDF: Opens new window with clean report – no sidebars, no UI.

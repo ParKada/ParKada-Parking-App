@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminParkingLots (With Strict Delete, Real‑time & TypeScript)
+ * ParKada — AdminParkingLots (With Strict Delete, Real‑time & TypeScript)
  * No manual refresh button – real‑time updates only.
  * Accredited lots first, clickable with green hover. Unaccredited: not clickable, show "Walk‑In Only".
  * Added: Accreditation toggle in add form. Removed suspend button for unaccredited lots.

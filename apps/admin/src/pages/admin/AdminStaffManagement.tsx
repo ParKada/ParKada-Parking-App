@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ManageGuards (Manager Creation & Roster for Guards)
+ * ParKada — ManageGuards (Manager Creation & Roster for Guards)
  * Added: Strong password indication, eye icon to toggle visibility.
  */
 import { useState, useEffect } from "react";

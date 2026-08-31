@@ -1,59 +1,60 @@
-/*
- * iParkBayan — ProfilePage (GCash-style Verification Logic)
- */
-import { cn } from "@/lib/utils"; 
-import { useEffect, useState } from "react";
-import MobileLayout from "@/components/MobileLayout";
-import { 
-  Car, 
-  BookOpen, 
-  Bell, 
-  ShieldCheck, 
-  HelpCircle, 
-  LogOut, 
+/\*
+
+- ParKada — ProfilePage (GCash-style Verification Logic)
+  \*/
+  import { cn } from "@/lib/utils";
+  import { useEffect, useState } from "react";
+  import MobileLayout from "@/components/MobileLayout";
+  import {
+  Car,
+  BookOpen,
+  Bell,
+  ShieldCheck,
+  HelpCircle,
+  LogOut,
   ChevronRight,
   Loader2,
   CheckCircle2,
   ShieldAlert
-} from "lucide-react";
-import { supabase } from "../../supabaseClient";
-import { useLocation } from "wouter";
-import { toast } from "sonner";
+  } from "lucide-react";
+  import { supabase } from "../../supabaseClient";
+  import { useLocation } from "wouter";
+  import { toast } from "sonner";
 
 const getInitials = (name?: string) => {
-  if (!name) return "JD";
-  const words = name.trim().split(/\s+/);
-  if (words.length >= 2) {
-    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-  }
-  return name.substring(0, 2).toUpperCase();
+if (!name) return "JD";
+const words = name.trim().split(/\s+/);
+if (words.length >= 2) {
+return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+return name.substring(0, 2).toUpperCase();
 };
 
 export default function ProfilePage() {
-  const [, navigate] = useLocation();
-  const [loading, setLoading] = useState(true);
-  
-  const [userProfile, setUserProfile] = useState<any>(null);
-  const [stats, setStats] = useState({
-    totalReservations: 0,
-    completedReservations: 0,
-    totalVehicles: 0
-  });
+const [, navigate] = useLocation();
+const [loading, setLoading] = useState(true);
 
-  const MAX_VEHICLES = 3;
+const [userProfile, setUserProfile] = useState<any>(null);
+const [stats, setStats] = useState({
+totalReservations: 0,
+completedReservations: 0,
+totalVehicles: 0
+});
 
-  useEffect(() => {
-    fetchRealData();
-  }, []);
+const MAX_VEHICLES = 3;
 
-  const fetchRealData = async () => {
-    try {
-      setLoading(true);
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        navigate("/login");
-        return;
-      }
+useEffect(() => {
+fetchRealData();
+}, []);
+
+const fetchRealData = async () => {
+try {
+setLoading(true);
+const { data: { user }, error: authError } = await supabase.auth.getUser();
+if (authError || !user) {
+navigate("/login");
+return;
+}
 
       const { data: profileData } = await supabase
         .from("profiles")
@@ -66,7 +67,7 @@ export default function ProfilePage() {
         full_name: profileData?.full_name || user.user_metadata?.full_name || "Juan dela Cruz",
         email: user.email || "juan@example.com",
         phone_number: profileData?.phone_number || "No phone number added",
-        verification_status: profileData?.verification_status?.toString().replace(/['"]/g, '').trim().toLowerCase() || "unverified", 
+        verification_status: profileData?.verification_status?.toString().replace(/['"]/g, '').trim().toLowerCase() || "unverified",
         user_type: profileData?.user_type?.toString().replace(/['"]/g, '').trim() || "Regular"
       });
 
@@ -88,29 +89,32 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast.success("Logged out");
-    navigate("/login");
-  };
+};
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-white">
-      <Loader2 className="animate-spin text-slate-900" size={32} />
-    </div>
-  );
+const handleLogout = async () => {
+await supabase.auth.signOut();
+toast.success("Logged out");
+navigate("/login");
+};
 
-  // Helper variables for logic
-  const isVerified = userProfile?.verification_status === 'verified';
-  const isUnverified = userProfile?.verification_status === 'unverified';
-  const isPending = userProfile?.verification_status === 'pending';
+if (loading) return (
 
-  return (
-    <MobileLayout title="Profile">
-      <div className="bg-[#F8F9FB] min-h-screen px-4 py-6 space-y-4 pb-28">
-        
+<div className="flex h-screen items-center justify-center bg-white">
+<Loader2 className="animate-spin text-slate-900" size={32} />
+</div>
+);
+
+// Helper variables for logic
+const isVerified = userProfile?.verification_status === 'verified';
+const isUnverified = userProfile?.verification_status === 'unverified';
+const isPending = userProfile?.verification_status === 'pending';
+
+return (
+<MobileLayout title="Profile">
+
+<div className="bg-[#F8F9FB] min-h-screen px-4 py-6 space-y-4 pb-28">
+
         {/* Profile Card */}
         <div className="bg-[#0A1D37] rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
           <div className="flex items-center gap-4 mb-6 relative z-10">
@@ -128,7 +132,7 @@ export default function ProfilePage() {
               {/* Phone number and Email details */}
               <p className="text-xs text-slate-300 opacity-90 mt-0.5">{userProfile?.phone_number}</p>
               <p className="text-[11px] text-slate-400 opacity-80">{userProfile?.email}</p>
-              
+
               {/* Fully Verified & Benefits Logic */}
               <div className="mt-2">
                 {isVerified ? (
@@ -136,7 +140,7 @@ export default function ProfilePage() {
                     <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
                       Fully Verified
                     </span>
-                    <button 
+                    <button
                       onClick={() => toast.info("Your Benefits: 20% Discount for Senior/PWD slots and priority customer support.")}
                       className="text-[10px] text-slate-400 underline underline-offset-2 mt-0.5"
                     >
@@ -175,7 +179,7 @@ export default function ProfilePage() {
 
         {/* GCash-style "Get Verified Now" Banner Logic */}
         {isUnverified && (
-          <div 
+          <div
             onClick={() => navigate("/driver/verification")}
             className="bg-blue-600 rounded-2xl p-4 flex items-center justify-between shadow-md active:scale-[0.98] transition-all cursor-pointer border border-blue-500"
           >
@@ -196,40 +200,40 @@ export default function ProfilePage() {
 
         {/* Action Menu List */}
         <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
-          <ProfileMenuItem 
-            icon={<Car size={20} />} 
-            title="My Vehicles" 
+          <ProfileMenuItem
+            icon={<Car size={20} />}
+            title="My Vehicles"
             label={stats.totalVehicles >= MAX_VEHICLES ? "Max limit reached (3/3)" : "Manage registered vehicles"}
-            onClick={() => navigate("/vehicles")} 
+            onClick={() => navigate("/vehicles")}
           />
-          <ProfileMenuItem 
-            icon={<BookOpen size={20} />} 
-            title="Reservation History" 
+          <ProfileMenuItem
+            icon={<BookOpen size={20} />}
+            title="Reservation History"
             label="View all bookings"
-            onClick={() => navigate("/reservations")} 
+            onClick={() => navigate("/reservations")}
           />
-          <ProfileMenuItem 
-            icon={<Bell size={20} />} 
-            title="Notifications" 
+          <ProfileMenuItem
+            icon={<Bell size={20} />}
+            title="Notifications"
             label="Manage alerts"
-            onClick={() => navigate("/notifications")} 
+            onClick={() => navigate("/notifications")}
           />
-          <ProfileMenuItem 
-            icon={<ShieldCheck size={20} />} 
-            title="Privacy & Security" 
+          <ProfileMenuItem
+            icon={<ShieldCheck size={20} />}
+            title="Privacy & Security"
             label="Password and data settings"
             onClick={() => navigate("/update-password")}
           />
-          <ProfileMenuItem 
-            icon={<HelpCircle size={20} />} 
-            title="Help & Support" 
+          <ProfileMenuItem
+            icon={<HelpCircle size={20} />}
+            title="Help & Support"
             label="FAQs and contact"
             onClick={() => window.location.href = "mailto:yourparkada@gmail.com"}
             isLast
           />
         </div>
 
-        <button 
+        <button
           onClick={handleLogout}
           className="w-full py-3.5 rounded-3xl bg-white border border-rose-200 text-rose-500 font-semibold text-[15px] active:bg-rose-50 transition-all flex items-center justify-center gap-2 mt-4"
         >
@@ -239,39 +243,40 @@ export default function ProfilePage() {
 
         <div className="pt-4 text-center pb-8">
           <p className="text-[10px] text-slate-400 font-medium">
-            ParKada v1.0. - De La Salle Lipa IT3C Group 9
+            ParKada v1.0. - De La Salle Lipa IT4C Group 9
           </p>
         </div>
 
       </div>
     </MobileLayout>
-  );
+
+);
 }
 
 function ProfileMenuItem({ icon, title, label, onClick, isLast }: any) {
-  return (
-    <button 
-      onClick={onClick}
-      className={cn(
-        "w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-all active:bg-slate-100 text-left",
-        !isLast && "border-b border-slate-100"
-      )}
-    >
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
-          {icon}
-        </div>
-        <div>
-          <h4 className="text-[15px] font-bold text-slate-800 leading-tight mb-0.5">{title}</h4>
-          <p className={cn(
-            "text-[12px] font-medium",
-            label.includes("Max limit") || label.includes("Upload ID") ? "text-amber-500" : "text-slate-400"
-          )}>
-            {label}
-          </p>
-        </div>
-      </div>
-      <ChevronRight size={18} className="text-slate-300" />
-    </button>
-  );
+return (
+<button
+onClick={onClick}
+className={cn(
+"w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-all active:bg-slate-100 text-left",
+!isLast && "border-b border-slate-100"
+)} >
+
+<div className="flex items-center gap-4">
+<div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
+{icon}
+</div>
+<div>
+<h4 className="text-[15px] font-bold text-slate-800 leading-tight mb-0.5">{title}</h4>
+<p className={cn(
+"text-[12px] font-medium",
+label.includes("Max limit") || label.includes("Upload ID") ? "text-amber-500" : "text-slate-400"
+)}>
+{label}
+</p>
+</div>
+</div>
+<ChevronRight size={18} className="text-slate-300" />
+</button>
+);
 }
