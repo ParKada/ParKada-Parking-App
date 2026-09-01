@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, ActivityIndicator, Alert, Image, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Car, Plus, Trash2, Info, ChevronLeft, ChevronDown, X } from "lucide-react-native";
+import { Car, Trash2, Info, ChevronDown, X, CheckCircle2 } from "lucide-react-native";
 import { supabase } from "../../lib/supabase";
 
 const ALLOWED_CAR_BRANDS = [
@@ -21,6 +21,7 @@ export default function VehiclesPage() {
   const [form, setForm] = useState({ plate: "", brand: "", model: "", color: "" });
 
   const MAX_VEHICLES = 3; 
+  const DELETE_LIMIT_PER_MONTH = 2; // Maximum 2 deletions/swaps allowed per calendar month
   const isMaxReached = vehicles.length >= MAX_VEHICLES;
 
   useEffect(() => {
@@ -59,12 +60,12 @@ export default function VehiclesPage() {
 
   const addVehicle = async () => {
     if (!form.plate || !form.brand || !form.model || !form.color) {
-      Alert.alert("Required", "Please fill all fields");
+      Alert.alert("Required Fields", "Please fill in all details to register your vehicle.");
       return;
     }
 
     if (!validateLTOPlate(form.plate)) {
-      Alert.alert("Invalid Plate Number", "Must be LTO standard (e.g., ABC 123 or ABC 1234).");
+      Alert.alert("Invalid Plate Number", "Please follow standard LTO format (e.g., ABC 123 or ABC 1234).");
       return;
     }
 
@@ -81,12 +82,12 @@ export default function VehiclesPage() {
       const { data: existingVehicle, error: checkError } = await supabase
         .from("vehicles")
         .select("id")
-        .eq("plate", sanitizedPlate)
+        .eq("plate_number", sanitizedPlate)
         .maybeSingle(); 
 
       if (checkError) throw checkError;
       if (existingVehicle) {
-        Alert.alert("Duplicate", `Plate number ${sanitizedPlate} is already registered!`);
+        Alert.alert("Already Registered", `Plate number ${sanitizedPlate} is already registered in the system.`);
         setAdding(false);
         return; 
       }
@@ -99,27 +100,30 @@ export default function VehiclesPage() {
 
       if (countError) throw countError;
       if ((count || 0) >= MAX_VEHICLES) {
-        Alert.alert("Limit Reached", `You can only register up to ${MAX_VEHICLES} vehicles.`);
+        Alert.alert(
+          "Vehicle Limit Reached", 
+          `You have reached the maximum limit of ${MAX_VEHICLES} registered vehicles. To add a new car, please remove an existing one from your profile.`
+        );
         setOpen(false); 
         setForm({ plate: "", brand: "", model: "", color: "" }); 
         setAdding(false); 
         return; 
       }
 
-      const fullModel = `${form.brand} ${form.model.trim()}`;
+      const fullBrandName = `${form.brand} ${form.model.trim()}`;
 
       const { error: insertError } = await supabase
         .from("vehicles")
         .insert([{
           profile_id: user.id,
-          plate: sanitizedPlate,
-          model: fullModel,
+          plate_number: sanitizedPlate,
+          brand: fullBrandName,
           color: form.color.trim(),
           is_active: true
         }]);
 
       if (insertError?.code === '23505') { 
-        Alert.alert("Duplicate", `Plate number ${sanitizedPlate} is already in the system!`);
+        Alert.alert("Already Registered", `Plate number ${sanitizedPlate} is already registered in the system.`);
         setAdding(false);
         return;
       } else if (insertError) {
@@ -128,73 +132,134 @@ export default function VehiclesPage() {
 
       await supabase.from("notifications").insert([{
         user_id: user.id,
-        title: "Vehicle Registered 🚗",
-        message: `Your ${fullModel} (${sanitizedPlate}) has been added to your garage.`,
+        title: "Vehicle Registered",
+        message: `Your ${fullBrandName} (${sanitizedPlate}) has been successfully added to your garage.`,
         type: "system",
         read: false
       }]);
 
-      Alert.alert("Success", "Vehicle added!");
+      Alert.alert("Success", "Your vehicle has been registered successfully!");
       setForm({ plate: "", brand: "", model: "", color: "" });
       setOpen(false);
       fetchVehicles(); 
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Something went wrong.");
+      Alert.alert("Error", err.message || "Something went wrong while registering your vehicle.");
     } finally {
       setAdding(false);
     }
   };
 
-  const removeVehicle = (id: string, plate: string) => {
+  const contactAdminAlert = () => {
     Alert.alert(
-      "Remove Vehicle",
-      `Are you sure you want to remove ${plate}?`,
+      "Monthly Limit Reached",
+      `Vehicle updates or deletions are limited to ${DELETE_LIMIT_PER_MONTH} times per calendar month. If you need immediate assistance with your account, please contact our Admin Support team.`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Close", style: "cancel" },
         { 
-          text: "Remove", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from("vehicles")
-                .update({ is_active: false })
-                .eq("id", id);
-              if (error) throw error;
-        
-              setVehicles((v) => v.filter((x) => x.id !== id));
-            } catch (err: any) {
-              Alert.alert("Error", err.message);
-            }
-          }
+          text: "Contact Support", 
+          onPress: () => {
+            Linking.openURL("mailto:support@parkada.com?subject=Immediate%20Vehicle%20Change%20Request");
+          } 
         }
       ]
     );
+  };
+
+  const getMonthlyDeletionCount = async (userId: string): Promise<number> => {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { count, error } = await supabase
+      .from("vehicle_deletions")
+      .select("*", { count: 'exact', head: true })
+      .eq("profile_id", userId)
+      .gte("created_at", startOfMonth.toISOString());
+
+    if (error) {
+      console.error("Error checking monthly deletion limit:", error);
+      return 0;
+    }
+
+    return count || 0;
+  };
+
+  const removeVehicle = async (id: string, plate: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const deletionsThisMonth = await getMonthlyDeletionCount(user.id);
+
+      if (deletionsThisMonth >= DELETE_LIMIT_PER_MONTH) {
+        contactAdminAlert();
+        return;
+      }
+
+      // WALANG EMOJI O HEADER ICON SA ALERT
+      Alert.alert(
+        "Remove Vehicle",
+        `Are you sure you want to remove ${plate}?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Yes", 
+            style: "destructive",
+            onPress: async () => {
+              try {
+                const { error: updateError } = await supabase
+                  .from("vehicles")
+                  .update({ is_active: false })
+                  .eq("id", id);
+                if (updateError) throw updateError;
+
+                await supabase
+                  .from("vehicle_deletions")
+                  .insert([{ profile_id: user.id, vehicle_id: id }]);
+
+                setVehicles((v) => v.filter((x) => x.id !== id));
+                Alert.alert("Removed", `${plate} has been successfully deleted from your profile.`);
+              } catch (err: any) {
+                Alert.alert("Error", err.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to process vehicle removal.");
+    }
   };
 
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
         <ActivityIndicator size="large" color="#0A1D37" />
-        <Text className="mt-4 font-bold text-slate-500">Loading vehicles...</Text>
+        <Text className="mt-4 font-bold text-slate-500">Loading your vehicles...</Text>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50">
+      {/* HEADER */}
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
-          <ChevronLeft size={24} color="#0A1D37" />
+        <TouchableOpacity onPress={() => router.back()} className="p-1 -ml-1">
+          <Image 
+            source={require("../../assets/ParKada.png")} 
+            className="w-10 h-10" 
+            resizeMode="contain" 
+          />
         </TouchableOpacity>
-        <Text className="flex-1 text-center font-black text-lg text-[#0A1D37] mr-6">My Vehicles</Text>
+        <Text className="flex-1 text-center font-black text-lg text-[#0A1D37] mr-9">My Vehicles</Text>
       </View>
 
       <View className="flex-1 p-4">
         {vehicles.length === 0 ? (
           <View className="items-center py-20 bg-slate-100 rounded-3xl border-2 border-dashed border-slate-300">
             <Car size={64} color="#cbd5e1" className="mb-4" />
-            <Text className="text-base font-bold text-slate-400">No vehicles yet.</Text>
+            <Text className="text-base font-bold text-slate-400">No vehicles registered yet.</Text>
+            <Text className="text-xs text-slate-400 mt-1">Tap below to add your first car.</Text>
           </View>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
@@ -205,11 +270,11 @@ export default function VehiclesPage() {
                     <Car size={24} color="white" />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-lg font-black text-slate-800 uppercase tracking-tight">{v.plate}</Text>
-                    <Text className="text-[11px] font-bold text-slate-400 uppercase mt-0.5">{v.model} • {v.color}</Text>
+                    <Text className="text-lg font-black text-slate-800 uppercase tracking-tight">{v.plate_number}</Text>
+                    <Text className="text-[11px] font-bold text-slate-400 uppercase mt-0.5">{v.brand} • {v.color}</Text>
                   </View>
                   <TouchableOpacity 
-                    onPress={() => removeVehicle(v.id, v.plate)} 
+                    onPress={() => removeVehicle(v.id, v.plate_number)} 
                     className="p-3 bg-rose-50 rounded-full"
                   >
                     <Trash2 size={20} color="#f43f5e" />
@@ -220,36 +285,61 @@ export default function VehiclesPage() {
           </ScrollView>
         )}
 
-        {/* Info Tip */}
-        <View className="flex-row items-start gap-3 p-4 bg-blue-50 rounded-2xl opacity-80 mt-auto mb-4">
-          <Info size={20} color="#3b82f6" className="mt-0.5" />
-          <Text className="flex-1 text-[11px] font-bold text-blue-700 leading-relaxed uppercase">
-            Registered vehicles will appear as options during your slot reservation process.
-          </Text>
+        {/* GUIDELINE BANNER WITH IMPROVED SPACING AND PRESENTATION */}
+        <View className="bg-blue-50/90 rounded-2xl p-4 border border-blue-100/80 shadow-xs mb-4">
+          <View className="flex-row items-center gap-2 mb-3 border-b border-blue-200/60 pb-2">
+            <Info size={18} color="#1d4ed8" />
+            <Text className="text-xs font-bold text-blue-900 uppercase tracking-wider">
+              Vehicle Registration Guidelines
+            </Text>
+          </View>
+
+          <View className="space-y-2.5">
+            <View className="flex-row items-start gap-2.5">
+              <CheckCircle2 size={15} color="#2563eb" className="mt-0.5" />
+              <Text className="flex-1 text-[12px] font-medium text-slate-700 leading-snug">
+                Register up to <Text className="font-bold text-blue-900">3 active vehicles</Text> per account.
+              </Text>
+            </View>
+
+            <View className="flex-row items-start gap-2.5">
+              <CheckCircle2 size={15} color="#2563eb" className="mt-0.5" />
+              <Text className="flex-1 text-[12px] font-medium text-slate-700 leading-snug">
+                Updates or removals take effect immediately and are limited to <Text className="font-bold text-blue-900">2 times per calendar month</Text>.
+              </Text>
+            </View>
+
+            <View className="flex-row items-start gap-2.5">
+              <CheckCircle2 size={15} color="#2563eb" className="mt-0.5" />
+              <Text className="flex-1 text-[12px] font-medium text-slate-700 leading-snug">
+                For urgent account updates, please reach out to <Text className="font-bold text-blue-900">Admin Support</Text>.
+              </Text>
+            </View>
+          </View>
         </View>
 
+        {/* ADD NEW VEHICLE BUTTON */}
         <TouchableOpacity 
           onPress={() => setOpen(true)}
           disabled={isMaxReached}
-          className={`w-full h-16 rounded-2xl flex-row items-center justify-center border-2 border-dashed shadow-sm ${
+          className={`w-full h-14 rounded-2xl items-center justify-center border-2 border-dashed shadow-sm ${
             isMaxReached 
-              ? "border-slate-300 bg-slate-200 opacity-60" 
+              ? "border-slate-300 bg-slate-200 opacity-70" 
               : "border-slate-300 bg-white"
           }`}
         >
-          <Plus size={20} color={isMaxReached ? "#94a3b8" : "#64748B"} className="mr-2" />
-          <Text className={`font-black text-base ${isMaxReached ? "text-slate-400" : "text-slate-600"}`}>
-            {isMaxReached ? `Max Limit Reached (${MAX_VEHICLES}/${MAX_VEHICLES})` : "Register New Vehicle"}
+          <Text className={`font-black text-base ${isMaxReached ? "text-slate-400" : "text-slate-700"}`}>
+            {isMaxReached ? `Maximum Limit Reached (${MAX_VEHICLES}/${MAX_VEHICLES})` : "Register New Vehicle"}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Add Vehicle Modal */}
+      {/* ADD VEHICLE MODAL */}
       <Modal visible={open} animationType="slide" transparent>
         <View className="flex-1 bg-black/60 justify-end">
           <View className="bg-white rounded-t-3xl p-6 h-[85%]">
             <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-2xl font-black uppercase tracking-tight text-[#0A1D37]">Add Vehicle</Text>
+              <Text className="text-2xl font-black uppercase tracking-tight text-[#0A1D37]">Register Vehicle</Text>
               <TouchableOpacity onPress={() => setOpen(false)} className="p-2 bg-slate-100 rounded-full">
                 <X size={20} color="#64748B" />
               </TouchableOpacity>
@@ -267,7 +357,7 @@ export default function VehiclesPage() {
                     placeholderTextColor="#94a3b8"
                     className="h-14 rounded-xl bg-slate-50 px-4 font-black uppercase text-lg text-slate-800" 
                   />
-                  <Text className="text-[10px] text-slate-400 ml-1 mt-1 font-medium">LTO format: 3 letters + 3-4 numbers (e.g., ABC 123)</Text>
+                  <Text className="text-[10px] text-slate-400 ml-1 mt-1 font-medium">Standard LTO format: 3 letters + 3 to 4 numbers (e.g., ABC 123)</Text>
                 </View>
 
                 <View className="mb-4">
@@ -277,7 +367,7 @@ export default function VehiclesPage() {
                     className="h-14 rounded-xl bg-slate-50 px-4 flex-row items-center justify-between"
                   >
                     <Text className={`font-bold text-base ${form.brand ? 'text-slate-800' : 'text-slate-400'}`}>
-                      {form.brand || "Select brand"}
+                      {form.brand || "Select vehicle brand"}
                     </Text>
                     <ChevronDown size={20} color="#94a3b8" />
                   </TouchableOpacity>
@@ -300,7 +390,7 @@ export default function VehiclesPage() {
                   <TextInput 
                     value={form.color} 
                     onChangeText={(text) => setForm((f) => ({ ...f, color: text }))} 
-                    placeholder="White" 
+                    placeholder="e.g., Pearl White" 
                     placeholderTextColor="#94a3b8"
                     className="h-14 rounded-xl bg-slate-50 px-4 font-bold text-base text-slate-800" 
                   />
@@ -318,7 +408,7 @@ export default function VehiclesPage() {
                   {adding ? (
                     <ActivityIndicator color="white" />
                   ) : (
-                    <Text className="font-black text-white text-base tracking-widest uppercase">Register Vehicle</Text>
+                    <Text className="font-black text-white text-base tracking-widest uppercase">Save Vehicle</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -327,7 +417,7 @@ export default function VehiclesPage() {
         </View>
       </Modal>
 
-      {/* Brand Picker Modal */}
+      {/* BRAND PICKER MODAL */}
       <Modal visible={showBrandPicker} animationType="fade" transparent>
         <View className="flex-1 bg-black/50 justify-center items-center p-6">
           <View className="bg-white w-full rounded-3xl overflow-hidden max-h-[70%]">

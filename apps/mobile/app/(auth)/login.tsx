@@ -6,7 +6,6 @@ import { supabase } from "../../lib/supabase";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
-// Required for Expo Web Browser redirects to complete
 WebBrowser.maybeCompleteAuthSession();
 
 const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
@@ -15,18 +14,26 @@ export default function LoginPage() {
   const router = useRouter();
   
   const [view, setView] = useState<"login" | "forgot">("login");
-  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Magic Link / Deep Link Listener
+  // Safe navigation back to AuthLanding screen
+  const handleBackNavigation = () => {
+    if (view === "forgot") {
+      setView("login");
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(auth)");
+    }
+  };
+
   useEffect(() => {
     const handleUrl = async (url: string | null) => {
       if (url && url.includes("#access_token")) {
         try {
-          // @ts-ignore: getSessionFromUrl is missing from Supabase v2 types but works in this build
           const { data, error } = await (supabase.auth as any).getSessionFromUrl(url);
           if (error) throw error;
           if (data?.session) {
@@ -38,10 +45,8 @@ export default function LoginPage() {
       }
     };
 
-    // Check initial URL
     Linking.getInitialURL().then(handleUrl);
 
-    // Listen for incoming links while app is open
     const sub = Linking.addEventListener("url", (event) => {
       handleUrl(event.url);
     });
@@ -128,7 +133,6 @@ export default function LoginPage() {
       if (data?.url) {
         const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
         if (res.type === 'success' && res.url) {
-          // @ts-ignore: getSessionFromUrl is missing from Supabase v2 types but works in this build
           const { data: sessionData, error: sessionError } = await (supabase.auth as any).getSessionFromUrl(res.url);
           if (sessionError) throw sessionError;
           
@@ -182,7 +186,7 @@ export default function LoginPage() {
           <View className="absolute inset-0 bg-[#0A1D37]/80" />
           
           <TouchableOpacity 
-            onPress={() => view === "forgot" ? setView("login") : router.back()} 
+            onPress={handleBackNavigation} 
             className="absolute top-12 left-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
           >
             <ArrowLeft size={20} color="white" />
@@ -200,7 +204,6 @@ export default function LoginPage() {
 
         {/* Form Area */}
         <View className="flex-1 bg-white rounded-t-[30px] -mt-6 px-6 pt-8 pb-8">
-          
           {view === "login" ? (
             <View className="space-y-6 flex-col gap-5">
               <View className="flex-col gap-2">

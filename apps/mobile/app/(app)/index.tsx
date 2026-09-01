@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { View, Text, Image, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { MapPin, Clock, ChevronRight, Bell, Search, RefreshCcw, Navigation, WifiOff, Star, ChevronDown } from "lucide-react-native";
+import { MapPin, Clock, ChevronRight, Bell, Search, RefreshCcw, Navigation, WifiOff, Star } from "lucide-react-native";
 import { useNetInfo } from "@react-native-community/netinfo";
 import * as Location from "expo-location";
 import { Picker } from "@react-native-picker/picker";
@@ -12,6 +12,7 @@ import ActiveReservationTimer from "../../components/ActiveReservationTimer";
 const MAP_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-lipa-map-bf9Bjp7jKhLR43sJchAZUD.webp";
 
 const parseOpenHoursToMins = (timeStr: string) => {
+  if (!timeStr) return 0;
   const match = timeStr.trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
   if (!match) return 0;
   let [_, h, m, period] = match;
@@ -71,15 +72,15 @@ function AvailabilityBar({ available, total }: { available: number; total: numbe
 }
 
 const renderStars = (rating: number) => {
-  const fullStars = Math.floor(rating);
-  const hasHalf = rating % 1 >= 0.5;
+  const fullStars = Math.floor(rating || 0);
+  const hasHalf = (rating || 0) % 1 >= 0.5;
   const emptyStars = 5 - fullStars - (hasHalf ? 1 : 0);
   return (
     <View className="flex-row items-center gap-0.5 mt-1">
       {[...Array(fullStars)].map((_, i) => <Star key={`f-${i}`} size={12} color="#fbbf24" fill="#fbbf24" />)}
       {hasHalf && <Star size={12} color="#fbbf24" fill="#fbbf24" style={{ opacity: 0.5 }} />}
       {[...Array(emptyStars)].map((_, i) => <Star key={`e-${i}`} size={12} color="#cbd5e1" />)}
-      <Text className="text-[10px] text-slate-500 ml-1 font-bold">({rating.toFixed(1)})</Text>
+      <Text className="text-[10px] text-slate-500 ml-1 font-bold">({(rating || 0).toFixed(1)})</Text>
     </View>
   );
 };
@@ -156,17 +157,36 @@ export default function DriverHome() {
       }
       await runCleanup(user.id);
       
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
-      if (profile?.full_name) setUserName(profile.full_name.split(" ")[0]);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("first_name, full_name")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.first_name) {
+        setUserName(profile.first_name);
+      } else if (profile?.full_name) {
+        setUserName(profile.full_name.split(" ")[0]);
+      } else if (user.user_metadata?.full_name) {
+        setUserName(user.user_metadata.full_name.split(" ")[0]);
+      }
       
       const { data: unreadNotif } = await supabase.from("notifications").select("id").eq("user_id", user.id).eq("read", false).limit(1);
       setHasUnreadNotifs(!!(unreadNotif && unreadNotif.length > 0));
 
       const [lotsRes, slotsRes] = await Promise.all([
-        supabase.from("parking_lots").select(`id, name, address, latitude, longitude, open_hours, rate_per_hour, type, status, is_accredited, average_rating, total_reviews, extension_fee, fine_penalty, overtime_rate, grace_period_minutes, allow_extensions, extension_rate_per_hour`).neq('maintenance_mode', true),
+        supabase.from("parking_lots").select("*"),
         supabase.from("parking_slots").select("*"),
       ]);
-      if (lotsRes.data) setDbParkingLots(lotsRes.data);
+
+      if (lotsRes.data) {
+        const mappedLots = lotsRes.data.map(lot => ({
+          ...lot,
+          open_hours: lot.operating_hours || lot.open_hours || "24 Hours",
+          overtime_rate: lot.overtime_fee_per_hour || lot.overtime_rate || 30
+        }));
+        setDbParkingLots(mappedLots);
+      }
       if (slotsRes.data) setDbSlots(slotsRes.data);
 
       const { data: resData } = await supabase
@@ -205,7 +225,7 @@ export default function DriverHome() {
             vehicleModel,
             extension_fee_setting: lotData?.extension_fee || 10,
             fine_penalty: lotData?.fine_penalty || 50,
-            overtime_rate: lotData?.overtime_rate || 30,
+            overtime_rate: lotData?.overtime_fee_per_hour || 30,
             grace_period_minutes: lotData?.grace_period_minutes || 15,
             allow_extensions: lotData?.allow_extensions ?? true,
             extension_rate_per_hour: lotData?.extension_rate_per_hour ?? lotData?.rate_per_hour ?? 30,
@@ -235,7 +255,7 @@ export default function DriverHome() {
   const isLotOpen = (openHoursStr?: string) => {
     if (!openHoursStr) return true;
     const hoursText = openHoursStr.toLowerCase();
-    if (hoursText.includes("24 hour")) return true;
+    if (hoursText.includes("24 hour") || hoursText.includes("24/7")) return true;
     const times = openHoursStr.split("-").map((t) => t.trim());
     if (times.length === 2) {
       const startMins = parseOpenHoursToMins(times[0]);
@@ -249,31 +269,24 @@ export default function DriverHome() {
   };
 
   const primaryLots = useMemo(() => {
-    let lotsWithDistance = dbParkingLots.map((lot) => {
-      const lotSlots = dbSlots.filter((s) => s.lot_id === lot.id);
-      const availableCount = lotSlots.filter((s) => s.status === "available").length;
-      let distance = null;
-      if (userLocation && lot.latitude && lot.longitude) {
-        distance = calculateDistance(userLocation.lat, userLocation.lng, lot.latitude, lot.longitude);
-      }
-      const isOpen = isLotOpen(lot.open_hours);
-      return { ...lot, lotSlots, availableCount, distance, isOpen };
-    }).filter((lot) => lot.isOpen && lot.availableCount > 0);
+    if (!dbParkingLots || dbParkingLots.length === 0) return [];
 
-    const accredited = lotsWithDistance.filter((lot) => lot.is_accredited === true);
-    const nonAccredited = lotsWithDistance.filter((lot) => !lot.is_accredited);
-
-    const publicMarket = accredited.find((lot) => lot.type === "public" || lot.name.toLowerCase().includes("market"));
-    const privateAccredited = accredited.filter((lot) => lot.id !== publicMarket?.id);
-    privateAccredited.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-    const top3Private = privateAccredited.slice(0, 3);
-
-    let primary = [...top3Private];
-    if (publicMarket && !primary.some((l) => l.id === publicMarket.id)) primary.push(publicMarket);
-    if (primary.length < 5 && nonAccredited.length > 0) {
-      primary.push(...nonAccredited.slice(0, 5 - primary.length));
-    }
-    return primary.slice(0, 5);
+    return dbParkingLots
+      .map((lot) => {
+        const lotSlots = dbSlots.filter((s) => s.lot_id === lot.id);
+        const availableCount = lotSlots.length > 0 
+          ? lotSlots.filter((s) => s.status === "available").length 
+          : (lot.total_slots || 0);
+        
+        let distance = null;
+        if (userLocation && lot.latitude && lot.longitude) {
+          distance = calculateDistance(userLocation.lat, userLocation.lng, lot.latitude, lot.longitude);
+        }
+        const isOpen = isLotOpen(lot.open_hours);
+        return { ...lot, lotSlots, availableCount, distance, isOpen };
+      })
+      .filter((lot) => lot.isOpen) // Filtes out closed lots entirely
+      .slice(0, 5);
   }, [dbParkingLots, dbSlots, userLocation]);
 
   const primaryLotIds = primaryLots.map((lot) => lot.id);
@@ -328,9 +341,21 @@ export default function DriverHome() {
                   <Text className="text-white/80 text-xs font-bold">{greeting}, {userName} 👋</Text>
                   <Text className="text-white text-lg font-black mt-1">Lipa City Downtown</Text>
                 </View>
-                <TouchableOpacity onPress={() => router.push("/(app)/map")} className="self-start bg-amber-400 px-4 py-2 rounded-xl flex-row items-center gap-2">
+
+                {/* Fixed Search Now Button */}
+                <TouchableOpacity 
+                  onPress={() => router.push("/(app)/map")} 
+                  activeOpacity={0.8}
+                  className="self-start bg-amber-400 px-3.5 py-2 rounded-xl flex-row items-center justify-center gap-1.5 shrink-0"
+                >
                   <Search size={14} color="#451a03" />
-                  <Text className="text-amber-950 text-xs font-black">Search Now</Text>
+                  <Text 
+                    numberOfLines={1}
+                    style={{ includeFontPadding: false, textAlignVertical: 'center' }} 
+                    className="text-amber-950 text-xs font-black"
+                  >
+                    Search Now
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -391,17 +416,33 @@ export default function DriverHome() {
             </View>
 
             {/* Stats Grid */}
-            <View className="mx-4 mt-6 flex-row gap-3">
-              {[
-                { label: "Available", value: totalAvailable, color: "text-emerald-600", bg: "bg-emerald-50" },
-                { label: "Occupied", value: totalOccupied, color: "text-rose-600", bg: "bg-rose-50" },
-                { label: "Total Lots", value: totalOpenLots, color: "text-blue-600", bg: "bg-blue-50" }
-              ].map(s => (
-                <View key={s.label} className={`flex-1 rounded-2xl p-3 items-center shadow-sm ${s.bg}`}>
-                  <Text className={`text-2xl font-black ${s.color}`}>{s.value}</Text>
-                  <Text className="text-[9px] text-slate-500 font-bold uppercase mt-1 tracking-widest">{s.label}</Text>
-                </View>
-              ))}
+            <View className="mx-4 mt-6 flex-row gap-2.5 justify-between">
+              <View className="flex-1 bg-emerald-50/80 border border-emerald-100 rounded-2xl py-4 px-1 items-center justify-center min-h-[96px] shadow-sm">
+                <Text className="text-emerald-600 text-3xl font-black mb-1">
+                  {totalAvailable}
+                </Text>
+                <Text className="text-[9px] font-black text-emerald-700/80 uppercase">
+                  AVAILABLE
+                </Text>
+              </View>
+
+              <View className="flex-1 bg-rose-50/80 border border-rose-100 rounded-2xl py-4 px-1 items-center justify-center min-h-[96px] shadow-sm">
+                <Text className="text-rose-500 text-3xl font-black mb-1">
+                  {totalOccupied}
+                </Text>
+                <Text className="text-[9px] font-black text-rose-700/80 uppercase">
+                  OCCUPIED
+                </Text>
+              </View>
+
+              <View className="flex-1 bg-blue-50/80 border border-blue-100 rounded-2xl py-4 px-1 items-center justify-center min-h-[96px] shadow-sm">
+                <Text className="text-blue-600 text-3xl font-black mb-1 text-center">
+                  {totalOpenLots}
+                </Text>
+                <Text className="text-[9px] font-black text-blue-700/80 uppercase text-center">
+                  TOTAL LOTS
+                </Text>
+              </View>
             </View>
 
             {/* Nearby Suggestions */}
@@ -458,7 +499,7 @@ export default function DriverHome() {
                           </View>
                           {isAccredited && <Text className="text-[15px] font-black text-blue-700">₱{lot.rate_per_hour}<Text className="text-xs font-bold text-blue-400">/hr</Text></Text>}
                         </View>
-                        {isAccredited && <AvailabilityBar available={available} total={lot.lotSlots.length} />}
+                        {isAccredited && <AvailabilityBar available={available} total={lot.lotSlots?.length || lot.total_slots || 0} />}
                       </TouchableOpacity>
                     );
                   })

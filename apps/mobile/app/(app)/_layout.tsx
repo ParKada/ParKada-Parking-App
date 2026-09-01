@@ -1,7 +1,13 @@
 import { Tabs } from 'expo-router';
 import { Home, Map, BookOpen, Bell, User } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AppLayout() {
+  const insets = useSafeAreaInsets();
+
+  // Siguraduhing may minimum bottom padding para sa mga lumang Android button bar
+  const bottomInset = Math.max(insets.bottom, 12);
+
   return (
     <Tabs
       screenOptions={{
@@ -9,9 +15,15 @@ export default function AppLayout() {
         tabBarStyle: {
           backgroundColor: '#ffffff',
           borderTopColor: '#e2e8f0',
-          height: 60,
-          paddingBottom: 8,
+          borderTopWidth: 1,
+          height: 60 + bottomInset,
+          paddingBottom: bottomInset,
           paddingTop: 8,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
         },
         tabBarActiveTintColor: '#0A1D37',
         tabBarInactiveTintColor: '#94a3b8',

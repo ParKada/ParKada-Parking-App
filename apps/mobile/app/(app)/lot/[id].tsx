@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, ActivityIndicator, Alert, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { MapPin, Clock, Car, ChevronRight, Info, Ban, Star, X, ChevronLeft, Layers } from "lucide-react-native";
+import { MapPin, Clock, Car, ChevronRight, Ban, Star, X, Layers } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
 import MapViewer from "../../../components/parking/MapViewer";
+
+const logoImage = require("../../../assets/ParKadav2.png");
 
 const renderStaticStars = (rating: number) => {
   const fullStars = Math.floor(rating);
@@ -125,7 +127,6 @@ export default function ParkingLotPage() {
       Alert.alert("Selection Required", "Please select an available slot first");
       return;
     }
-    // We will navigate to the reservation flow next (Phase 3)
     router.push(`/(app)/reserve/${selectedSlot.id}?lot=${lot.id}`);
   };
 
@@ -147,11 +148,26 @@ export default function ParkingLotPage() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50">
-      <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
-          <ChevronLeft size={24} color="#0A1D37" />
+      {/* Top Header */}
+      <View className="relative flex-row items-center justify-between px-4 py-3 bg-white border-b border-slate-200">
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          className="p-1 rounded-xl active:opacity-70 z-10"
+        >
+          <Image 
+            source={logoImage} 
+            className="w-9 h-9 rounded-md" 
+            resizeMode="contain" 
+          />
         </TouchableOpacity>
-        <Text className="flex-1 text-center font-black text-lg text-[#0A1D37] mr-6" numberOfLines={1}>{lot.name}</Text>
+
+        <View className="absolute left-0 right-0 items-center justify-center pointer-events-none px-16">
+          <Text className="text-base font-black text-[#0A1D37]" numberOfLines={1}>
+            {lot.name}
+          </Text>
+        </View>
+
+        <View className="w-9" />
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -169,7 +185,7 @@ export default function ParkingLotPage() {
           {/* Lot Info Card */}
           <View className={`mx-4 mt-4 bg-white rounded-2xl p-5 shadow-sm border border-slate-100 ${isSuspended ? 'opacity-60' : ''}`}>
             <View className="flex-row justify-between items-start mb-3">
-              <View className="flex-1">
+              <View className="flex-1 pr-2">
                 <View className="flex-row items-center gap-2 mb-2 flex-wrap">
                   <View className={`border px-2 py-0.5 rounded-md ${lot.type === 'private' ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
                     <Text className={`text-[10px] font-bold uppercase ${lot.type === 'private' ? 'text-blue-700' : 'text-slate-600'}`}>{lot.type}</Text>
@@ -182,7 +198,7 @@ export default function ParkingLotPage() {
                 </View>
                 <View className="flex-row items-center gap-1.5 text-slate-500">
                   <MapPin size={12} color="#64748b" />
-                  <Text className="text-xs font-medium">{lot.address}</Text>
+                  <Text className="text-xs font-medium flex-1" numberOfLines={2}>{lot.address}</Text>
                 </View>
 
                 {(averageRating > 0 || totalReviews > 0) && (
@@ -210,15 +226,9 @@ export default function ParkingLotPage() {
 
           {/* Slot Grid */}
           <View className={`mx-4 mt-4 bg-white rounded-2xl p-5 shadow-sm border border-slate-100 ${isSuspended ? 'opacity-40 pointer-events-none' : ''}`}>
-            <View className="flex-row items-center justify-between mb-5">
+            {/* Tinanggal ang Rate display sa gilid ng Select a Slot */}
+            <View className="mb-5">
               <Text className="text-base font-black text-slate-800">Select a Slot</Text>
-              {!isSuspended && (
-                <View className="flex-row items-center gap-1">
-                  <Info size={12} color="#94a3b8" />
-                  <Text className="text-slate-500">Rate</Text>
-                  <Text className="font-bold text-slate-800">₱{lot?.rate_per_hour}/hr</Text>
-                </View>
-              )}
             </View>
 
             {/* Floor Tabs */}
