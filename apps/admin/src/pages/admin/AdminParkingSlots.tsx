@@ -69,6 +69,39 @@ export default function AdminParkingSlots() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [isAdding, setIsAdding] = useState(false);
+  const [isEditingMap, setIsEditingMap] = useState(false);
+  const [addFormPos, setAddFormPos] = useState({ x: 16, y: 16 });
+  const [isDraggingAddForm, setIsDraggingAddForm] = useState(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const windowStartPos = useRef({ x: 16, y: 16 });
+
+  useEffect(() => {
+    if (isAdding) {
+      setAddFormPos({ x: 16, y: 16 });
+    }
+  }, [isAdding]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingAddForm) return;
+      const dx = e.clientX - dragStartPos.current.x;
+      const dy = e.clientY - dragStartPos.current.y;
+      setAddFormPos({
+        x: windowStartPos.current.x + dx,
+        y: windowStartPos.current.y + dy,
+      });
+    };
+    const handleMouseUp = () => setIsDraggingAddForm(false);
+
+    if (isDraggingAddForm) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDraggingAddForm]);
   const [newSlotLabel, setNewSlotLabel] = useState("");
   const [newSlotIsPwd, setNewSlotIsPwd] = useState(false);
   const [newSlotIsReservable, setNewSlotIsReservable] = useState(false);
@@ -111,7 +144,14 @@ export default function AdminParkingSlots() {
     const { action, slotId, oldData } = lastAction;
 
     try {
-      if (action === "update") {
+      if (action === "update_buffered") {
+        setSlots(prev =>
+          prev.map(s => (s.id === slotId ? { ...s, ...oldData } : s))
+        );
+        if (lastAction.oldPending) {
+          setPendingChanges(lastAction.oldPending);
+        }
+      } else if (action === "update") {
         const { error } = await supabase
           .from("parking_slots")
           .update(oldData)
@@ -805,6 +845,11 @@ export default function AdminParkingSlots() {
     e.preventDefault();
     if (!editingSlot || !editSlotLabel.trim()) return;
 
+    if (slots.some(s => s.id !== editingSlot.id && s.label.trim().toLowerCase() === editSlotLabel.trim().toLowerCase())) {
+      toast.error(t("Parking slot name already exists. Please choose a different name.", "May kaparehong pangalan ang parking slot na ito. Pumili ng iba."));
+      return;
+    }
+
     try {
       const updates = {
         label: editSlotLabel.trim().toUpperCase(),
@@ -851,6 +896,14 @@ export default function AdminParkingSlots() {
     if (userRole === "guard" || activeLot?.type === "public") return;
 
     const newStatus = !currentStatus;
+    const oldSlot = slots.find(s => s.id === slotId);
+
+    if (oldSlot) {
+      setUndoHistory(prev => [
+        ...prev,
+        { action: "update_buffered", slotId, oldData: { ...oldSlot }, oldPending: pendingChanges }
+      ]);
+    }
 
     setPendingChanges(prev => {
       const existing = prev[slotId] || {};
@@ -949,6 +1002,14 @@ export default function AdminParkingSlots() {
   ) => {
     if (userRole !== "superadmin" && userRole !== "super_admin") return;
     
+    const oldSlot = slots.find(s => s.id === slotId);
+    if (oldSlot) {
+      setUndoHistory(prev => [
+        ...prev,
+        { action: "update_buffered", slotId, oldData: { ...oldSlot }, oldPending: pendingChanges }
+      ]);
+    }
+
     // Optimistic UI update immediately
     setSlots(prev =>
       prev.map(s => (s.id === slotId ? { ...s, ...updates } : s))
@@ -1222,7 +1283,7 @@ export default function AdminParkingSlots() {
                         }
                         className="h-10 px-4 py-2 rounded-xl border border-border bg-white text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]"
                       >
-                        <option value={-1}>All</option>
+                        <option value={-1}>Overview</option>
                         {(activeLot.floors || ["Main Floor"]).map(
                           (floorName: string, idx: number) => (
                             <option key={idx} value={idx}>
@@ -1304,7 +1365,20 @@ export default function AdminParkingSlots() {
                         {isAdding &&
                           (userRole === "superadmin" ||
                             userRole === "super_admin") && (
-                            <div className="absolute top-4 left-4 z-50 p-5 bg-slate-800/95 backdrop-blur-md border border-slate-700 shadow-xl rounded-2xl w-[320px]">
+                            <div 
+                              className="absolute z-50 p-5 pb-5 pt-3 bg-slate-800/95 backdrop-blur-md border border-slate-700 shadow-xl rounded-2xl w-[320px]"
+                              style={{ left: addFormPos.x, top: addFormPos.y }}
+                            >
+                              <div
+                                className="w-full h-6 -mt-1 mb-2 cursor-move bg-slate-700/0 rounded-t-2xl flex items-center justify-center hover:bg-slate-700/30 transition-colors"
+                                onMouseDown={(e) => {
+                                  setIsDraggingAddForm(true);
+                                  dragStartPos.current = { x: e.clientX, y: e.clientY };
+                                  windowStartPos.current = { ...addFormPos };
+                                }}
+                              >
+                                <div className="w-12 h-1.5 bg-slate-500/50 rounded-full pointer-events-none" />
+                              </div>
                               <form
                                 onSubmit={handleAddSlot}
                                 className="flex flex-col"
@@ -1574,8 +1648,9 @@ export default function AdminParkingSlots() {
                                 s => (s.floor_index || 0) === selectedFloorIndex
                               )}
                               interactive={
-                                userRole === "superadmin" ||
-                                userRole === "super_admin"
+                                isEditingMap &&
+                                (userRole === "superadmin" ||
+                                userRole === "super_admin")
                               }
                               onUpdateSlot={handleUpdateSlotCoordinates}
                               onEditSlot={slot => {
@@ -1626,7 +1701,7 @@ export default function AdminParkingSlots() {
                         {/* Right Side (Fullscreen Toggle and Fullscreen Add Slot) */}
                         <div
                           className={cn(
-                            "flex items-center gap-2 relative z-10",
+                                    "flex items-center gap-2 relative z-10",
                             isMapFullscreen
                               ? "bg-slate-950/60 p-1.5 rounded-xl border border-white/10 shadow-lg backdrop-blur-md"
                               : ""
@@ -1634,7 +1709,8 @@ export default function AdminParkingSlots() {
                         >
                           {(userRole === "superadmin" ||
                             userRole === "super_admin") &&
-                            selectedFloorIndex !== -1 && (
+                            selectedFloorIndex !== -1 &&
+                            isEditingMap && (
                               <Button
                                 size="sm"
                                 variant={
@@ -1666,6 +1742,24 @@ export default function AdminParkingSlots() {
                               {isSaving ? t("Saving...", "Nagsa-save...") : t("Save Layout Changes", "I-save ang Map Layout")}
                             </Button>
                           )}
+                          {(userRole === "superadmin" ||
+                            userRole === "super_admin") &&
+                            selectedFloorIndex !== -1 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className={cn(
+                                  "h-8 px-3 text-xs font-bold transition-colors rounded-lg",
+                                  isEditingMap
+                                    ? "bg-amber-600 text-white border-amber-600 hover:bg-amber-700"
+                                    : "text-slate-300 border-slate-700 bg-slate-900/40 hover:bg-slate-800 hover:text-white"
+                                )}
+                                onClick={() => setIsEditingMap(!isEditingMap)}
+                              >
+                                <PenTool size={14} className="mr-1.5" />
+                                {isEditingMap ? "Editing Map" : "Edit Map"}
+                              </Button>
+                            )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -2559,7 +2653,7 @@ export default function AdminParkingSlots() {
                   }}
                   className="h-10 px-4 py-2 rounded-xl border border-border bg-white text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]"
                 >
-                  <option value={-1}>All</option>
+                  <option value={-1}>Overview</option>
                   {(activeLot.floors || ["Main Floor"]).map(
                     (floorName: string, idx: number) => (
                       <option key={idx} value={idx}>

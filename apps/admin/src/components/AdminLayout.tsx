@@ -18,18 +18,18 @@ interface AdminLayoutProps {
 }
 
 const allNavItems = [
-  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "manager"] },
-  { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["super_admin"] },
+  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "superadmin", "manager"] },
+  { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["super_admin", "superadmin"] },
   { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager", "guard"] },
-  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "manager", "guard"] },
-  { path: "/admin/applications", icon: FileText, label: "Partner Applications", allowedRoles: ["super_admin"] },
-  { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["super_admin"] }, 
-  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin"] }, 
+  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "superadmin", "manager", "guard"] },
+  { path: "/admin/applications", icon: FileText, label: "Partner Applications", allowedRoles: ["super_admin", "superadmin"] },
+  { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["super_admin", "superadmin"] }, 
+  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin", "superadmin"] }, 
   { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "guard"] },
-  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "manager"] },
-  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "manager"] },
+  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "superadmin", "manager"] },
+  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "superadmin", "manager"] },
   { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager"] },
-  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "manager"] }, 
+  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "superadmin", "manager"] }, 
 ];
 
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
