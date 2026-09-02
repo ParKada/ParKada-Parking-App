@@ -117,3 +117,14 @@ client/public/__manus__/version.json
 /ios/
 /capacitor.config.json
 /capacitor.config.ts
+
+# Scratch scripts and temporary files
+apps/admin/create_superadmin.*
+apps/admin/test_settings.*
+apps/ai-node/__pycache__/
+apps/ai-node/scratch_*.py
+bulk_translate.py
+fix_imports.py
+fix_t.py
+safe_bulk_translate.py
+scratch_supabase.py
