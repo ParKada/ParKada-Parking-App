@@ -48,8 +48,20 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@parkada/shared";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminParkingSlots() {
+  const { t } = useLanguage();
+
+  const getAdminSupabase = async () => {
+    const { createClient } = await import('@supabase/supabase-js');
+    return createClient(
+      import.meta.env.VITE_SUPABASE_URL,
+      import.meta.env.VITE_SUPABASE_SERVICE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    );
+  };
+
   const [lots, setLots] = useState<any[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string>("");
   const [slots, setSlots] = useState<any[]>([]);
@@ -57,9 +69,43 @@ export default function AdminParkingSlots() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [isAdding, setIsAdding] = useState(false);
+  const [isEditingMap, setIsEditingMap] = useState(false);
+  const [addFormPos, setAddFormPos] = useState({ x: 16, y: 16 });
+  const [isDraggingAddForm, setIsDraggingAddForm] = useState(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const windowStartPos = useRef({ x: 16, y: 16 });
+
+  useEffect(() => {
+    if (isAdding) {
+      setAddFormPos({ x: 16, y: 16 });
+    }
+  }, [isAdding]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingAddForm) return;
+      const dx = e.clientX - dragStartPos.current.x;
+      const dy = e.clientY - dragStartPos.current.y;
+      setAddFormPos({
+        x: windowStartPos.current.x + dx,
+        y: windowStartPos.current.y + dy,
+      });
+    };
+    const handleMouseUp = () => setIsDraggingAddForm(false);
+
+    if (isDraggingAddForm) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDraggingAddForm]);
   const [newSlotLabel, setNewSlotLabel] = useState("");
   const [newSlotIsPwd, setNewSlotIsPwd] = useState(false);
-  const [newSlotIsReservable, setNewSlotIsReservable] = useState(true);
+  const [newSlotIsReservable, setNewSlotIsReservable] = useState(false);
+  const [lastSlotSettings, setLastSlotSettings] = useState({ scale: 0.8, rotation: 0 });
 
   const [editingSlot, setEditingSlot] = useState<any>(null);
   const [editSlotLabel, setEditSlotLabel] = useState("");
@@ -91,14 +137,21 @@ export default function AdminParkingSlots() {
 
   const handleUndo = async () => {
     if (undoHistory.length === 0) {
-      toast.info("Nothing to undo.");
+      toast.info(t("Nothing to undo.", "Nothing to undo."));
       return;
     }
     const lastAction = undoHistory[undoHistory.length - 1];
     const { action, slotId, oldData } = lastAction;
 
     try {
-      if (action === "update") {
+      if (action === "update_buffered") {
+        setSlots(prev =>
+          prev.map(s => (s.id === slotId ? { ...s, ...oldData } : s))
+        );
+        if (lastAction.oldPending) {
+          setPendingChanges(lastAction.oldPending);
+        }
+      } else if (action === "update") {
         const { error } = await supabase
           .from("parking_slots")
           .update(oldData)
@@ -123,9 +176,9 @@ export default function AdminParkingSlots() {
       }
 
       setUndoHistory(prev => prev.slice(0, -1));
-      toast.success("Undo successful.");
+      toast.success(t("Undo successful.", "Matagumpay na naibalik."));
     } catch (err: any) {
-      toast.error("Failed to undo.");
+      toast.error(t("Failed to undo.", "Nabigong ibalik."));
     }
   };
 
@@ -216,7 +269,7 @@ export default function AdminParkingSlots() {
         })
       );
       setPendingChanges({});
-      toast.success("All changes saved successfully.");
+      toast.success(t("All changes saved successfully.", "Matagumpay na na-save ang lahat ng pagbabago."));
       setShowSaveModal(false);
 
       if (tabToSwitch) {
@@ -227,7 +280,7 @@ export default function AdminParkingSlots() {
       }
     } catch (e: any) {
       console.error(e);
-      toast.error("Failed to save changes.");
+      toast.error(t("Failed to save changes.", "Nabigong i-save ang mga pagbabago."));
     } finally {
       setIsSaving(false);
     }
@@ -309,7 +362,7 @@ export default function AdminParkingSlots() {
                 camera_id: expandedCameraId,
                 camera_zone_points: points,
                 coordinates: pixelCoords,
-                status: "available",
+                status: s.status === "unmapped" ? "available" : s.status,
               }
             : s
         )
@@ -326,7 +379,7 @@ export default function AdminParkingSlots() {
         .eq("id", slotId);
 
       if (error) throw error;
-      toast.success("Camera zone saved to Supabase!");
+      toast.success(t("Camera zone saved to Supabase!", "Na-save na sa Supabase ang camera zone!"));
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -360,7 +413,7 @@ export default function AdminParkingSlots() {
         .eq("id", slotId);
 
       if (error) throw error;
-      toast.success("Camera zone deleted from Supabase!");
+      toast.success(t("Camera zone deleted from Supabase!", "Nabura na sa Supabase ang camera zone!"));
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -369,10 +422,15 @@ export default function AdminParkingSlots() {
   const handleAddCamera = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCameraName.trim()) return;
+    
+    // Use cam1_lotId or cam2_lotId for the first two cameras to match the AI Node exactly
+    const nextIdx = cameras.length + 1;
+    const newId = nextIdx <= 2 ? `cam${nextIdx}_${selectedLotId}` : `cam${Date.now()}`;
+    
     const newCameras = [
       ...cameras,
       {
-        id: `cam${Date.now()}`,
+        id: newId,
         name: newCameraName.trim(),
         stream_url: newCameraUrl.trim(),
       },
@@ -444,9 +502,7 @@ export default function AdminParkingSlots() {
         updatePayload = { [updateField]: publicUrl };
       }
 
-      const { error: dbError } = await supabase
-        .from("parking_lots")
-        .update(updatePayload)
+      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update(updatePayload)
         .eq("id", selectedLotId);
 
       if (dbError) {
@@ -454,11 +510,11 @@ export default function AdminParkingSlots() {
         throw dbError;
       }
 
-      toast.success("Photo uploaded successfully!", { id: toastId });
+      toast.success(t("Photo uploaded successfully!", "Matagumpay na nai-upload ang litrato!"), { id: toastId });
       fetchLots(); // refresh data
     } catch (error: any) {
       console.error("Upload error caught:", error);
-      toast.error(`Upload failed: ${error.message}`, { id: toastId });
+      toast.error(t(`Upload failed: ${error.message}`, `Nabigo ang pag-upload: ${error.message}`), { id: toastId });
     }
 
     // Reset the input value so the same file can be selected again if needed
@@ -474,23 +530,21 @@ export default function AdminParkingSlots() {
     )
       return;
 
-    const toastId = toast.loading("Deleting photo...");
+    const toastId = toast.loading(t("Deleting photo...", "Deleting photo..."));
     try {
       const currentOthers = activeLot.other_photos || [];
       const newOthers = currentOthers.filter((u: string) => u !== urlToDelete);
 
-      const { error: dbError } = await supabase
-        .from("parking_lots")
-        .update({ other_photos: newOthers })
+      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update({ other_photos: newOthers })
         .eq("id", selectedLotId);
 
       if (dbError) throw dbError;
 
-      toast.success("Photo deleted", { id: toastId });
+      toast.success(t("Photo deleted", "Photo deleted"), { id: toastId });
       fetchLots();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Delete failed: ${error.message}`, { id: toastId });
+      toast.error(t(`Delete failed: ${error.message}`, `Delete failed: ${error.message}`), { id: toastId });
     }
   };
 
@@ -505,22 +559,20 @@ export default function AdminParkingSlots() {
     )
       return;
 
-    const toastId = toast.loading("Deleting photo...");
+    const toastId = toast.loading(t("Deleting photo...", "Deleting photo..."));
     try {
       const updateField =
         type === "front_view" ? "front_view_url" : "business_permit_url";
-      const { error: dbError } = await supabase
-        .from("parking_lots")
-        .update({ [updateField]: null })
+      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update({ [updateField]: null })
         .eq("id", selectedLotId);
 
       if (dbError) throw dbError;
 
-      toast.success("Photo deleted", { id: toastId });
+      toast.success(t("Photo deleted", "Photo deleted"), { id: toastId });
       fetchLots();
     } catch (error: any) {
       console.error(error);
-      toast.error(`Delete failed: ${error.message}`, { id: toastId });
+      toast.error(t(`Delete failed: ${error.message}`, `Delete failed: ${error.message}`), { id: toastId });
     }
   };
 
@@ -535,7 +587,7 @@ export default function AdminParkingSlots() {
     fetchLotAccounts(selectedLotId);
 
     const channel = supabase
-      .channel("realtime-parking-slots")
+      .channel(`realtime-parking-slots-${selectedLotId}`)
       .on(
         "postgres_changes",
         {
@@ -555,7 +607,7 @@ export default function AdminParkingSlots() {
           } else if (payload.eventType === "UPDATE") {
             setSlots(prev =>
               prev.map(slot =>
-                slot.id === payload.new.id ? payload.new : slot
+                slot.id === payload.new.id ? { ...slot, ...payload.new } : slot
               )
             );
           } else if (payload.eventType === "DELETE") {
@@ -569,7 +621,24 @@ export default function AdminParkingSlots() {
     const storedCameras = localStorage.getItem(`cameras_${selectedLotId}`);
     if (storedCameras) {
       try {
-        setCameras(JSON.parse(storedCameras));
+        let parsedCameras = JSON.parse(storedCameras);
+        // MIGRATION: Ensure first two cameras match Python AI Node expectations
+        let changed = false;
+        parsedCameras = parsedCameras.map((cam: any, idx: number) => {
+          if (idx === 0 && !cam.id.startsWith("cam1_")) {
+            changed = true;
+            return { ...cam, id: `cam1_${selectedLotId}` };
+          }
+          if (idx === 1 && !cam.id.startsWith("cam2_")) {
+            changed = true;
+            return { ...cam, id: `cam2_${selectedLotId}` };
+          }
+          return cam;
+        });
+        setCameras(parsedCameras);
+        if (changed) {
+          localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(parsedCameras));
+        }
       } catch (e) {
         setCameras([]);
       }
@@ -585,6 +654,13 @@ export default function AdminParkingSlots() {
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedFloorIndex]);
+
+  // Refresh slots automatically when switching back to the floor map
+  useEffect(() => {
+    if (activeTab === "details" && selectedLotId) {
+      fetchSlots(selectedLotId);
+    }
+  }, [activeTab, selectedLotId]);
 
   // Save cameras to local storage whenever they change
   useEffect(() => {
@@ -620,11 +696,11 @@ export default function AdminParkingSlots() {
           setSelectedLotId(data[0].id);
         }
       } else {
-        toast.error("No accredited parking lots found for your account.");
+        toast.error(t("No accredited parking lots found for your account.", "Walang nakitang awtorisadong parking lots para sa account mo."));
       }
     } catch (error: any) {
       console.error("Supabase Error:", error.message);
-      toast.error("Failed to fetch parking lots.");
+      toast.error(t("Failed to fetch parking lots.", "Nabigong kunin ang parking lots."));
     } finally {
       setLoadingLots(false);
     }
@@ -644,7 +720,7 @@ export default function AdminParkingSlots() {
       setSlots(sortedData);
     } catch (error: any) {
       console.error("Supabase Error:", error.message);
-      toast.error("Failed to fetch parking slots.");
+      toast.error(t("Failed to fetch parking slots.", "Nabigong kunin ang parking slots."));
     } finally {
       setRefreshing(false);
     }
@@ -667,7 +743,7 @@ export default function AdminParkingSlots() {
   const handleRefresh = async () => {
     if (selectedLotId) {
       await fetchSlots(selectedLotId);
-      toast.success("Live parking data refreshed!");
+      toast.success(t("Live parking data refreshed!", "Na-refresh na ang parking data!"));
     }
   };
 
@@ -681,12 +757,16 @@ export default function AdminParkingSlots() {
       return;
 
     if (!newSlotLabel.trim()) {
-      toast.error("Please enter a slot label.");
+      toast.error(t("Please enter a slot label.", "Pakisuyo enter a slot label."));
       return;
     }
 
     try {
-      // Find a non-overlapping spot
+      if (slots.some(s => s.label.trim().toLowerCase() === newSlotLabel.trim().toLowerCase())) {
+        toast.error(t("Parking slot name already exists. Please choose a different name.", "May kaparehong pangalan ang parking slot na ito. Pumili ng iba."));
+        return;
+      }
+
       const currentFloorSlots = slots.filter(
         s => (s.floor_index || 0) === selectedFloorIndex
       );
@@ -722,8 +802,10 @@ export default function AdminParkingSlots() {
             status: "unmapped",
             ui_x: newX,
             ui_y: newY,
+            ui_rotation: lastSlotSettings.rotation,
+            ui_scale: lastSlotSettings.scale,
             is_pwd: newSlotIsPwd,
-            is_reservable: newSlotIsReservable,
+            is_reservable: activeLot?.type === "public" ? false : newSlotIsReservable,
             floor_index: selectedFloorIndex,
           },
         ])
@@ -731,7 +813,7 @@ export default function AdminParkingSlots() {
 
       if (error) {
         if (error.code === "23505") {
-          toast.error("This slot label already exists in this lot.");
+          toast.error(t("This slot label already exists in this lot.", "Mayroon nang ganitong slot name."));
         } else {
           throw error;
         }
@@ -747,15 +829,15 @@ export default function AdminParkingSlots() {
       }
 
       toast.success(
-        `Slot ${newSlotLabel} added! Draw it on the camera feed to link it.`
+        t(`Slot ${newSlotLabel} added! Draw it on the camera feed to link it.`, `Naidagdag na ang Slot ${newSlotLabel}! Iguhit ito sa camera para mai-link.`)
       );
       setNewSlotLabel("");
       setNewSlotIsPwd(false);
-      setNewSlotIsReservable(true);
+      setNewSlotIsReservable(false);
       setIsAdding(false);
     } catch (error: any) {
       console.error("Supabase Error adding slot:", error.message || error);
-      toast.error(`Error: ${error.message || "Failed to add new slot"}`);
+      toast.error(t(`Error: ${error.message || "Failed to add new slot"}`, `Error: ${error.message || "Nabigong idagdag ang slot"}`));
     }
   };
 
@@ -763,11 +845,16 @@ export default function AdminParkingSlots() {
     e.preventDefault();
     if (!editingSlot || !editSlotLabel.trim()) return;
 
+    if (slots.some(s => s.id !== editingSlot.id && s.label.trim().toLowerCase() === editSlotLabel.trim().toLowerCase())) {
+      toast.error(t("Parking slot name already exists. Please choose a different name.", "May kaparehong pangalan ang parking slot na ito. Pumili ng iba."));
+      return;
+    }
+
     try {
       const updates = {
         label: editSlotLabel.trim().toUpperCase(),
         is_pwd: editSlotIsPwd,
-        is_reservable: editSlotIsReservable,
+        is_reservable: activeLot?.type === "public" ? false : editSlotIsReservable,
       };
 
       const oldSlot = slots.find(s => s.id === editingSlot.id);
@@ -779,7 +866,7 @@ export default function AdminParkingSlots() {
 
       if (error) {
         if (error.code === "23505") {
-          toast.error("This slot name already exists.");
+          toast.error(t("This slot name already exists.", "Mayroon nang ganitong slot name."));
         } else throw error;
         return;
       }
@@ -793,11 +880,11 @@ export default function AdminParkingSlots() {
           { action: "update", slotId: editingSlot.id, oldData: { ...oldSlot } },
         ]);
       }
-      toast.success("Slot updated!");
+      toast.success(t("Slot updated!", "Na-update ang slot!"));
       setEditingSlot(null);
     } catch (err: any) {
       console.error("Supabase Error editing slot:", err.message || err);
-      toast.error(`Error: ${err.message || "Failed to update slot"}`);
+      toast.error(t(`Error: ${err.message || "Failed to update slot"}`, `Error: ${err.message || "Nabigong i-update ang slot"}`));
     }
   };
 
@@ -806,9 +893,17 @@ export default function AdminParkingSlots() {
     currentStatus: boolean,
     slotLabel: string
   ) => {
-    if (userRole === "guard") return;
+    if (userRole === "guard" || activeLot?.type === "public") return;
 
     const newStatus = !currentStatus;
+    const oldSlot = slots.find(s => s.id === slotId);
+
+    if (oldSlot) {
+      setUndoHistory(prev => [
+        ...prev,
+        { action: "update_buffered", slotId, oldData: { ...oldSlot }, oldPending: pendingChanges }
+      ]);
+    }
 
     setPendingChanges(prev => {
       const existing = prev[slotId] || {};
@@ -829,10 +924,10 @@ export default function AdminParkingSlots() {
     slotStatus: string
   ) => {
     if (slotStatus === "occupied") {
-      toast.error("Cannot delete an occupied slot.");
+      toast.error(t("Cannot delete an occupied slot.", "Hindi mabubura ang okupadong slot."));
       return;
     }
-    if (!window.confirm(`Are you sure you want to delete slot ${slotLabel}?`))
+    if (!window.confirm(t(`Are you sure you want to delete slot ${slotLabel}?`, `Sigurado ka bang gusto mong burahin ang slot na ${slotLabel}?`)))
       return;
 
     try {
@@ -843,7 +938,7 @@ export default function AdminParkingSlots() {
         .eq("id", slotId);
       if (error) throw error;
 
-      toast.success(`Slot ${slotLabel} deleted.`);
+      toast.success(t(`Slot ${slotLabel} deleted.`, `Nabura na ang slot ${slotLabel}.`));
       setSlots(slots.filter(s => s.id !== slotId));
       if (oldSlot) {
         setUndoHistory(prev => [
@@ -853,7 +948,7 @@ export default function AdminParkingSlots() {
       }
     } catch (error: any) {
       console.error("Supabase Error:", error.message || error);
-      toast.error(`Error deleting slot: ${error.message || "Failed"}`);
+      toast.error(t(`Error deleting slot: ${error.message || "Failed"}`, `Error sa pagbura: ${error.message || "Nabigo"}`));
     }
   };
 
@@ -861,21 +956,21 @@ export default function AdminParkingSlots() {
     if (!activeLot) return;
     const currentFloors = activeLot.floors || ["Main Floor"];
     if (currentFloors.length <= 1) {
-      toast.error("Cannot delete the only floor.");
+      toast.error(t("Cannot delete the only floor.", "Cannot delete the only floor."));
       return;
     }
 
     const slotsOnFloor = slots.filter(s => (s.floor_index || 0) === floorIndex);
     if (slotsOnFloor.length > 0) {
       toast.error(
-        "Cannot delete a floor that has slots. Please delete the slots first."
+        t("Cannot delete a floor that has slots. Please delete the slots first.", "Hindi pwedeng burahin ang palapag na may slots. Burahin muna ang mga slots.")
       );
       return;
     }
 
     if (
       !window.confirm(
-        `Are you sure you want to delete ${currentFloors[floorIndex]}?`
+        t(`Are you sure you want to delete ${currentFloors[floorIndex]}?`, `Sigurado ka bang buburahin ang ${currentFloors[floorIndex]}?`)
       )
     )
       return;
@@ -884,9 +979,7 @@ export default function AdminParkingSlots() {
       const updatedFloors = currentFloors.filter(
         (_: any, idx: number) => idx !== floorIndex
       );
-      const { error } = await supabase
-        .from("parking_lots")
-        .update({ floors: updatedFloors })
+      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -896,37 +989,52 @@ export default function AdminParkingSlots() {
         )
       );
       setSelectedFloorIndex(0);
-      toast.success("Floor deleted successfully.");
+      toast.success(t("Floor deleted successfully.", "Matagumpay na nabura ang palapag."));
     } catch (error: any) {
       console.error("Failed to delete floor", error.message || error);
-      toast.error(`Error deleting floor: ${error.message || "Failed"}`);
+      toast.error(t(`Error deleting floor: ${error.message || "Failed"}`, `Error sa pagbura ng palapag: ${error.message || "Nabigo"}`));
     }
   };
 
-  const handleUpdateSlotCoordinates = async (
+  const handleUpdateSlotCoordinates = (
     slotId: string,
     updates: Partial<any>
   ) => {
     if (userRole !== "superadmin" && userRole !== "super_admin") return;
-    try {
-      const oldSlot = slots.find(s => s.id === slotId);
-      const { error } = await supabase
-        .from("parking_slots")
-        .update(updates)
-        .eq("id", slotId);
-      if (error) throw error;
-      setSlots(prev =>
-        prev.map(s => (s.id === slotId ? { ...s, ...updates } : s))
-      );
-      if (oldSlot) {
-        setUndoHistory(prev => [
-          ...prev,
-          { action: "update", slotId, oldData: { ...oldSlot } },
-        ]);
-      }
-    } catch (e: any) {
-      console.error("Failed to update layout", e.message);
-      toast.error("Failed to save layout change.");
+    
+    const oldSlot = slots.find(s => s.id === slotId);
+    if (oldSlot) {
+      setUndoHistory(prev => [
+        ...prev,
+        { action: "update_buffered", slotId, oldData: { ...oldSlot }, oldPending: pendingChanges }
+      ]);
+    }
+
+    // Optimistic UI update immediately
+    setSlots(prev =>
+      prev.map(s => (s.id === slotId ? { ...s, ...updates } : s))
+    );
+
+    const slotLabel = slots.find(s => s.id === slotId)?.label || "Slot";
+    
+    // Buffer changes instead of sending directly to Supabase to prevent notification spam
+    setPendingChanges(prev => {
+      const existing = prev[slotId] || {};
+      return {
+        ...prev,
+        [slotId]: {
+          ...existing,
+          ...updates,
+          _label: existing._label || slotLabel,
+        },
+      };
+    });
+
+    if (updates.ui_scale !== undefined || updates.ui_rotation !== undefined) {
+      setLastSlotSettings(prev => ({
+        scale: updates.ui_scale !== undefined ? updates.ui_scale : prev.scale,
+        rotation: updates.ui_rotation !== undefined ? updates.ui_rotation : prev.rotation
+      }));
     }
   };
 
@@ -938,9 +1046,7 @@ export default function AdminParkingSlots() {
       const updatedFloors = [...currentFloors];
       updatedFloors[selectedFloorIndex] = renameFloorName.trim();
 
-      const { error } = await supabase
-        .from("parking_lots")
-        .update({ floors: updatedFloors })
+      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -950,9 +1056,9 @@ export default function AdminParkingSlots() {
         )
       );
       setIsRenamingFloor(false);
-      toast.success(`Renamed floor to: ${renameFloorName}`);
+      toast.success(t(`Renamed floor to: ${renameFloorName}`, `Pinalitan ang pangalan ng palapag sa: ${renameFloorName}`));
     } catch (e: any) {
-      toast.error(e.message || "Failed to rename floor");
+      toast.error(t(e.message || "Failed to rename floor", e.message || "Nabigong palitan ang pangalan"));
     }
   };
 
@@ -961,9 +1067,7 @@ export default function AdminParkingSlots() {
     try {
       const currentFloors = activeLot.floors || ["Main Floor"];
       const updatedFloors = [...currentFloors, newFloorName.trim()];
-      const { error } = await supabase
-        .from("parking_lots")
-        .update({ floors: updatedFloors })
+      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -975,10 +1079,10 @@ export default function AdminParkingSlots() {
       setNewFloorName("");
       setIsAddingFloor(false);
       setSelectedFloorIndex(updatedFloors.length - 1);
-      toast.success(`Added floor: ${newFloorName}`);
+      toast.success(t(`Added floor: ${newFloorName}`, `Naidagdag ang palapag: ${newFloorName}`));
     } catch (e: any) {
       console.error("Failed to add floor", e.message);
-      toast.error("Failed to add floor.");
+      toast.error(t("Failed to add floor.", "Nabigong magdagdag ng palapag."));
     }
   };
 
@@ -1179,7 +1283,7 @@ export default function AdminParkingSlots() {
                         }
                         className="h-10 px-4 py-2 rounded-xl border border-border bg-white text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]"
                       >
-                        <option value={-1}>All</option>
+                        <option value={-1}>Overview</option>
                         {(activeLot.floors || ["Main Floor"]).map(
                           (floorName: string, idx: number) => (
                             <option key={idx} value={idx}>
@@ -1261,7 +1365,20 @@ export default function AdminParkingSlots() {
                         {isAdding &&
                           (userRole === "superadmin" ||
                             userRole === "super_admin") && (
-                            <div className="absolute top-4 left-4 z-50 p-5 bg-slate-800/95 backdrop-blur-md border border-slate-700 shadow-xl rounded-2xl w-[320px]">
+                            <div 
+                              className="absolute z-50 p-5 pb-5 pt-3 bg-slate-800/95 backdrop-blur-md border border-slate-700 shadow-xl rounded-2xl w-[320px]"
+                              style={{ left: addFormPos.x, top: addFormPos.y }}
+                            >
+                              <div
+                                className="w-full h-6 -mt-1 mb-2 cursor-move bg-slate-700/0 rounded-t-2xl flex items-center justify-center hover:bg-slate-700/30 transition-colors"
+                                onMouseDown={(e) => {
+                                  setIsDraggingAddForm(true);
+                                  dragStartPos.current = { x: e.clientX, y: e.clientY };
+                                  windowStartPos.current = { ...addFormPos };
+                                }}
+                              >
+                                <div className="w-12 h-1.5 bg-slate-500/50 rounded-full pointer-events-none" />
+                              </div>
                               <form
                                 onSubmit={handleAddSlot}
                                 className="flex flex-col"
@@ -1283,40 +1400,44 @@ export default function AdminParkingSlots() {
                                     autoFocus
                                   />
 
-                                  <label className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
-                                    Type
-                                  </label>
-                                  <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-900/50 p-1 rounded-xl">
-                                    <button
-                                      type="button"
-                                      disabled={newSlotIsPwd}
-                                      onClick={() =>
-                                        setNewSlotIsReservable(true)
-                                      }
-                                      className={cn(
-                                        "py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                                        newSlotIsReservable
-                                          ? "bg-amber-500 text-white shadow-sm"
-                                          : "text-slate-400 hover:text-white"
-                                      )}
-                                    >
-                                      Reservable
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setNewSlotIsReservable(false)
-                                      }
-                                      className={cn(
-                                        "py-1.5 text-xs font-bold rounded-lg transition-all",
-                                        !newSlotIsReservable
-                                          ? "bg-amber-500 text-white shadow-sm"
-                                          : "text-slate-400 hover:text-white"
-                                      )}
-                                    >
-                                      Walk-In
-                                    </button>
-                                  </div>
+                                  {activeLot?.type !== "public" && (
+                                    <>
+                                      <label className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
+                                        Type
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-900/50 p-1 rounded-xl">
+                                        <button
+                                          type="button"
+                                          disabled={newSlotIsPwd}
+                                          onClick={() =>
+                                            setNewSlotIsReservable(true)
+                                          }
+                                          className={cn(
+                                            "py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                                            newSlotIsReservable
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "text-slate-400 hover:text-white"
+                                          )}
+                                        >
+                                          Reservable
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setNewSlotIsReservable(false)
+                                          }
+                                          className={cn(
+                                            "py-1.5 text-xs font-bold rounded-lg transition-all",
+                                            !newSlotIsReservable
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "text-slate-400 hover:text-white"
+                                          )}
+                                        >
+                                          Walk-In
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
 
                                   <div className="flex items-center space-x-2">
                                     <input
@@ -1338,7 +1459,7 @@ export default function AdminParkingSlots() {
                                       PWD / Priority Slot?
                                     </label>
                                   </div>
-                                  {newSlotIsPwd && (
+                                  {newSlotIsPwd && activeLot?.type !== "public" && (
                                     <div className="mt-2 text-[10px] text-amber-500 font-medium">
                                       * PWD slots cannot be made reservable and
                                       are automatically set to Walk-In.
@@ -1389,40 +1510,44 @@ export default function AdminParkingSlots() {
                                     autoFocus
                                   />
 
-                                  <label className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
-                                    Type
-                                  </label>
-                                  <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-900/50 p-1 rounded-xl">
-                                    <button
-                                      type="button"
-                                      disabled={editSlotIsPwd}
-                                      onClick={() =>
-                                        setEditSlotIsReservable(true)
-                                      }
-                                      className={cn(
-                                        "py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                                        editSlotIsReservable
-                                          ? "bg-amber-500 text-white shadow-sm"
-                                          : "text-slate-400 hover:text-white"
-                                      )}
-                                    >
-                                      Reservable
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setEditSlotIsReservable(false)
-                                      }
-                                      className={cn(
-                                        "py-1.5 text-xs font-bold rounded-lg transition-all",
-                                        !editSlotIsReservable
-                                          ? "bg-amber-500 text-white shadow-sm"
-                                          : "text-slate-400 hover:text-white"
-                                      )}
-                                    >
-                                      Walk-In
-                                    </button>
-                                  </div>
+                                  {activeLot?.type !== "public" && (
+                                    <>
+                                      <label className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
+                                        Type
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-2 mb-4 bg-slate-900/50 p-1 rounded-xl">
+                                        <button
+                                          type="button"
+                                          disabled={editSlotIsPwd}
+                                          onClick={() =>
+                                            setEditSlotIsReservable(true)
+                                          }
+                                          className={cn(
+                                            "py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                                            editSlotIsReservable
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "text-slate-400 hover:text-white"
+                                          )}
+                                        >
+                                          Reservable
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setEditSlotIsReservable(false)
+                                          }
+                                          className={cn(
+                                            "py-1.5 text-xs font-bold rounded-lg transition-all",
+                                            !editSlotIsReservable
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "text-slate-400 hover:text-white"
+                                          )}
+                                        >
+                                          Walk-In
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
 
                                   <div className="flex items-center space-x-2">
                                     <input
@@ -1444,7 +1569,7 @@ export default function AdminParkingSlots() {
                                       PWD / Priority Slot?
                                     </label>
                                   </div>
-                                  {editSlotIsPwd && (
+                                  {editSlotIsPwd && activeLot?.type !== "public" && (
                                     <div className="mt-2 text-[10px] text-amber-500 font-medium">
                                       * PWD slots cannot be made reservable and
                                       are automatically set to Walk-In.
@@ -1523,8 +1648,9 @@ export default function AdminParkingSlots() {
                                 s => (s.floor_index || 0) === selectedFloorIndex
                               )}
                               interactive={
-                                userRole === "superadmin" ||
-                                userRole === "super_admin"
+                                isEditingMap &&
+                                (userRole === "superadmin" ||
+                                userRole === "super_admin")
                               }
                               onUpdateSlot={handleUpdateSlotCoordinates}
                               onEditSlot={slot => {
@@ -1575,7 +1701,7 @@ export default function AdminParkingSlots() {
                         {/* Right Side (Fullscreen Toggle and Fullscreen Add Slot) */}
                         <div
                           className={cn(
-                            "flex items-center gap-2 relative z-10",
+                                    "flex items-center gap-2 relative z-10",
                             isMapFullscreen
                               ? "bg-slate-950/60 p-1.5 rounded-xl border border-white/10 shadow-lg backdrop-blur-md"
                               : ""
@@ -1583,7 +1709,8 @@ export default function AdminParkingSlots() {
                         >
                           {(userRole === "superadmin" ||
                             userRole === "super_admin") &&
-                            selectedFloorIndex !== -1 && (
+                            selectedFloorIndex !== -1 &&
+                            isEditingMap && (
                               <Button
                                 size="sm"
                                 variant={
@@ -1602,6 +1729,35 @@ export default function AdminParkingSlots() {
                               >
                                 <Plus size={14} className="mr-1.5" />
                                 Add Slot
+                              </Button>
+                            )}
+                          {Object.keys(pendingChanges).length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-8 px-3 text-xs font-bold transition-colors rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg animate-in fade-in zoom-in"
+                              onClick={handleSavePendingChanges}
+                              disabled={isSaving}
+                            >
+                              {isSaving ? t("Saving...", "Nagsa-save...") : t("Save Layout Changes", "I-save ang Map Layout")}
+                            </Button>
+                          )}
+                          {(userRole === "superadmin" ||
+                            userRole === "super_admin") &&
+                            selectedFloorIndex !== -1 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className={cn(
+                                  "h-8 px-3 text-xs font-bold transition-colors rounded-lg",
+                                  isEditingMap
+                                    ? "bg-amber-600 text-white border-amber-600 hover:bg-amber-700"
+                                    : "text-slate-300 border-slate-700 bg-slate-900/40 hover:bg-slate-800 hover:text-white"
+                                )}
+                                onClick={() => setIsEditingMap(!isEditingMap)}
+                              >
+                                <PenTool size={14} className="mr-1.5" />
+                                {isEditingMap ? "Editing Map" : "Edit Map"}
                               </Button>
                             )}
                           <Button
@@ -2297,7 +2453,7 @@ export default function AdminParkingSlots() {
                         expandedCameraId && (
                           <CameraGridEditor
                             interactive={isDrawingGrid}
-                            slots={slots}
+                            slots={selectedFloorIndex === -1 ? slots : slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)}
                             cameraId={expandedCameraId}
                             onSaveZone={handleUpdateCameraZone}
                             onDeleteZone={handleDeleteCameraZone}
@@ -2497,7 +2653,7 @@ export default function AdminParkingSlots() {
                   }}
                   className="h-10 px-4 py-2 rounded-xl border border-border bg-white text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]"
                 >
-                  <option value={-1}>All</option>
+                  <option value={-1}>Overview</option>
                   {(activeLot.floors || ["Main Floor"]).map(
                     (floorName: string, idx: number) => (
                       <option key={idx} value={idx}>
@@ -2586,7 +2742,14 @@ export default function AdminParkingSlots() {
                                   variant="outline"
                                   className="border-amber-200 text-amber-700 bg-amber-50"
                                 >
-                                  PWD / Reserved
+                                  PWD
+                                </Badge>
+                              ) : isReservable ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-blue-200 text-blue-700 bg-blue-50"
+                                >
+                                  Reservable
                                 </Badge>
                               ) : (
                                 <span className="text-muted-foreground text-xs font-medium">

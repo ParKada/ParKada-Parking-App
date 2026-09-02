@@ -172,7 +172,7 @@ export default function Footer() {
             gap: '12px',
           }}>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.3)' }}>
-              © {year} ParKada — IT3C Group 9 · De La Salle Lipa
+              © {year} ParKada — IT4C Group 9 · De La Salle Lipa
             </p>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.3)' }}>
               Cadeliña · Alcantara · Lique · Mendez

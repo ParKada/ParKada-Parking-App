@@ -84,7 +84,7 @@ export default function Team() {
             margin: '0 auto',
             lineHeight: 1.65,
           }}>
-            IT3C Group 9 — De La Salle Lipa, 2026
+            IT4C Group 9 — De La Salle Lipa, 2026
           </p>
         </div>
 

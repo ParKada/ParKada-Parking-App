@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ProfilePage (GCash-style Verification Logic)
+ * ParKada — ProfilePage (GCash-style Verification Logic)
  * Updated: Verification is now "Coming Soon" (disabled)
  * Vehicle management requires verified status.
  * Removed redundant menu items; added Payment Methods & Favorite Slots (both Coming Soon).
@@ -23,6 +23,7 @@ import {
 import { supabase } from "@parkada/shared";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const getInitials = (name?: string) => {
   if (!name) return "JD";
@@ -34,6 +35,7 @@ const getInitials = (name?: string) => {
 };
 
 export default function ProfilePage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(true);
   
@@ -88,7 +90,7 @@ export default function ProfilePage() {
 
     } catch (err) {
       console.error("Connection Error:", err);
-      toast.error("Failed to sync with database");
+      toast.error(t("Failed to sync with database", "Nabigong sync with database"));
     } finally {
       setLoading(false);
     }
@@ -96,7 +98,7 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    toast.success("Logged out");
+    toast.success(t("Logged out", "Logged out"));
     navigate("/login");
   };
 
@@ -114,7 +116,7 @@ export default function ProfilePage() {
   // Vehicle menu click handler
   const handleManageVehicles = () => {
     if (!isVerified) {
-      toast.info("Verification required to add or manage vehicles. This feature will be available soon.");
+      toast.info(t("Verification required to add or manage vehicles. This feature will be available soon.", "Verification required to add or manage vehicles. This feature will be available soon."));
       return;
     }
     navigate("/vehicles");
@@ -129,7 +131,7 @@ export default function ProfilePage() {
 
   // Coming soon handlers
   const handleComingSoon = () => {
-    toast.info("Coming Soon! This feature will be available in a future update.");
+    toast.info(t("Coming Soon! This feature will be available in a future update.", "Coming Soon! This feature will be available in a future update."));
   };
 
   // Help & Support handler - opens Gmail compose (works on laptops)
@@ -167,7 +169,7 @@ export default function ProfilePage() {
                       Fully Verified
                     </span>
                     <button 
-                      onClick={() => toast.info("Your Benefits: COMING VERY SOONEST!")}
+                      onClick={() => toast.info(t("Your Benefits: COMING VERY SOONEST!", "Your Benefits: COMING VERY SOONEST!"))}
                       className="text-[10px] text-slate-400 underline underline-offset-2 mt-0.5"
                     >
                       View Benefits
@@ -206,7 +208,7 @@ export default function ProfilePage() {
         {/* "Get Verified Now" Banner - Coming Soon (disabled) */}
         {isUnverified && (
           <div 
-            onClick={() => toast.info("Coming Soon! Verification feature will be available soon.")}
+            onClick={() => toast.info(t("Coming Soon! Verification feature will be available soon.", "Coming Soon! Verification feature will be available soon."))}
             className="bg-blue-600 rounded-2xl p-4 flex items-center justify-between shadow-md active:scale-[0.98] transition-all cursor-pointer border border-blue-500"
           >
             <div className="flex items-center gap-3">
@@ -269,7 +271,7 @@ export default function ProfilePage() {
 
         <div className="pt-4 text-center pb-8">
           <p className="text-[10px] text-slate-400 font-medium">
-            ParKada v1.0. - De La Salle Lipa IT3C Group 9
+            ParKada v1.0. - De La Salle Lipa IT4C Group 9
           </p>
         </div>
 

@@ -1,5 +1,5 @@
 /*
- * iParkBayan — Terms and Conditions Page
+ * ParKada — Terms and Conditions Page
  * Clean, GCash-like UI: Mobile-optimized, sticky header, readable typography.
  */
 import { useLocation } from "wouter";

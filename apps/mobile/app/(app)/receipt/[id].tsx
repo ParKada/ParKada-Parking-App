@@ -74,7 +74,7 @@ export default function DigitalReceiptPage() {
       }
 
       // Sharing simple text for now since we'd need react-native-view-shot for image capturing
-      const shareMessage = `iParkBayan Ticket\n\nLocation: ${res?.parking_lots?.name}\nSlot: ${res?.parking_slots?.label}\nVehicle: ${res?.plate_number}\nRef: ${receiptRef}`;
+      const shareMessage = `ParKada Ticket\n\nLocation: ${res?.parking_lots?.name}\nSlot: ${res?.parking_slots?.label}\nVehicle: ${res?.plate_number}\nRef: ${receiptRef}`;
       // expo-sharing is mostly for files. For text we use standard RN Share, but wait, let's just show an alert or use a fallback.
       import('react-native').then(({ Share }) => {
         Share.share({

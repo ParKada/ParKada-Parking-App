@@ -40,10 +40,17 @@ export default function CameraGridEditor({
       status: s.status
     }));
 
-  // Slots that are unmapped and don't yet have a zone on this camera
-  const unmappedSlots = slots.filter(
-    s => s.status === 'unmapped' && !mappedZones.some(z => z.slotId === s.id)
-  );
+  // Slots that are available to draw on THIS camera:
+  // - Must be unmapped (no zone drawn yet anywhere), OR already mapped to THIS camera
+  // - Must NOT be mapped to a DIFFERENT camera
+  const unmappedSlots = slots.filter(s => {
+    // Already drawn on this camera — skip (it's in mappedZones already)
+    if (mappedZones.some(z => z.slotId === s.id)) return false;
+    // Belongs to a different camera — exclude from this camera's list
+    if (s.camera_id && s.camera_id !== cameraId) return false;
+    // Only show truly unmapped slots
+    return s.status === 'unmapped';
+  });
 
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<Point[]>([]);
@@ -238,8 +245,9 @@ export default function CameraGridEditor({
   const getColorForStatus = (status: string) => {
     switch (status) {
       case 'occupied': return 'rgba(239, 68, 68, 0.4)';
-      case 'reserved': return 'rgba(59, 130, 246, 0.4)';
-      case 'maintenance': return 'rgba(245, 158, 11, 0.4)';
+      case 'reserved': return 'rgba(234, 179, 8, 0.4)'; // Yellow
+      case 'detecting': return 'rgba(249, 115, 22, 0.4)'; // Orange
+      case 'maintenance': return 'rgba(245, 158, 11, 0.4)'; // Amber
       case 'available': return 'rgba(16, 185, 129, 0.4)';
       default: return 'rgba(148, 163, 184, 0.4)';
     }
@@ -248,8 +256,9 @@ export default function CameraGridEditor({
   const getBorderColorForStatus = (status: string) => {
     switch (status) {
       case 'occupied': return 'rgb(239, 68, 68)';
-      case 'reserved': return 'rgb(59, 130, 246)';
-      case 'maintenance': return 'rgb(245, 158, 11)';
+      case 'reserved': return 'rgb(234, 179, 8)'; // Yellow
+      case 'detecting': return 'rgb(249, 115, 22)'; // Orange
+      case 'maintenance': return 'rgb(245, 158, 11)'; // Amber
       case 'available': return 'rgb(16, 185, 129)';
       default: return 'rgb(148, 163, 184)';
     }

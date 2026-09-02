@@ -1,5 +1,5 @@
 /*
- * iParkBayan — Home (Real-time, Countdown & 10-Min Alert Version)
+ * ParKada — Home (Real-time, Countdown & 10-Min Alert Version)
  */
 import { useState, useEffect } from "react";
 import { supabase } from "@parkada/shared";
@@ -129,7 +129,7 @@ export default function Home() {
   };
 
   return (
-    <MobileLayout title="iParkBayan">
+    <MobileLayout title="ParKada">
       <div className="p-4 space-y-6 pb-24">
         
         <div className="pt-2">

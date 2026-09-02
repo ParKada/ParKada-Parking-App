@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@parkada/shared";
 import DarkVeil from "@/components/ui/dark-veil"; 
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -17,25 +18,27 @@ interface AdminLayoutProps {
 }
 
 const allNavItems = [
-  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "manager"] },
-  { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["super_admin"] },
+  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "superadmin", "manager"] },
+  { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["super_admin", "superadmin"] },
   { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager", "guard"] },
-  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "manager", "guard"] },
-  { path: "/admin/applications", icon: FileText, label: "Partner Applications", allowedRoles: ["super_admin"] },
-  { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["super_admin"] }, 
-  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin"] }, 
+  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "superadmin", "manager", "guard"] },
+  { path: "/admin/applications", icon: FileText, label: "Partner Applications", allowedRoles: ["super_admin", "superadmin"] },
+  { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["super_admin", "superadmin"] }, 
+  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin", "superadmin"] }, 
   { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "guard"] },
-  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "manager"] },
-  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "manager"] },
+  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "superadmin", "manager"] },
+  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "superadmin", "manager"] },
   { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager"] },
-  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "manager"] }, 
+  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "superadmin", "manager"] }, 
 ];
 
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
+  const { t } = useLanguage();
   const [location, setLocation] = useLocation();
   const [adminEmail, setAdminEmail] = useState<string>("Loading...");
   const [initials, setInitials] = useState<string>("A");
   const [userId, setUserId] = useState<string | null>(null);
+  const [lotType, setLotType] = useState<string | null>(null);
   
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -72,7 +75,15 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       }
     };
 
+    const fetchLotType = async () => {
+      if (adminLotId) {
+        const { data } = await supabase.from('parking_lots').select('type').eq('id', adminLotId).single();
+        if (data) setLotType(data.type);
+      }
+    };
+
     fetchUser();
+    fetchLotType();
     fetchNotifications();
 
     const notifChannel = supabase
@@ -137,7 +148,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
     if (!error) {
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      toast.success("All notifications marked as read");
+      toast.success(t("All notifications marked as read", "All notifications marked as read"));
     }
   };
 
@@ -149,7 +160,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         { event: 'UPDATE', schema: 'public', table: 'admin_profiles', filter: `id=eq.${userId}` },
         async (payload: any) => {
           if (payload.new.status === 'Suspended') {
-            toast.error("⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde.", { duration: 8000 });
+            toast.error(t("⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde.", "⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde."), { duration: 8000 });
             await supabase.auth.signOut();
             localStorage.removeItem('admin_role');
             localStorage.removeItem('admin_lot_id');
@@ -165,14 +176,18 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       await supabase.auth.signOut();
       localStorage.removeItem('admin_role');
       localStorage.removeItem('admin_lot_id');
-      toast.success("Successfully logged out");
+      toast.success(t("Successfully logged out", "Successfully logged out"));
       setLocation("/admin");
     } catch (error) {
-      toast.error("Error logging out");
+      toast.error(t("Error logging out", "Problema logging out"));
     }
   };
 
-  const filteredNavItems = allNavItems.filter(item => item.allowedRoles.includes(adminRole));
+  const filteredNavItems = allNavItems.filter(item => {
+    if (!item.allowedRoles.includes(adminRole)) return false;
+    if (item.path === "/admin/reservations" && lotType === "public") return false;
+    return true;
+  });
   const unreadCount = notifications.filter(n => n.read === false).length;
 
   return (

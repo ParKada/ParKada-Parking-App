@@ -1,5 +1,5 @@
 // Tinanggal natin ang import mula sa "@shared/const" at ginawa na lang natin silang variables dito.
-export const COOKIE_NAME = "iparkbayan_auth"; 
+export const COOKIE_NAME = "ParKada_auth"; 
 export const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000; // 1 year in milliseconds
 
 // Generate login URL at runtime so redirect URI reflects the current origin.

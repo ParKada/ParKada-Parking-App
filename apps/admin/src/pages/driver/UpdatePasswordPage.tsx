@@ -1,5 +1,5 @@
 /*
- * iParkBayan - UpdatePasswordPage
+ * ParKada - UpdatePasswordPage
  * Back arrow appears only when accessed from Profile page (?from=profile).
  * Recovery links wait for Supabase to restore the session before updateUser is allowed.
  */
@@ -12,10 +12,12 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 
 import { supabase } from "@parkada/shared";
+import { useLanguage } from "@/hooks/useLanguage";
 
-const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
+const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/ParKada-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
 
 export default function UpdatePasswordPage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   const [showBackArrow, setShowBackArrow] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -156,22 +158,22 @@ export default function UpdatePasswordPage() {
     e.preventDefault();
 
     if (!sessionReady) {
-      toast.error("Password reset session is not ready. Please open the reset link again.");
+      toast.error(t("Password reset session is not ready. Please open the reset link again.", "Password reset session is not ready. Pakisuyo open the reset link again."));
       return;
     }
 
     if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters long.");
+      toast.error(t("Password must be at least 8 characters long.", "Password must be at least 8 characters long."));
       return;
     }
 
     if (strength === "Weak Password") {
-      toast.error("Please use a stronger password (must contain letters and numbers).");
+      toast.error(t("Please use a stronger password (must contain letters and numbers).", "Pakisuyo use a stronger password (must contain letters and numbers)."));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match.");
+      toast.error(t("Passwords do not match.", "Passwords do not match."));
       return;
     }
 
@@ -183,7 +185,7 @@ export default function UpdatePasswordPage() {
 
       if (error) throw error;
 
-      toast.success("Password updated successfully! You can now log in.");
+      toast.success(t("Password updated successfully! You can now log in.", "Password updated nang matagumpay! You can now log in."));
       navigate("/home");
     } catch (error: any) {
       console.error("UPDATE PASSWORD ERROR:", error);

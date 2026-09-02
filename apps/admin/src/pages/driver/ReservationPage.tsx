@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ReservationPage (With Verification Check + Park Now Logic)
+ * ParKada — ReservationPage (With Verification Check + Park Now Logic)
  * Unverified users: Walk-in only, view map, navigate, save favorites
  * Verified users: Full reservation capabilities with online payment
  * "Park Now" system: Start time is always current time when booking
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@parkada/shared";
 import { useVerification } from "@/hooks/useVerification";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 // Helper function para makuha ang Closing Time (24h format)
 const getLotClosingTime24 = (openHours: string) => {
@@ -127,6 +128,7 @@ const formatMinutesToTime = (minutes: number): string => {
 };
 
 export default function ReservationPage() {
+  const { t } = useLanguage();
   const params = useParams<{ slotId: string }>();
   const [, navigate] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
@@ -285,7 +287,7 @@ export default function ReservationPage() {
 
   // ========== UPDATED: Show "Coming Soon" toast instead of navigation ==========
   const handleComingSoon = () => {
-    toast.info("Coming Soon! Verification feature will be available soon.");
+    toast.info(t("Coming Soon! Verification feature will be available soon.", "Coming Soon! Verification feature will be available soon."));
   };
 
   const handleProceed = () => {

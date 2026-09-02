@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminWalkInRecords
+ * ParKada — AdminWalkInRecords
  * Real‑time entry/exit, one‑click checkout with overtime confirmation,
  * overtime = ₱10 per hour beyond the first 3 hours.
  * PDF: Opens new window with clean report – no sidebars, no UI.
@@ -13,8 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
-import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer } from "lucide-react";
+import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer, List } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface WalkInRecord {
   id: string;
@@ -32,22 +33,24 @@ interface WalkInRecord {
 }
 
 export default function AdminWalkInRecords() {
+  const { t } = useLanguage();
   const [slots, setSlots] = useState<{ id: string; label: string; lot_name: string; lot_rate: number }[]>([]);
   const [records, setRecords] = useState<WalkInRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
-    slot_id: "",
     plate_number: "",
     amount_paid: "",
     notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [guardId, setGuardId] = useState<string | null>(null);
+  const [recordType, setRecordType] = useState<"active" | "archived" | "all">("active");
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "custom">("today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
-  const [checkoutConfirm, setCheckoutConfirm] = useState<{ record: WalkInRecord; extraHours: number; overtimeFee: number } | null>(null);
+  const [checkoutConfirm, setCheckoutConfirm] = useState<WalkInRecord | null>(null);
+  const [overtimeInput, setOvertimeInput] = useState("");
 
   const userRole = localStorage.getItem("admin_role");
   const userLotId = localStorage.getItem("admin_lot_id");
@@ -79,7 +82,7 @@ export default function AdminWalkInRecords() {
       }));
       setSlots(formatted);
     } else {
-      toast.error("Failed to load walk‑in slots");
+      toast.error(t("Failed to load walk‑in slots", "Nabigong load walk‑in slots"));
     }
   };
 
@@ -94,20 +97,17 @@ export default function AdminWalkInRecords() {
 
       // Filter by lot if manager/guard
       if ((userRole === "manager" || userRole === "guard") && userLotId) {
-        const { data: slotIds } = await supabase
-          .from("parking_slots")
-          .select("id")
-          .eq("lot_id", userLotId);
-        const ids = slotIds?.map(s => s.id) || [];
-        if (ids.length === 0) {
-          setRecords([]);
-          setLoading(false);
-          return;
-        }
-        query = query.in("slot_id", ids);
+        query = query.eq("lot_id", userLotId);
       }
 
-      // Date filters
+      // Record Type Filter
+      if (recordType === "active") {
+        query = query.is("exit_time", null);
+      } else if (recordType === "archived") {
+        query = query.not("exit_time", "is", null);
+      }
+
+      // Date Filter
       const now = new Date();
       if (dateFilter === "today") {
         const start = new Date(now.setHours(0, 0, 0, 0)).toISOString();
@@ -126,7 +126,12 @@ export default function AdminWalkInRecords() {
       }
 
       const { data: recordsData, error: recordsError } = await query;
-      if (recordsError) throw recordsError;
+      if (recordsError) {
+        toast.error(t(`Fetch error: ${recordsError.message}`, `Fetch error: ${recordsError.message}`));
+        throw recordsError;
+      }
+
+
 
       if (!recordsData || recordsData.length === 0) {
         setRecords([]);
@@ -134,14 +139,17 @@ export default function AdminWalkInRecords() {
         return;
       }
 
-      // 2. Get slot details for these records
-      const uniqueSlotIds = Array.from(new Set(recordsData.map((r: any) => r.slot_id)));
-      const { data: slotsData, error: slotsError } = await supabase
-        .from("parking_slots")
-        .select(`id, label, parking_lots ( name, rate_per_hour )`)
-        .in("id", uniqueSlotIds);
-
-      if (slotsError) throw slotsError;
+      // 2. Get slot details for records that have a slot assigned
+      const uniqueSlotIds = Array.from(new Set(recordsData.map((r: any) => r.slot_id).filter(Boolean)));
+      let slotsData: any[] = [];
+      if (uniqueSlotIds.length > 0) {
+        const { data: fetchedSlots, error: slotsError } = await supabase
+          .from("parking_slots")
+          .select(`id, label, parking_lots ( name, rate_per_hour )`)
+          .in("id", uniqueSlotIds);
+        if (slotsError) throw slotsError;
+        slotsData = fetchedSlots || [];
+      }
 
       // 3. Merge
       const combined = recordsData.map(record => ({
@@ -152,7 +160,7 @@ export default function AdminWalkInRecords() {
       setRecords(combined);
     } catch (err: any) {
       console.error(err);
-      toast.error(`Failed to load records: ${err.message}`);
+      toast.error(t(`Failed to load records: ${err.message}`, `Nabigong load records: ${err.message}`));
     } finally {
       setLoading(false);
     }
@@ -298,25 +306,26 @@ export default function AdminWalkInRecords() {
       printWindow.document.close();
       printWindow.print();
     } else {
-      toast.error('Unable to open print window. Please allow pop-ups.');
+      toast.error(t('Unable to open print window. Please allow pop-ups.', 'Unable to open print window. Pakisuyo allow pop-ups.'));
     }
   };
 
   // ================= OTHER HANDLERS (unchanged) =================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.slot_id || !form.plate_number || !form.amount_paid) {
-      toast.error("Please fill in slot, plate, and amount");
+    if (!form.plate_number || !form.amount_paid) {
+      toast.error(t("Please fill in plate number and amount", "Pakisuyo fill in plate number and amount"));
       return;
     }
     if (!guardId) {
-      toast.error("Guard identity not found");
+      toast.error(t("Guard identity not found", "Guard identity not found"));
       return;
     }
     setSubmitting(true);
     const now = new Date().toISOString();
     const { error } = await supabase.from("walk_in_records").insert({
-      slot_id: form.slot_id,
+      lot_id: userLotId,
+      slot_id: null,
       guard_id: guardId,
       plate_number: form.plate_number.toUpperCase(),
       amount_paid: parseFloat(form.amount_paid),
@@ -328,34 +337,17 @@ export default function AdminWalkInRecords() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Walk‑in recorded");
-      setForm({ slot_id: "", plate_number: "", amount_paid: "", notes: "" });
+      toast.success(t("Walk‑in recorded", "Walk‑in recorded"));
+      setForm({ plate_number: "", amount_paid: "", notes: "" });
       setShowForm(false);
       fetchRecords();
     }
     setSubmitting(false);
   };
 
-  const calculateOvertime = (entryTime: string, exitTime: string): { extraHours: number; fee: number } => {
-    const entry = new Date(entryTime);
-    const exit = new Date(exitTime);
-    let diffHours = (exit.getTime() - entry.getTime()) / (1000 * 60 * 60);
-    if (diffHours <= 3) return { extraHours: 0, fee: 0 };
-    const extraHours = Math.ceil(diffHours - 3);
-    const fee = extraHours * 10;
-    return { extraHours, fee };
-  };
-
   const handleCheckoutClick = (record: WalkInRecord) => {
-    const now = new Date().toISOString();
-    const { extraHours, fee } = calculateOvertime(record.entry_time, now);
-    if (extraHours === 0) {
-      if (window.confirm(`No overtime. Total amount remains ₱${record.amount_paid.toFixed(2)}. Checkout now?`)) {
-        performCheckout(record, now, 0);
-      }
-    } else {
-      setCheckoutConfirm({ record, extraHours, overtimeFee: fee });
-    }
+    setCheckoutConfirm(record);
+    setOvertimeInput(""); // reset the input field
   };
 
   const performCheckout = async (record: WalkInRecord, exitTime: string, overtimeFee: number) => {
@@ -371,7 +363,7 @@ export default function AdminWalkInRecords() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success(`Checked out at ${new Date(exitTime).toLocaleTimeString()}. Overtime +₱${overtimeFee}`);
+      toast.success(t(`Checked out at ${new Date(exitTime).toLocaleTimeString()}. Overtime +₱${overtimeFee}`, `Checked out at ${new Date(exitTime).toLocaleTimeString()}. Overtime +₱${overtimeFee}`));
       fetchRecords();
     }
     setCheckoutConfirm(null);
@@ -392,6 +384,83 @@ export default function AdminWalkInRecords() {
     return "All time";
   };
 
+  const renderTable = (data: WalkInRecord[], emptyMsg: string) => {
+    const colCount = recordType === "active" ? 5 : 8;
+    return (
+    <Table>
+      <TableHeader>
+        <TableRow className="bg-slate-50">
+          <TableHead className="py-3">Time Recorded</TableHead>
+          <TableHead>Plate</TableHead>
+          <TableHead>Base Amount</TableHead>
+          {recordType !== "active" && <TableHead>Overtime Fee</TableHead>}
+          <TableHead>Total Bill</TableHead>
+          {recordType !== "active" && <TableHead>Exit Time</TableHead>}
+          <TableHead>Status</TableHead>
+          <TableHead className="text-right">Action</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {loading ? (
+          <TableRow><TableCell colSpan={colCount} className="text-center py-8">Loading...</TableCell></TableRow>
+        ) : data.length === 0 ? (
+          <TableRow><TableCell colSpan={colCount} className="text-center py-8 text-muted-foreground">{emptyMsg}</TableCell></TableRow>
+        ) : (
+          data.map((rec) => {
+            const slotLabel = rec.parking_slots?.label || "—";
+            const lotName = rec.parking_slots?.parking_lots?.name || "—";
+            const overtime = rec.overtime_fee || 0;
+            const total = rec.amount_paid;
+            const base = total - overtime;
+            const completed = !!rec.exit_time;
+            return (
+              <TableRow key={rec.id} className="border-t">
+                <TableCell className="text-xs whitespace-nowrap">{new Date(rec.entry_time).toLocaleString()}</TableCell>
+                <TableCell className="font-mono">{rec.plate_number}</TableCell>
+                <TableCell>₱{base.toFixed(2)}</TableCell>
+                {recordType !== "active" && (
+                  <TableCell className={overtime > 0 ? "text-rose-600 font-bold" : ""}>
+                    {overtime > 0 ? `+₱${overtime.toFixed(2)}` : "—"}
+                  </TableCell>
+                )}
+                <TableCell className="font-bold">₱{total.toFixed(2)}</TableCell>
+                {recordType !== "active" && (
+                  <TableCell className="text-xs">
+                    {rec.exit_time ? new Date(rec.exit_time).toLocaleString() : "—"}
+                  </TableCell>
+                )}
+                <TableCell>
+                  {completed ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                      <CheckCircle size={12} /> Completed
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                      <Clock size={12} /> Active
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  {!completed && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCheckoutClick(rec)}
+                      className="text-blue-600 hover:bg-blue-50"
+                    >
+                      <TrendingUp size={14} /> Checkout
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })
+        )}
+      </TableBody>
+    </Table>
+  );
+  };
+
   // ================= USE EFFECTS =================
   useEffect(() => {
     fetchSlots();
@@ -401,7 +470,7 @@ export default function AdminWalkInRecords() {
 
   useEffect(() => {
     fetchRecords();
-  }, [dateFilter, customStart, customEnd]);
+  }, [dateFilter, customStart, customEnd, recordType]);
 
   // ================= RENDER =================
   return (
@@ -442,19 +511,51 @@ export default function AdminWalkInRecords() {
         <div className="bg-white rounded-2xl p-5 shadow-sm border">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">
-              <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
-                {["today", "week", "month", "custom"].map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setDateFilter(f as any)}
-                    className={cn(
-                      "px-3 py-1.5 text-xs font-bold rounded-full capitalize",
-                      dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
-                    )}
-                  >
-                    {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRecordType("all")}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    recordType === "all" ? "bg-blue-600 text-white shadow-md" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  )}
+                >
+                  All Records
+                </button>
+                <button
+                  onClick={() => setRecordType("active")}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    recordType === "active" ? "bg-amber-500 text-white shadow-md" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                  )}
+                >
+                  Active Walk-ins
+                </button>
+                <button
+                  onClick={() => setRecordType("archived")}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    recordType === "archived" ? "bg-emerald-600 text-white shadow-md" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  )}
+                >
+                  Archived
+                </button>
+                
+                <div className="w-px bg-slate-200 mx-2 self-stretch" />
+                
+                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
+                  {["today", "week", "month", "custom"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setDateFilter(f as any)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
+                        dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
+                      )}
+                    >
+                      {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
+                    </button>
+                  ))}
+                </div>
               </div>
               {dateFilter === "custom" && (
                 <div className="flex gap-2">
@@ -480,23 +581,6 @@ export default function AdminWalkInRecords() {
           <div className="bg-white p-6 rounded-2xl border shadow-sm">
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <Label className="text-sm font-semibold">Parking Slot *</Label>
-                <select
-                  value={form.slot_id}
-                  onChange={(e) => setForm({ ...form, slot_id: e.target.value })}
-                  className="w-full h-11 px-3 rounded-xl border border-input bg-background text-sm"
-                  required
-                >
-                  <option value="">Select slot</option>
-                  {slots.map((slot) => (
-                    <option key={slot.id} value={slot.id}>
-                      {slot.label} ({slot.lot_name})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-muted-foreground mt-1">Only walk‑in slots are shown.</p>
-              </div>
-              <div>
                 <Label className="text-sm font-semibold">Plate Number *</Label>
                 <Input
                   value={form.plate_number}
@@ -519,7 +603,7 @@ export default function AdminWalkInRecords() {
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">Covers first 3 hours. Overtime ₱10/hour beyond.</p>
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <Label className="text-sm font-semibold">Notes (optional)</Label>
                 <Textarea
                   value={form.notes}
@@ -540,103 +624,60 @@ export default function AdminWalkInRecords() {
           </div>
         )}
 
-        {/* Screen Table */}
+      {/* Main Table */}
+      <div className="mb-8">
+        <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+          {recordType === "active" ? (
+            <><Clock className="text-amber-600" size={20} /> Active Walk-ins ({getDateRangeText()})</>
+          ) : recordType === "archived" ? (
+            <><CheckCircle className="text-emerald-600" size={20} /> Archived Records ({getDateRangeText()})</>
+          ) : (
+            <><List className="text-blue-600" size={20} /> All Records ({getDateRangeText()})</>
+          )}
+        </h3>
         <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50">
-                  <TableHead className="py-3">Entry Time</TableHead>
-                  <TableHead>Slot</TableHead>
-                  <TableHead>Plate</TableHead>
-                  <TableHead>Base Amount</TableHead>
-                  <TableHead>Overtime</TableHead>
-                  <TableHead>Total Paid</TableHead>
-                  <TableHead>Exit Time</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8">Loading...</TableCell></TableRow>
-                ) : records.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No records found.</TableCell></TableRow>
-                ) : (
-                  records.map((rec) => {
-                    const slotLabel = rec.parking_slots?.label || "—";
-                    const lotName = rec.parking_slots?.parking_lots?.name || "—";
-                    const overtime = rec.overtime_fee || 0;
-                    const total = rec.amount_paid;
-                    const base = total - overtime;
-                    const completed = !!rec.exit_time;
-                    return (
-                      <TableRow key={rec.id} className="border-t">
-                        <TableCell className="text-xs whitespace-nowrap">{new Date(rec.entry_time).toLocaleString()}</TableCell>
-                        <TableCell>
-                          <span className="font-mono font-medium">{slotLabel}</span>
-                          <span className="text-xs text-muted-foreground ml-1">({lotName})</span>
-                        </TableCell>
-                        <TableCell className="font-mono">{rec.plate_number}</TableCell>
-                        <TableCell>₱{base.toFixed(2)}</TableCell>
-                        <TableCell className={overtime > 0 ? "text-rose-600 font-bold" : ""}>
-                          {overtime > 0 ? `+₱${overtime.toFixed(2)}` : "—"}
-                        </TableCell>
-                        <TableCell className="font-bold">₱{total.toFixed(2)}</TableCell>
-                        <TableCell className="text-xs">
-                          {rec.exit_time ? new Date(rec.exit_time).toLocaleString() : "—"}
-                        </TableCell>
-                        <TableCell>
-                          {completed ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                              <CheckCircle size={12} /> Completed
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                              <Clock size={12} /> Active
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {!completed && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCheckoutClick(rec)}
-                              className="text-blue-600 hover:bg-blue-50"
-                            >
-                              <TrendingUp size={14} /> Checkout
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+            {renderTable(records, "No records found for the selected period.")}
           </div>
         </div>
+      </div>
       </div>
 
       {/* Checkout Confirmation Modal */}
       {checkoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <h3 className="text-lg font-bold mb-4">Checkout Confirmation</h3>
-            <div className="space-y-3">
-              <p><span className="font-medium">Plate:</span> {checkoutConfirm.record.plate_number}</p>
-              <p><span className="font-medium">Slot:</span> {checkoutConfirm.record.parking_slots?.label} ({checkoutConfirm.record.parking_slots?.parking_lots?.name})</p>
-              <p><span className="font-medium">Entry:</span> {new Date(checkoutConfirm.record.entry_time).toLocaleString()}</p>
-              <p><span className="font-medium">Base amount (first 3h):</span> ₱{checkoutConfirm.record.amount_paid.toFixed(2)}</p>
-              <p className="text-rose-600 font-semibold">Extra hours: {checkoutConfirm.extraHours} (₱10/hour) → +₱{checkoutConfirm.overtimeFee}</p>
-              <div className="border-t pt-2 mt-2">
-                <p className="text-lg font-black">Total amount: ₱{(checkoutConfirm.record.amount_paid + checkoutConfirm.overtimeFee).toFixed(2)}</p>
+            <h3 className="text-lg font-bold mb-4">Checkout Walk-in</h3>
+            <div className="space-y-4">
+              <p><span className="font-medium">Plate:</span> {checkoutConfirm.plate_number}</p>
+              <p><span className="font-medium">Entry:</span> {new Date(checkoutConfirm.entry_time).toLocaleString()}</p>
+              <p><span className="font-medium">Base amount:</span> ₱{checkoutConfirm.amount_paid.toFixed(2)}</p>
+              
+              <div>
+                <Label className="text-sm font-semibold">Manual Overtime Fee (₱)</Label>
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  value={overtimeInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Only allow numbers and a single decimal point
+                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                      setOvertimeInput(val);
+                    }
+                  }}
+                  placeholder="0.00"
+                  className="h-11 mt-1"
+                />
+              </div>
+
+              <div className="border-t pt-3 mt-3">
+                <p className="text-lg font-black text-emerald-600">Total Bill: ₱{(checkoutConfirm.amount_paid + (parseFloat(overtimeInput) || 0)).toFixed(2)}</p>
               </div>
             </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <Button variant="outline" onClick={() => setCheckoutConfirm(null)}>Cancel</Button>
-              <Button onClick={() => performCheckout(checkoutConfirm.record, new Date().toISOString(), checkoutConfirm.overtimeFee)}>Confirm Checkout</Button>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setCheckoutConfirm(null)} className="rounded-xl">Cancel</Button>
+              <Button onClick={() => performCheckout(checkoutConfirm, new Date().toISOString(), parseFloat(overtimeInput) || 0)} className="rounded-xl">Confirm Checkout</Button>
             </div>
           </div>
         </div>

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@parkada/shared"; // Isang akyat lang mula sa components
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AutoStatusUpdater() {
+  const { t } = useLanguage();
   const [notifiedReservations, setNotifiedReservations] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function AutoStatusUpdater() {
           // 🔔 30-Minute Reminder
           const thirtyMinsBefore = new Date(startDateTime.getTime() - 30 * 60000);
           if (now >= thirtyMinsBefore && now < startDateTime && !notifiedReservations.has(res.id)) {
-            toast.info("Parking Reminder", { description: `Slot ${res.slot_id} starts in 30 mins!` });
+            toast.info(t("Parking Reminder", "Parking Reminder"), { description: `Slot ${res.slot_id} starts in 30 mins!` });
             
             await supabase.from("notifications").insert({
               user_id: res.user_id,

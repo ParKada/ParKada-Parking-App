@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format, isToday } from "date-fns";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type NotificationType =
   | "vehicle_added"
@@ -69,6 +70,7 @@ const timeToMinutes = (timeStr: string): number => {
 };
 
 export default function NotificationPage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -304,9 +306,9 @@ export default function NotificationPage() {
       .in("id", Array.from(selectedIds));
     if (!error) {
       setNotifications(prev => prev.filter(n => !selectedIds.has(n.id)));
-      toast.success(`${selectedIds.size} notification${selectedIds.size > 1 ? 's' : ''} deleted`);
+      toast.success(t(`${selectedIds.size} notification${selectedIds.size > 1 ? 's' : ''} deleted`, `${selectedIds.size} notification${selectedIds.size > 1 ? 's' : ''} deleted`));
       exitSelectionMode();
-    } else toast.error("Failed to delete");
+    } else toast.error(t("Failed to delete", "Nabigong delete"));
   };
 
   const handleMarkSelectedAsRead = async () => {
@@ -317,9 +319,9 @@ export default function NotificationPage() {
       .in("id", Array.from(selectedIds));
     if (!error) {
       setNotifications(prev => prev.map(n => selectedIds.has(n.id) ? { ...n, read: true } : n));
-      toast.success(`Marked ${selectedIds.size} as read`);
+      toast.success(t(`Marked ${selectedIds.size} as read`, `Marked ${selectedIds.size} as read`));
       exitSelectionMode();
-    } else toast.error("Failed to mark as read");
+    } else toast.error(t("Failed to mark as read", "Nabigong mark as read"));
   };
 
   // Long press handlers (1 second)
@@ -385,7 +387,7 @@ export default function NotificationPage() {
       setPullDistance(80); // lock at max to show indicator
       await fetchNotifications(user.id, true);
       refreshingFlag.current = false;
-      toast.success("Refreshed");
+      toast.success(t("Refreshed", "Refreshed"));
     }
     setPullDistance(0);
     touchStartY.current = 0;

@@ -7,8 +7,10 @@ import {
   ShieldAlert, UserCheck, ShieldClose, CheckCircle2, XCircle 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminVerifications() {
+  const { t } = useLanguage();
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export default function AdminVerifications() {
       setPendingUsers(data || []);
     } catch (error: any) {
       console.error("Error fetching pending verifications:", error);
-      toast.error("Failed to load pending verifications.");
+      toast.error(t("Failed to load pending verifications.", "Nabigong load pending verifications."));
     } finally {
       if (!isSilent) setLoading(false);
     }
@@ -90,7 +92,7 @@ export default function AdminVerifications() {
         .eq("id", userId);
 
       if (error) throw error;
-      toast.success(`${userName} has been officially verified!`);
+      toast.success(t(`${userName} has been officially verified!`, `${userName} has been officially verified!`));
 
       // TC-16: Send Push Notification asynchronously
       supabase.functions.invoke('send-push', {
@@ -114,7 +116,7 @@ export default function AdminVerifications() {
 
     } catch (error: any) {
       console.error("Error approving user:", error);
-      toast.error("Failed to approve user.");
+      toast.error(t("Failed to approve user.", "Nabigong approve user."));
       // I-revert kung pumalya
       setProcessedStatus((prev) => {
         const newState = { ...prev };
@@ -146,7 +148,7 @@ export default function AdminVerifications() {
         .eq("id", userId);
 
       if (error) throw error;
-      toast.info(`${userName}'s verification was rejected.`);
+      toast.info(t(`${userName}'s verification was rejected.`, `${userName}'s verification was rejected.`));
 
       // 3. Tanggalin ang row after 1.5 seconds delay
       setTimeout(() => {
@@ -161,7 +163,7 @@ export default function AdminVerifications() {
 
     } catch (error: any) {
       console.error("Error rejecting user:", error);
-      toast.error("Failed to reject user.");
+      toast.error(t("Failed to reject user.", "Nabigong reject user."));
       setProcessedStatus((prev) => {
         const newState = { ...prev };
         delete newState[userId];

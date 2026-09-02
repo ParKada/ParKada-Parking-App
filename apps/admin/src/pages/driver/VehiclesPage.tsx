@@ -1,5 +1,5 @@
 /*
- * iParkBayan — VehiclesPage (Supabase Connected & Real-time Alerts)
+ * ParKada — VehiclesPage (Supabase Connected & Real-time Alerts)
  * Updated: Added car brand dropdown (same as registration) and LTO plate validation.
  * Removed back arrow button.
  */
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 // Allowed 4-Wheel Car Brands (same as RegisterPage)
 const ALLOWED_CAR_BRANDS = [
@@ -22,6 +23,7 @@ const ALLOWED_CAR_BRANDS = [
 ];
 
 export default function VehiclesPage() {
+  const { t } = useLanguage();
   const [, navigate] = useLocation();
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ export default function VehiclesPage() {
       setVehicles(data || []);
     } catch (err: any) {
       console.error(err);
-      toast.error("Failed to load vehicles");
+      toast.error(t("Failed to load vehicles", "Nabigong load vehicles"));
     } finally {
       setLoading(false);
     }
@@ -71,12 +73,12 @@ export default function VehiclesPage() {
   // Add Vehicle
   const addVehicle = async () => {
     if (!form.plate || !form.brand || !form.model || !form.color) {
-      toast.error("Please fill all fields");
+      toast.error(t("Please fill all fields", "Pakisuyo fill all fields"));
       return;
     }
 
     if (!validateLTOPlate(form.plate)) {
-      toast.error("Invalid Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234).");
+      toast.error(t("Invalid Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234).", "Mali ang Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234)."));
       return;
     }
 
@@ -100,7 +102,7 @@ export default function VehiclesPage() {
 
       if (checkError) throw checkError;
       if (existingVehicle) {
-        toast.error(`Plate number ${sanitizedPlate} is already registered!`);
+        toast.error(t(`Plate number ${sanitizedPlate} is already registered!`, `Plate number ${sanitizedPlate} is already registered!`));
         setAdding(false);
         return; 
       }
@@ -114,7 +116,7 @@ export default function VehiclesPage() {
 
       if (countError) throw countError;
       if ((count || 0) >= MAX_VEHICLES) {
-        toast.error(`You can only register up to ${MAX_VEHICLES} vehicles. Please delete an existing one first.`);
+        toast.error(t(`You can only register up to ${MAX_VEHICLES} vehicles. Please delete an existing one first.`, `You can only register up to ${MAX_VEHICLES} vehicles. Pakisuyo delete an existing one first.`));
         setOpen(false); 
         setForm({ plate: "", brand: "", model: "", color: "" }); 
         setAdding(false); 
@@ -136,7 +138,7 @@ export default function VehiclesPage() {
         }]);
 
       if (insertError?.code === '23505') { 
-        toast.error(`Plate number ${sanitizedPlate} is already in the system!`);
+        toast.error(t(`Plate number ${sanitizedPlate} is already in the system!`, `Plate number ${sanitizedPlate} is already in the system!`));
         setAdding(false);
         return;
       } else if (insertError) {
@@ -152,7 +154,7 @@ export default function VehiclesPage() {
         read: false
       }]);
 
-      toast.success("Vehicle added!");
+      toast.success(t("Vehicle added!", "Vehicle added!"));
       setForm({ plate: "", brand: "", model: "", color: "" });
       setOpen(false);
       fetchVehicles(); 
@@ -176,7 +178,7 @@ export default function VehiclesPage() {
       if (error) throw error;
 
       setVehicles((v) => v.filter((x) => x.id !== id));
-      toast.success("Vehicle removed");
+      toast.success(t("Vehicle removed", "Vehicle removed"));
     } catch (err: any) {
       toast.error(err.message);
     }

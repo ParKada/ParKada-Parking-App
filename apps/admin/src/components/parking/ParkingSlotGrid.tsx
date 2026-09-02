@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import type { ParkingSlot } from "@/lib/data";
 import { Car, X, Accessibility } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface ParkingSlotGridProps {
   slots: ParkingSlot[];
@@ -45,6 +46,7 @@ export default function ParkingSlotGrid({
   interactive = true,
   isAdmin = false,
 }: ParkingSlotGridProps) {
+  const { t } = useLanguage();
 
   // Hide unmapped slots from drivers/users; admins see everything
   const visibleSlots = isAdmin
@@ -194,7 +196,7 @@ export default function ParkingSlotGrid({
                       <button
                         key={slot.id}
                         onClick={() => {
-                          if (isWalkIn) toast.info(`Slot ${slot.label} is for walk‑in only.`);
+                          if (isWalkIn) toast.info(t(`Slot ${slot.label} is for walk‑in only.`, `Slot ${slot.label} is for walk‑in only.`));
                           if (canSelect) onSelectSlot?.(slot);
                         }}
                         disabled={!canSelect}

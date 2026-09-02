@@ -423,8 +423,9 @@ export default function ProfilePage() {
         </TouchableOpacity>
 
         {/* APP VERSION & LEGAL FOOTER */}
-        <View className="items-center">
+        <View className="items-center pb-8">
           <Text className="text-xs font-bold text-slate-400">ParKada App v1.0.0</Text>
+          <Text className="text-[10px] text-slate-400 mt-0.5">De La Salle Lipa IT4C Group 9</Text>
           <Text className="text-[10px] text-slate-400 mt-0.5">Compliant with National Data Privacy Act</Text>
         </View>
 

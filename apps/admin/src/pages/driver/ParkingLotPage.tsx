@@ -1,5 +1,5 @@
 /*
- * iParkBayan — ParkingLotPage (With Clickable Reviews Modal using parking_reviews)
+ * ParKada — ParkingLotPage (With Clickable Reviews Modal using parking_reviews)
  * Fixed: Slot labels sorted alphabetically by row letter, then numerically by number.
  * Removed redundant back arrow (MobileLayout already handles back navigation).
  */
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@parkada/shared";
+import { useLanguage } from "@/hooks/useLanguage";
 
 // Helper: static star rendering (for average rating)
 const renderStaticStars = (rating: number) => {
@@ -29,6 +30,7 @@ const renderStaticStars = (rating: number) => {
 };
 
 export default function ParkingLotPage() {
+  const { t } = useLanguage();
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
 
@@ -182,11 +184,11 @@ export default function ParkingLotPage() {
 
   const handleReserve = () => {
     if (lot?.status === 'suspended') {
-      toast.error("This location is currently unavailable.");
+      toast.error(t("This location is currently unavailable.", "This location is currently unavailable."));
       return;
     }
     if (!selectedSlot) {
-      toast.error("Please select an available slot first");
+      toast.error(t("Please select an available slot first", "Pakisuyo select an available slot first"));
       return;
     }
     navigate(`/reserve/${selectedSlot.id}?lot=${lot.id}`);
