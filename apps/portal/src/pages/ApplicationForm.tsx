@@ -8,6 +8,8 @@ export default function ApplicationForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [applicationId, setApplicationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otherDocsCount, setOtherDocsCount] = useState(1);
   const [formData, setFormData] = useState<any>({ operating_hours: "6:00 AM - 10:00 PM", business_type: "private", registration_type: "DTI" });
   const navigate = useNavigate();
 
@@ -82,6 +84,21 @@ export default function ApplicationForm() {
   };
 
   const handleNext = () => {
+    // Validate email if on step 1
+    if (currentStep === 1) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!formData.rep_email || !emailRegex.test(formData.rep_email)) {
+        toast.error("Please enter a valid Official Email Address.");
+        return;
+      }
+    }
+    
+    // Validate ID if moving from step 1
+    if (currentStep === 1 && !formData.documents?.valid_id) {
+      toast.error("Valid ID 1 is required to proceed.");
+      return;
+    }
+
     saveDraft(formData);
     setCurrentStep((prev) => Math.min(prev + 1, 4));
     window.scrollTo(0, 0);
@@ -93,7 +110,8 @@ export default function ApplicationForm() {
   };
   
   const handleSubmitFinal = async () => {
-    if (!applicationId) return;
+    if (!applicationId || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const { error } = await supabase
         .from('partner_applications')
@@ -107,21 +125,19 @@ export default function ApplicationForm() {
     } catch (err) {
       console.error(err);
       toast.error('Failed to submit application.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const renderUploadBox = (docKey: string, label: string, isOptional: boolean = false) => (
-    <div key={docKey} className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer relative overflow-hidden h-32">
-       <div className="text-center">
+    <div key={docKey} className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden h-32">
+       <div className="text-center relative z-10 pointer-events-none">
          <div className="text-sm font-bold uppercase mb-1">{label} {isOptional && <span className="text-gray-400 font-normal lowercase">(optional)</span>}</div>
          <div className="text-xs text-gray-500">Click to upload or drag and drop</div>
-         
-         {formData.documents?.[docKey] && (
-           <div className="mt-2 text-green-600 font-semibold text-sm">✅ Uploaded</div>
-         )}
        </div>
        
-       <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={async (e) => {
+       <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-0" onChange={async (e) => {
          const file = e.target.files?.[0];
          if (!file) return;
          
@@ -146,11 +162,23 @@ export default function ApplicationForm() {
             const newDocs = { ...(formData.documents || {}), [docKey]: publicUrl };
             setFormData({ ...formData, documents: newDocs });
             toast.success(`${label} uploaded successfully!`);
+            
+            // If this was an "other document" upload, increment the count to show another box
+            if (docKey.startsWith('other_documents_')) {
+              setOtherDocsCount(prev => prev + 1);
+            }
          } catch (err) {
             console.error(err);
-            toast.error(`Failed to upload ${label}`);
-         }
+             toast.error(`Failed to upload ${label}`);
+          }
        }} />
+
+       {formData.documents?.[docKey] && (
+         <div className="absolute bottom-2 left-0 w-full flex flex-col items-center justify-center z-20 pointer-events-auto">
+           <div className="text-green-600 font-semibold text-sm pointer-events-none">✅ Uploaded</div>
+           <a href={formData.documents[docKey]} target="_blank" rel="noreferrer" className="text-blue-500 text-xs hover:underline mt-0.5 bg-gray-50 px-2 rounded" onClick={(e) => e.stopPropagation()}>View File</a>
+         </div>
+       )}
     </div>
   );
 
@@ -198,15 +226,27 @@ export default function ApplicationForm() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Contact Number *</label>
-                <input 
-                  type="tel" 
-                  value={formData.rep_contact_number || ''} 
-                  onChange={(e) => setFormData({...formData, rep_contact_number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  placeholder="+63 912 345 6789"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Contact Number *</label>
+                  <input 
+                    type="tel" 
+                    value={formData.rep_contact_number || ''} 
+                    onChange={(e) => setFormData({...formData, rep_contact_number: e.target.value.replace(/\D/g, '')})}
+                    className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    placeholder="e.g. 09123456789"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Home Number (Landline) <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input 
+                    type="tel" 
+                    value={formData.rep_home_number || ''} 
+                    onChange={(e) => setFormData({...formData, rep_home_number: e.target.value.replace(/\D/g, '')})}
+                    className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    placeholder="e.g. 0281234567"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Official Email Address *</label>
@@ -246,7 +286,7 @@ export default function ApplicationForm() {
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Full Address *</label>
+                <label className="text-sm font-semibold">Full Address of the Parking Establishment *</label>
                 <input 
                   type="text" 
                   value={formData.establishment_address || ''} 
@@ -270,8 +310,9 @@ export default function ApplicationForm() {
                   <input 
                     type="text" 
                     value={formData.establishment_zip || ''} 
-                    onChange={(e) => setFormData({...formData, establishment_zip: e.target.value})}
+                    onChange={(e) => setFormData({...formData, establishment_zip: e.target.value.replace(/\D/g, '').slice(0, 4)})}
                     className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none"
+                    placeholder="0000"
                   />
                 </div>
               </div>
@@ -281,57 +322,93 @@ export default function ApplicationForm() {
                   <label className="text-sm font-semibold">Total Capacity (Slots) *</label>
                   <input 
                     type="number" 
+                    min="0"
                     value={formData.total_capacity || ''} 
-                    onChange={(e) => setFormData({...formData, total_capacity: parseInt(e.target.value)})}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (val < 0) return;
+                      setFormData({...formData, total_capacity: val || ''})
+                    }}
                     className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Operating Hours *</label>
-                  <div className="flex flex-col sm:flex-row items-center gap-2">
-                    <select
-                      value={formData.operating_hours === "24 Hours" ? "24 Hours" : (formData.operating_hours ? formData.operating_hours.split(" - ")[0] : "6:00 AM")}
-                      onChange={(e) => {
-                        const newOpen = e.target.value;
-                        if (newOpen === "24 Hours") {
-                          setFormData({...formData, operating_hours: "24 Hours"});
-                        } else {
-                          const currentClose = (formData.operating_hours && formData.operating_hours !== "24 Hours") ? (formData.operating_hours.split(" - ")[1] || "10:00 PM") : "10:00 PM";
-                          setFormData({...formData, operating_hours: `${newOpen} - ${currentClose}`});
-                        }
-                      }}
-                      className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none bg-white"
-                    >
-                      {[
-                        "12:00 AM", "1:00 AM", "2:00 AM", "3:00 AM", "4:00 AM", "5:00 AM",
-                        "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-                        "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
-                        "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM", "11:00 PM",
-                        "24 Hours"
-                      ].map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    
-                    {formData.operating_hours !== "24 Hours" && (
-                      <>
-                        <span className="text-gray-500 font-medium hidden sm:inline">to</span>
-                        <select
-                          value={(formData.operating_hours && formData.operating_hours !== "24 Hours") ? (formData.operating_hours.split(" - ")[1] || "10:00 PM") : "10:00 PM"}
-                          onChange={(e) => {
-                            const newClose = e.target.value;
-                            const currentOpen = (formData.operating_hours && formData.operating_hours !== "24 Hours") ? (formData.operating_hours.split(" - ")[0] || "6:00 AM") : "6:00 AM";
-                            setFormData({...formData, operating_hours: `${currentOpen} - ${newClose}`});
-                          }}
-                          className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none bg-white"
-                        >
-                          {[
-                            "12:00 AM", "1:00 AM", "2:00 AM", "3:00 AM", "4:00 AM", "5:00 AM",
-                            "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-                            "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
-                            "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM", "11:00 PM"
-                          ].map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                      </>
-                    )}
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <div className="flex items-center gap-2 w-full">
+                      <input 
+                        type="time" 
+                        value={formData.operating_hours === "24 Hours" ? "" : (formData.operating_hours ? (() => {
+                          const timeStr = formData.operating_hours.split(" - ")[0] || "6:00 AM";
+                          const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                          if (!match) return timeStr;
+                          let [_, h, m, mod] = match;
+                          let hrs = parseInt(h, 10);
+                          if (mod.toUpperCase() === 'PM' && hrs < 12) hrs += 12;
+                          if (mod.toUpperCase() === 'AM' && hrs === 12) hrs = 0;
+                          return `${hrs.toString().padStart(2, '0')}:${m}`;
+                        })() : "06:00")}
+                        disabled={formData.operating_hours === "24 Hours"}
+                        onChange={(e) => {
+                          const newOpen = e.target.value;
+                          const currentCloseRaw = (formData.operating_hours && formData.operating_hours !== "24 Hours") ? (formData.operating_hours.split(" - ")[1] || "10:00 PM") : "10:00 PM";
+                          
+                          // Format newOpen
+                          const [oh, om] = newOpen.split(':');
+                          let ohrs = parseInt(oh, 10);
+                          const oMod = ohrs >= 12 ? 'PM' : 'AM';
+                          ohrs = ohrs % 12 || 12;
+                          const openFormatted = `${ohrs}:${om} ${oMod}`;
+                          
+                          setFormData({...formData, operating_hours: `${openFormatted} - ${currentCloseRaw}`});
+                        }}
+                        className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none bg-white"
+                      />
+                      <span className="text-gray-500 font-medium">to</span>
+                      <input 
+                        type="time" 
+                        value={formData.operating_hours === "24 Hours" ? "" : (formData.operating_hours && formData.operating_hours !== "24 Hours" ? (() => {
+                          const timeStr = formData.operating_hours.split(" - ")[1] || "10:00 PM";
+                          const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                          if (!match) return timeStr;
+                          let [_, h, m, mod] = match;
+                          let hrs = parseInt(h, 10);
+                          if (mod.toUpperCase() === 'PM' && hrs < 12) hrs += 12;
+                          if (mod.toUpperCase() === 'AM' && hrs === 12) hrs = 0;
+                          return `${hrs.toString().padStart(2, '0')}:${m}`;
+                        })() : "22:00")}
+                        disabled={formData.operating_hours === "24 Hours"}
+                        onChange={(e) => {
+                          const newClose = e.target.value;
+                          const currentOpenRaw = (formData.operating_hours && formData.operating_hours !== "24 Hours") ? (formData.operating_hours.split(" - ")[0] || "6:00 AM") : "6:00 AM";
+                          
+                          // Format newClose
+                          const [ch, cm] = newClose.split(':');
+                          let chrs = parseInt(ch, 10);
+                          const cMod = chrs >= 12 ? 'PM' : 'AM';
+                          chrs = chrs % 12 || 12;
+                          const closeFormatted = `${chrs}:${cm} ${cMod}`;
+                          
+                          setFormData({...formData, operating_hours: `${currentOpenRaw} - ${closeFormatted}`});
+                        }}
+                        className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none bg-white"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 whitespace-nowrap cursor-pointer ml-1">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.operating_hours === "24 Hours"}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({...formData, operating_hours: "24 Hours"});
+                          } else {
+                            setFormData({...formData, operating_hours: "6:00 AM - 10:00 PM"});
+                          }
+                        }}
+                        className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer"
+                      />
+                      <span className="text-sm font-semibold">24 Hours</span>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -366,9 +443,9 @@ export default function ApplicationForm() {
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Year Established *</label>
                   <input 
-                    type="number" 
+                    type="text" 
                     value={formData.year_established || ''} 
-                    onChange={(e) => setFormData({...formData, year_established: parseInt(e.target.value)})}
+                    onChange={(e) => setFormData({...formData, year_established: e.target.value.replace(/\D/g, '').slice(0, 4)})}
                     className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none"
                     placeholder="YYYY"
                   />
@@ -399,7 +476,7 @@ export default function ApplicationForm() {
                   <input 
                     type="text" 
                     value={formData.business_registration_number || ''} 
-                    onChange={(e) => setFormData({...formData, business_registration_number: e.target.value})}
+                    onChange={(e) => setFormData({...formData, business_registration_number: e.target.value.replace(/\D/g, '')})}
                     className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none"
                     placeholder="Registration Number"
                   />
@@ -409,7 +486,7 @@ export default function ApplicationForm() {
                   <input 
                     type="text" 
                     value={formData.tin || ''} 
-                    onChange={(e) => setFormData({...formData, tin: e.target.value})}
+                    onChange={(e) => setFormData({...formData, tin: e.target.value.replace(/[^0-9-]/g, '')})}
                     className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none"
                     placeholder="000-000-000-000"
                   />
@@ -422,7 +499,9 @@ export default function ApplicationForm() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {renderUploadBox('dti_sec_registration', 'DTI/SEC REGISTRATION', false)}
                   {renderUploadBox('mayors_permit', "MAYOR'S PERMIT", false)}
-                  {renderUploadBox('other_documents', 'OTHER SUPPORTING ATTACHMENTS', true)}
+                  {Array.from({ length: otherDocsCount }).map((_, i) => 
+                    renderUploadBox(`other_documents_${i + 1}`, `OTHER ATTACHMENT ${i + 1}`, true)
+                  )}
                 </div>
               </div>
             </div>
@@ -523,10 +602,10 @@ export default function ApplicationForm() {
             ) : (
               <button
                 onClick={handleSubmitFinal}
-                disabled={!formData.terms_accepted}
+                disabled={!formData.terms_accepted || isSubmitting}
                 className="px-8 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                Submit Application <Save size={18} />
+                {isSubmitting ? 'Submitting...' : 'Submit Application'} <Save size={18} />
               </button>
             )}
           </div>

@@ -67,6 +67,10 @@ export default function DraggableMapEditor({
     let newX = ((e.clientX - rect.left) / rect.width) * 100;
     let newY = ((e.clientY - rect.top) / rect.height) * 100;
 
+    // Snap to grid (magnet effect) using 2.5% increments
+    newX = Math.round(newX / 2.5) * 2.5;
+    newY = Math.round(newY / 2.5) * 2.5;
+
     // Clamp between 0 and 100
     newX = Math.max(0, Math.min(newX, 95));
     newY = Math.max(0, Math.min(newY, 90));
