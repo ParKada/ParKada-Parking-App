@@ -20,6 +20,8 @@ export default function PartnerDashboard() {
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
   const [resettingStaffId, setResettingStaffId] = useState<string | null>(null);
   const [staffNewPassword, setStaffNewPassword] = useState('');
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [staffNewName, setStaffNewName] = useState('');
 
   const navigate = useNavigate();
 
@@ -69,6 +71,29 @@ export default function PartnerDashboard() {
       setStaffNewPassword('');
     } catch (err: any) {
       toast.error(err.message || "Failed to reset password");
+    }
+  };
+
+  const handleUpdateStaffName = async (staffId: string) => {
+    if (!staffNewName || staffNewName.trim().length < 3) {
+      return toast.error("Name must be at least 3 characters");
+    }
+    try {
+      const { error } = await supabase.functions.invoke("update-staff-name", {
+        body: {
+          application_id: application.id,
+          staff_id: staffId,
+          new_name: staffNewName.trim()
+        }
+      });
+      if (error) throw error;
+      toast.success("Staff name updated successfully!");
+      setEditingStaffId(null);
+      setStaffNewName('');
+      fetchStaffAccounts();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to update name");
     }
   };
 
@@ -324,10 +349,29 @@ export default function PartnerDashboard() {
               ) : (
                 <div className="space-y-3">
                   {staffAccounts.map((staff: any) => (
-                    <div key={staff.id} className="bg-white p-4 rounded-xl border border-green-100 shadow-sm flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-gray-900">{staff.full_name}</div>
-                        <div className="text-sm text-gray-500">{staff.email}</div>
+                <div key={staff.id} className="bg-white p-4 rounded-xl border border-green-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    {editingStaffId === staff.id ? (
+                      <div className="flex items-center gap-2 mb-1">
+                        <input 
+                          type="text" 
+                          value={staffNewName}
+                          onChange={(e) => setStaffNewName(e.target.value)}
+                          className="px-2 py-1 text-sm border rounded focus:ring-1 outline-none"
+                          autoFocus
+                        />
+                        <button onClick={() => handleUpdateStaffName(staff.id)} className="text-green-600 font-semibold text-xs bg-green-50 px-2 py-1 rounded">Save</button>
+                        <button onClick={() => setEditingStaffId(null)} className="text-gray-500 text-xs bg-gray-100 px-2 py-1 rounded">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="font-bold text-gray-900 flex items-center gap-2 mb-1">
+                        {staff.full_name} 
+                        <button onClick={() => { setEditingStaffId(staff.id); setStaffNewName(staff.full_name); }} className="text-primary text-xs hover:underline flex items-center gap-1 opacity-70 hover:opacity-100">
+                          Edit Name
+                        </button>
+                      </div>
+                    )}
+                    <div className="text-sm text-gray-500">{staff.email}</div>
                         <span className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded uppercase">
                           {staff.role}
                         </span>
