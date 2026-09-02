@@ -2,10 +2,18 @@ import { useEffect, useState } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { View, ActivityIndicator, Platform, LogBox } from 'react-native';
 import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import '../global.css';
+
+// I-suppress ang mga paulit-ulit na Firebase/FCM errors sa terminal habang nagde-develop
+LogBox.ignoreLogs([
+  'Default FirebaseApp is not initialized',
+  'Error getting push token',
+  'Push Notification Skipped',
+  'Make sure to complete the guide at https://docs.expo.dev/push-notifications/fcm-credentials/',
+]);
 
 // Check if running inside Expo Go
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -24,7 +32,7 @@ if (!isExpoGo) {
       }),
     });
   } catch (e) {
-    console.log('Error initializing notifications handler:', e);
+    // Suppress initialization error silent catch
   }
 }
 
@@ -33,42 +41,47 @@ async function registerForPushNotificationsAsync() {
     return undefined;
   }
 
-  const Notifications = require('expo-notifications');
-  let token: string | undefined;
+  try {
+    const Notifications = require('expo-notifications');
+    let token: string | undefined;
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
-    });
-  }
-
-  if (Device.isDevice) {
-    const existingStatus = await Notifications.getPermissionsAsync();
-    let isGranted = existingStatus.granted || existingStatus.status === 'granted';
-
-    if (!isGranted && existingStatus.canAskAgain) {
-      const newStatus = await Notifications.requestPermissionsAsync();
-      isGranted = newStatus.granted || newStatus.status === 'granted';
+    if (Platform.OS === 'android') {
+      try {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      } catch (e) {
+        // Safe channel fallback
+      }
     }
 
-    if (!isGranted) return undefined;
+    if (Device.isDevice) {
+      const existingStatus = await Notifications.getPermissionsAsync();
+      let isGranted = existingStatus.granted || existingStatus.status === 'granted';
 
-    try {
+      if (!isGranted && existingStatus.canAskAgain) {
+        const newStatus = await Notifications.requestPermissionsAsync();
+        isGranted = newStatus.granted || newStatus.status === 'granted';
+      }
+
+      if (!isGranted) return undefined;
+
       const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
       if (projectId) {
         token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
       } else {
         token = (await Notifications.getExpoPushTokenAsync()).data;
       }
-    } catch (e) {
-      console.log('Error getting push token', e);
     }
-  }
 
-  return token;
+    return token;
+  } catch (e: any) {
+    // Catch-all block para sa anumang push token exception
+    return undefined;
+  }
 }
 
 export default function RootLayout() {
@@ -107,17 +120,20 @@ export default function RootLayout() {
           supabase
             .from('profiles')
             .update({ expo_push_token: token })
-            .eq('id', session.user.id);
+            .eq('id', session.user.id)
+            .then(({ error }) => {
+              if (error) console.error("Error updating push token:", error);
+            });
         }
       });
     }
 
-    // Retained the working setTimeout delay to prevent frame mounts crashes
     const timer = setTimeout(() => {
       if (!session && !inAuthGroup) {
         router.replace('/(auth)');
-      } else if (session && inAuthGroup && !isRegistering) {
-        router.replace('/(app)');
+      } else if (session && (inAuthGroup || !segment) && !isRegistering) {
+        // BAGONG BAGO: Diretso na sa / (index.tsx) kung saan nakalagay ang DriverHome
+        router.replace('/');
       }
     }, 0);
 

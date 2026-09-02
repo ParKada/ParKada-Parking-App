@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabase";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
+// Kinakailangan para sa in-app browser auth sessions
 WebBrowser.maybeCompleteAuthSession();
 
 const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
@@ -17,9 +18,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  // Safe navigation back to AuthLanding screen
   const handleBackNavigation = () => {
     if (view === "forgot") {
       setView("login");
@@ -30,17 +31,55 @@ export default function LoginPage() {
     }
   };
 
+  // Helper para kumuha ng url params mula sa Hash (#) o Search (?)
+  const extractTokensFromUrl = (url: string) => {
+    let accessToken: string | null = null;
+    let refreshToken: string | null = null;
+
+    if (url.includes("#")) {
+      const hashString = url.split("#")[1];
+      const params = new URLSearchParams(hashString);
+      accessToken = params.get("access_token");
+      refreshToken = params.get("refresh_token");
+    }
+
+    if (!accessToken && url.includes("?")) {
+      const queryString = url.split("?")[1];
+      const params = new URLSearchParams(queryString);
+      accessToken = params.get("access_token");
+      refreshToken = params.get("refresh_token");
+    }
+
+    return { accessToken, refreshToken };
+  };
+
+  // Deep Link Listener para sa Google OAuth Callback
   useEffect(() => {
     const handleUrl = async (url: string | null) => {
-      if (url && url.includes("#access_token")) {
+      if (!url) return;
+      if (url.includes("access_token") || url.includes("refresh_token") || url.includes("code=")) {
         try {
+          const { accessToken, refreshToken } = extractTokensFromUrl(url);
+
+          if (accessToken && refreshToken) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) throw error;
+            if (data?.user) {
+              await verifyAndEnsureRegularUser(data.user);
+              return;
+            }
+          }
+
           const { data, error } = await (supabase.auth as any).getSessionFromUrl(url);
           if (error) throw error;
-          if (data?.session) {
-            verifyNotAdmin(data.session.user.id);
+          if (data?.session?.user) {
+            await verifyAndEnsureRegularUser(data.session.user);
           }
         } catch (e: any) {
-          Alert.alert("Magic Link Error", e.message);
+          Alert.alert("Authentication Error", e.message || "Failed to process login token.");
         }
       }
     };
@@ -54,18 +93,65 @@ export default function LoginPage() {
     return () => sub.remove();
   }, []);
 
-  const verifyNotAdmin = async (userId: string) => {
-    const { data: adminData } = await supabase
-      .from("admin_profiles")
-      .select("id")
-      .eq("id", userId)
-      .maybeSingle();
+  const verifyAndEnsureRegularUser = async (user: any) => {
+    if (!user) return;
 
-    if (adminData) {
-      await supabase.auth.signOut();
-      throw new Error("Access Denied: Admin accounts cannot use the Driver App. Please log in via the Admin Portal.");
+    try {
+      // 1. Harangin kung Admin account
+      const { data: adminData } = await supabase
+        .from("admin_profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (adminData) {
+        await supabase.auth.signOut();
+        Alert.alert(
+          "Access Denied",
+          "Admin accounts cannot use the Driver App. Please log in via the Admin Portal."
+        );
+        return;
+      }
+
+      // 2. Suriin kung umiiral na ang profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!profile) {
+        // Parse Name mula sa Google metadata
+        const rawName = user.user_metadata?.full_name || user.user_metadata?.name || "Driver User";
+        const nameParts = rawName.split(" ");
+        const firstName = nameParts[0] || "Driver";
+        const lastName = nameParts.slice(1).join(" ") || "User";
+
+        // BAGONG USER: I-upsert sa profiles table gamit ang tamang columns
+        const { error: insertError } = await supabase.from("profiles").upsert({
+          id: user.id,
+          email: user.email,
+          first_name: firstName,
+          last_name: lastName,
+          user_type: "driver",
+          discount_type: "regular",
+          verification_status: "unverified",
+          updated_at: new Date().toISOString(),
+        });
+
+        if (insertError) {
+          console.error("PROFILES INSERT ERROR:", insertError);
+          throw insertError;
+        }
+      }
+
+      // 3. DIREKTANG REDIRECT SA HOME PAGE
+      router.replace("/(tabs)");
+
+    } catch (error: any) {
+      console.error("VERIFY USER ERROR:", error);
+      Alert.alert("Login Error", error.message || "Failed to complete sign-in.");
     }
-    Alert.alert("Success", "Login successful! Welcome back.");
   };
 
   const handleLogin = async () => {
@@ -74,7 +160,6 @@ export default function LoginPage() {
       return;
     }
 
-    setLoading(true);
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -83,69 +168,66 @@ export default function LoginPage() {
 
       if (authError) throw authError;
 
-      if (authData.user?.id) {
-        await verifyNotAdmin(authData.user.id);
+      if (authData.user) {
+        await verifyAndEnsureRegularUser(authData.user);
       }
     } catch (error: any) {
       console.error("LOGIN ERROR:", error);
       Alert.alert("Login Failed", error.message || "Invalid login credentials.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMagicLink = async () => {
-    if (!email) {
-      Alert.alert("Error", "Please enter your email address first.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const redirectUrl = Linking.createURL('/');
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: redirectUrl }
-      });
-      if (error) throw error;
-      Alert.alert("Check your inbox", "We sent a magic link to log you in instantly!");
-    } catch (error: any) {
-      console.error("OTP ERROR:", error);
-      Alert.alert("Failed", error.message || "Could not send magic link.");
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    setLoading(true);
+    setGoogleLoading(true);
     try {
-      const redirectUrl = Linking.createURL('/');
+      const redirectUrl = Linking.createURL('/', { scheme: 'parkada' });
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
           skipBrowserRedirect: true,
+          queryParams: {
+            prompt: 'select_account',
+          },
         },
       });
-      
+
       if (error) throw error;
-      
+
       if (data?.url) {
         const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
         if (res.type === 'success' && res.url) {
+          const { accessToken, refreshToken } = extractTokensFromUrl(res.url);
+
+          if (accessToken && refreshToken) {
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (sessionError) throw sessionError;
+
+            if (sessionData.user) {
+              await verifyAndEnsureRegularUser(sessionData.user);
+              return;
+            }
+          }
+
           const { data: sessionData, error: sessionError } = await (supabase.auth as any).getSessionFromUrl(res.url);
           if (sessionError) throw sessionError;
-          
+
           if (sessionData.session?.user) {
-            await verifyNotAdmin(sessionData.session.user.id);
+            await verifyAndEnsureRegularUser(sessionData.session.user);
           }
         }
       }
     } catch (error: any) {
       console.error("GOOGLE LOGIN ERROR:", error);
-      Alert.alert("Google Login Failed", error.message || "An error occurred.");
+      Alert.alert("Google Login Failed", error.message || "An error occurred during Google sign-in.");
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -155,7 +237,7 @@ export default function LoginPage() {
       return;
     }
 
-    setLoading(true);
+    setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: "parkada://update-password",
@@ -170,7 +252,7 @@ export default function LoginPage() {
       console.error("RESET ERROR:", error);
       Alert.alert("Failed", error.message || "Failed to send reset link. Try again.");
     } finally {
-      setLoading(false);
+      setResetLoading(false);
     }
   };
 
@@ -215,7 +297,6 @@ export default function LoginPage() {
                   onChangeText={setEmail} 
                   placeholder="juan@example.com" 
                   className="h-14 px-4 rounded-xl bg-slate-100 text-slate-800" 
-                  editable={!loading}
                 />
               </View>
 
@@ -228,7 +309,6 @@ export default function LoginPage() {
                     onChangeText={setPassword} 
                     placeholder="Enter your password" 
                     className="h-14 px-4 pr-12 rounded-xl bg-slate-100 text-slate-800" 
-                    editable={!loading}
                   />
                   <TouchableOpacity 
                     onPress={() => setShowPass(!showPass)} 
@@ -248,22 +328,10 @@ export default function LoginPage() {
               <View>
                 <TouchableOpacity
                   onPress={handleLogin}
-                  disabled={loading}
                   className="w-full h-14 bg-[#0A1D37] rounded-xl flex-row justify-center items-center"
                 >
-                  {loading ? <ActivityIndicator color="white" className="mr-2" /> : null}
                   <Text className="text-white text-base font-bold">
-                    {loading ? "Logging in..." : "Log In"}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleMagicLink}
-                  disabled={loading}
-                  className="w-full h-14 border-2 border-blue-600 bg-blue-50/50 rounded-xl mt-3 flex-row justify-center items-center"
-                >
-                  <Text className="text-blue-600 text-base font-bold">
-                    Email me a Magic Link (OTP)
+                    Log In
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -274,15 +342,19 @@ export default function LoginPage() {
                 <View className="flex-1 h-[1px] bg-slate-200" />
               </View>
 
+              {/* Continue with Google button */}
               <TouchableOpacity
                 onPress={handleGoogleLogin}
-                disabled={loading}
+                disabled={googleLoading}
                 className="w-full h-14 border border-slate-300 rounded-xl flex-row justify-center items-center bg-white shadow-sm"
               >
-                {loading ? <ActivityIndicator color="#000" className="mr-2" /> : null}
-                <Image source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" }} className="w-5 h-5 mr-3" />
+                {googleLoading ? (
+                  <ActivityIndicator color="#0A1D37" className="mr-3" />
+                ) : (
+                  <Image source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" }} className="w-5 h-5 mr-3" />
+                )}
                 <Text className="text-slate-700 text-base font-bold">
-                  Continue with Google
+                  {googleLoading ? "Signing in..." : "Continue with Google"}
                 </Text>
               </TouchableOpacity>
 
@@ -309,18 +381,18 @@ export default function LoginPage() {
                   onChangeText={setEmail} 
                   placeholder="juan@example.com" 
                   className="h-14 px-4 rounded-xl bg-slate-100 text-slate-800" 
-                  editable={!loading}
+                  editable={!resetLoading}
                 />
               </View>
 
               <TouchableOpacity
                 onPress={handleResetPassword}
-                disabled={loading}
+                disabled={resetLoading}
                 className="w-full h-14 bg-[#0A1D37] rounded-xl mt-4 flex-row justify-center items-center"
               >
-                {loading ? <ActivityIndicator color="white" className="mr-2" /> : null}
+                {resetLoading ? <ActivityIndicator color="white" className="mr-2" /> : null}
                 <Text className="text-white text-base font-bold">
-                  {loading ? "Sending link..." : "Send Reset Link"}
+                  {resetLoading ? "Sending link..." : "Send Reset Link"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -329,4 +401,4 @@ export default function LoginPage() {
       </ScrollView>
     </KeyboardAvoidingView>
   );
-}
+} 

@@ -1,7 +1,9 @@
-import { View, Text, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { useEffect } from 'react';
+import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from 'expo-router';
 import { MapPin, Shield, Clock, ChevronRight } from 'lucide-react-native';
+import { supabase } from '../../lib/supabase';
 
 const features = [
   { icon: MapPin, title: "Real-Time Availability", desc: "See open slots instantly as they update" },
@@ -13,9 +15,17 @@ export default function AuthLanding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        router.replace('/(app)');
+      }
+    });
+  }, []);
+
   return (
     <View className="flex-1 bg-white">
-      {/* Hero Section - Fixed aspect ratio look */}
+      {/* Hero Section */}
       <View className="relative bg-[#0A1D37] overflow-hidden flex-1">
         <Image
           source={require('../../assets/hero.png')}
@@ -23,10 +33,10 @@ export default function AuthLanding() {
           resizeMode="cover"
         />
         
-        {/* Gradient Overlay approximation using solid color with opacity */}
+        {/* Gradient Overlay */}
         <View className="absolute inset-0 bg-[#0A1D37]/40" />
 
-        {/* Logo & Title - Centered vertically and horizontally inside photo */}
+        {/* Logo & Title */}
         <View 
           className="absolute inset-0 flex flex-col items-center justify-center px-6 z-10"
           style={{ paddingTop: insets.top }}
@@ -49,8 +59,7 @@ export default function AuthLanding() {
         className="bg-white -mt-8 px-8 pt-6 flex flex-col justify-between rounded-t-[40px] shadow-2xl relative z-20"
         style={{ paddingBottom: Math.max(insets.bottom, 16) }}
       >
-        
-        {/* Features List with Reduced Bottom Margin */}
+        {/* Features List */}
         <View className="flex-col gap-3.5 mb-6">
           {features.map(({ icon: Icon, title, desc }) => (
             <View key={title} className="flex-row items-center gap-4 py-1">
@@ -84,7 +93,7 @@ export default function AuthLanding() {
             </TouchableOpacity>
           </View>
 
-          {/* Footer info */}
+          {/* Footer Info */}
           <View className="mt-4 pt-1">
             <Text className="text-center text-[9px] font-bold text-slate-300 uppercase tracking-widest">
               De La Salle Lipa • IT4C Group 9

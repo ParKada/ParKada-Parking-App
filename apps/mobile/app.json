@@ -17,24 +17,26 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.parkada.mobile",
       "config": {
         "googleMapsApiKey": "AIzaSyAe_BSz6u4xkx2UkgT5lKU0RXwhk_TQUeU"
       }
     },
     "android": {
+      "package": "parkada.mobile",
+      "googleServicesFile": "./google-services.json",
+      "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyAe_BSz6u4xkx2UkgT5lKU0RXwhk_TQUeU"
         }
-      },
-      "package": "parkada.mobile"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -42,10 +44,14 @@
     "plugins": [
       "expo-router",
       "expo-build-properties",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-notifications",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
-      "router": {},
+      "router": {
+        "origin": false
+      },
       "eas": {
         "projectId": "793af5a3-4b8c-4cb9-bcc7-a44964e20070"
       }

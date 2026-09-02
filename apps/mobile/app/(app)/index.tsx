@@ -285,7 +285,7 @@ export default function DriverHome() {
         const isOpen = isLotOpen(lot.open_hours);
         return { ...lot, lotSlots, availableCount, distance, isOpen };
       })
-      .filter((lot) => lot.isOpen) // Filtes out closed lots entirely
+      .filter((lot) => lot.isOpen) // Filters out closed lots entirely
       .slice(0, 5);
   }, [dbParkingLots, dbSlots, userLocation]);
 
@@ -318,7 +318,7 @@ export default function DriverHome() {
           <Image source={require("../../assets/ParKadav2.png")} className="w-8 h-8 rounded-md" resizeMode="contain" />
           <Text className="font-black text-lg text-[#0A1D37]">ParKada</Text>
         </View>
-        <TouchableOpacity onPress={() => router.push("/(app)/notifications")} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center relative">
+        <TouchableOpacity onPress={() => router.push("/notifications")} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center relative">
           <Bell size={20} color="#0A1D37" />
           {hasUnreadNotifs && <View className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />}
         </TouchableOpacity>
@@ -344,7 +344,7 @@ export default function DriverHome() {
 
                 {/* Fixed Search Now Button */}
                 <TouchableOpacity 
-                  onPress={() => router.push("/(app)/map")} 
+                  onPress={() => router.push("/map")} 
                   activeOpacity={0.8}
                   className="self-start bg-amber-400 px-3.5 py-2 rounded-xl flex-row items-center justify-center gap-1.5 shrink-0"
                 >
@@ -452,7 +452,7 @@ export default function DriverHome() {
                   <Text className="text-base font-black text-slate-800">Nearby Suggestions</Text>
                   {userLocation && <View className="w-2 h-2 rounded-full bg-blue-500" />}
                 </View>
-                <TouchableOpacity onPress={() => router.push("/(app)/map")} className="flex-row items-center gap-1">
+                <TouchableOpacity onPress={() => router.push("/map")} className="flex-row items-center gap-1">
                   <Text className="text-xs font-bold text-blue-600">View Map</Text>
                   <ChevronRight size={14} color="#2563EB" />
                 </TouchableOpacity>
@@ -469,7 +469,7 @@ export default function DriverHome() {
                       <TouchableOpacity
                         key={lot.id}
                         disabled={!isAccredited}
-                        onPress={() => router.push(`/(app)/lot/${lot.id}`)}
+                        onPress={() => router.push(`/lot/${lot.id}`)}
                         className={`bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 ${!isAccredited ? 'opacity-90 bg-slate-50' : ''}`}
                       >
                         <View className="flex-row justify-between items-start mb-2">
