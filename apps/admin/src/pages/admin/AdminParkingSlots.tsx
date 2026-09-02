@@ -52,6 +52,16 @@ import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminParkingSlots() {
   const { t } = useLanguage();
+
+  const getAdminSupabase = async () => {
+    const { createClient } = await import('@supabase/supabase-js');
+    return createClient(
+      import.meta.env.VITE_SUPABASE_URL,
+      import.meta.env.VITE_SUPABASE_SERVICE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    );
+  };
+
   const [lots, setLots] = useState<any[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string>("");
   const [slots, setSlots] = useState<any[]>([]);
@@ -61,7 +71,8 @@ export default function AdminParkingSlots() {
   const [isAdding, setIsAdding] = useState(false);
   const [newSlotLabel, setNewSlotLabel] = useState("");
   const [newSlotIsPwd, setNewSlotIsPwd] = useState(false);
-  const [newSlotIsReservable, setNewSlotIsReservable] = useState(true);
+  const [newSlotIsReservable, setNewSlotIsReservable] = useState(false);
+  const [lastSlotSettings, setLastSlotSettings] = useState({ scale: 0.8, rotation: 0 });
 
   const [editingSlot, setEditingSlot] = useState<any>(null);
   const [editSlotLabel, setEditSlotLabel] = useState("");
@@ -311,6 +322,7 @@ export default function AdminParkingSlots() {
                 camera_id: expandedCameraId,
                 camera_zone_points: points,
                 coordinates: pixelCoords,
+                status: s.status === "unmapped" ? "available" : s.status,
               }
             : s
         )
@@ -322,6 +334,7 @@ export default function AdminParkingSlots() {
           camera_id: expandedCameraId,
           camera_zone_points: points,
           coordinates: pixelCoords,
+          status: "available",
         })
         .eq("id", slotId);
 
@@ -449,9 +462,7 @@ export default function AdminParkingSlots() {
         updatePayload = { [updateField]: publicUrl };
       }
 
-      const { error: dbError } = await supabase
-        .from("parking_lots")
-        .update(updatePayload)
+      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update(updatePayload)
         .eq("id", selectedLotId);
 
       if (dbError) {
@@ -484,9 +495,7 @@ export default function AdminParkingSlots() {
       const currentOthers = activeLot.other_photos || [];
       const newOthers = currentOthers.filter((u: string) => u !== urlToDelete);
 
-      const { error: dbError } = await supabase
-        .from("parking_lots")
-        .update({ other_photos: newOthers })
+      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update({ other_photos: newOthers })
         .eq("id", selectedLotId);
 
       if (dbError) throw dbError;
@@ -514,9 +523,7 @@ export default function AdminParkingSlots() {
     try {
       const updateField =
         type === "front_view" ? "front_view_url" : "business_permit_url";
-      const { error: dbError } = await supabase
-        .from("parking_lots")
-        .update({ [updateField]: null })
+      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update({ [updateField]: null })
         .eq("id", selectedLotId);
 
       if (dbError) throw dbError;
@@ -540,7 +547,7 @@ export default function AdminParkingSlots() {
     fetchLotAccounts(selectedLotId);
 
     const channel = supabase
-      .channel("realtime-parking-slots")
+      .channel(`realtime-parking-slots-${selectedLotId}`)
       .on(
         "postgres_changes",
         {
@@ -560,7 +567,7 @@ export default function AdminParkingSlots() {
           } else if (payload.eventType === "UPDATE") {
             setSlots(prev =>
               prev.map(slot =>
-                slot.id === payload.new.id ? payload.new : slot
+                slot.id === payload.new.id ? { ...slot, ...payload.new } : slot
               )
             );
           } else if (payload.eventType === "DELETE") {
@@ -607,6 +614,13 @@ export default function AdminParkingSlots() {
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedFloorIndex]);
+
+  // Refresh slots automatically when switching back to the floor map
+  useEffect(() => {
+    if (activeTab === "details" && selectedLotId) {
+      fetchSlots(selectedLotId);
+    }
+  }, [activeTab, selectedLotId]);
 
   // Save cameras to local storage whenever they change
   useEffect(() => {
@@ -708,7 +722,11 @@ export default function AdminParkingSlots() {
     }
 
     try {
-      // Find a non-overlapping spot
+      if (slots.some(s => s.label.trim().toLowerCase() === newSlotLabel.trim().toLowerCase())) {
+        toast.error(t("Parking slot name already exists. Please choose a different name.", "May kaparehong pangalan ang parking slot na ito. Pumili ng iba."));
+        return;
+      }
+
       const currentFloorSlots = slots.filter(
         s => (s.floor_index || 0) === selectedFloorIndex
       );
@@ -744,6 +762,8 @@ export default function AdminParkingSlots() {
             status: "unmapped",
             ui_x: newX,
             ui_y: newY,
+            ui_rotation: lastSlotSettings.rotation,
+            ui_scale: lastSlotSettings.scale,
             is_pwd: newSlotIsPwd,
             is_reservable: activeLot?.type === "public" ? false : newSlotIsReservable,
             floor_index: selectedFloorIndex,
@@ -773,7 +793,7 @@ export default function AdminParkingSlots() {
       );
       setNewSlotLabel("");
       setNewSlotIsPwd(false);
-      setNewSlotIsReservable(true);
+      setNewSlotIsReservable(false);
       setIsAdding(false);
     } catch (error: any) {
       console.error("Supabase Error adding slot:", error.message || error);
@@ -906,9 +926,7 @@ export default function AdminParkingSlots() {
       const updatedFloors = currentFloors.filter(
         (_: any, idx: number) => idx !== floorIndex
       );
-      const { error } = await supabase
-        .from("parking_lots")
-        .update({ floors: updatedFloors })
+      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -950,6 +968,13 @@ export default function AdminParkingSlots() {
         },
       };
     });
+
+    if (updates.ui_scale !== undefined || updates.ui_rotation !== undefined) {
+      setLastSlotSettings(prev => ({
+        scale: updates.ui_scale !== undefined ? updates.ui_scale : prev.scale,
+        rotation: updates.ui_rotation !== undefined ? updates.ui_rotation : prev.rotation
+      }));
+    }
   };
 
   const handleRenameFloor = async () => {
@@ -960,9 +985,7 @@ export default function AdminParkingSlots() {
       const updatedFloors = [...currentFloors];
       updatedFloors[selectedFloorIndex] = renameFloorName.trim();
 
-      const { error } = await supabase
-        .from("parking_lots")
-        .update({ floors: updatedFloors })
+      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -983,9 +1006,7 @@ export default function AdminParkingSlots() {
     try {
       const currentFloors = activeLot.floors || ["Main Floor"];
       const updatedFloors = [...currentFloors, newFloorName.trim()];
-      const { error } = await supabase
-        .from("parking_lots")
-        .update({ floors: updatedFloors })
+      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
