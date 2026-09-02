@@ -285,7 +285,6 @@ export default function DriverHome() {
         const isOpen = isLotOpen(lot.open_hours);
         return { ...lot, lotSlots, availableCount, distance, isOpen };
       })
-      .filter((lot) => lot.isOpen) // Filters out closed lots entirely
       .slice(0, 5);
   }, [dbParkingLots, dbSlots, userLocation]);
 
@@ -490,9 +489,13 @@ export default function DriverHome() {
                             </View>
                             <Text className="text-[10px] font-bold text-amber-600 mt-1">🕒 {lot.open_hours}</Text>
                             {isAccredited ? (
-                              <Text className={`text-[11px] font-black mt-1 ${slotsColor}`}>
-                                {available} {available === 1 ? "slot" : "slots"} available
-                              </Text>
+                              !lot.isOpen ? (
+                                <Text className="text-[11px] font-black mt-1 text-slate-500">Currently Closed</Text>
+                              ) : (
+                                <Text className={`text-[11px] font-black mt-1 ${slotsColor}`}>
+                                  {available} {available === 1 ? "slot" : "slots"} available
+                                </Text>
+                              )
                             ) : (
                               <Text className="text-[10px] text-slate-400 font-medium italic mt-1">ℹ️ Walk-In Only</Text>
                             )}

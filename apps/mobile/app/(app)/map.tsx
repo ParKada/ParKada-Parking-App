@@ -320,7 +320,7 @@ export default function ParkingMapPage() {
                   title={lot.name}
                   description={statusText}
                   pinColor={pinColor}
-                  onCalloutPress={() => !isClosed && isAccredited ? router.push(`/(app)/lot/${lot.id}`) : null}
+                  onCalloutPress={() => isAccredited ? router.push(`/(app)/lot/${lot.id}`) : null}
                 />
               );
             })}
@@ -352,7 +352,7 @@ export default function ParkingMapPage() {
                   return (
                     <TouchableOpacity
                       key={`card-${lot.id}`}
-                      disabled={isClosed || !isAccredited}
+                      disabled={!isAccredited}
                       onPress={() => router.push(`/(app)/lot/${lot.id}`)}
                       className={`w-72 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mr-4 ${(!isAccredited || isClosed) ? "opacity-80" : ""}`}
                     >
@@ -419,7 +419,7 @@ export default function ParkingMapPage() {
             return (
               <TouchableOpacity
                 key={`list-${lot.id}`}
-                disabled={isClosed || !isAccredited}
+                disabled={!isAccredited}
                 onPress={() => router.push(`/(app)/lot/${lot.id}`)}
                 className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-4 ${(!isAccredited || isClosed) ? "opacity-80" : ""}`}
               >

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, ActivityIndicator, Alert, Image } from "react-native";
+import { useEffect, useState, useRef } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Modal, ActivityIndicator, Alert, Image, FlatList, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MapPin, Clock, Car, ChevronRight, Ban, Star, X, Layers } from "lucide-react-native";
@@ -21,6 +21,37 @@ const renderStaticStars = (rating: number) => {
   );
 };
 
+const parseOpenHoursToMins = (timeStr: string) => {
+  if (!timeStr) return 0;
+  const match = timeStr.trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return 0;
+  let [_, h, m, period] = match;
+  let hours = parseInt(h, 10);
+  const minutes = parseInt(m, 10);
+  if (period.toUpperCase() === 'PM' && hours < 12) hours += 12;
+  if (period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+};
+
+const isParkingOpen = (openHoursStr: string | null | undefined, currentDate: Date) => {
+  if (!openHoursStr) return true;
+  const hoursText = openHoursStr.toLowerCase();
+  if (hoursText.includes('24 hour') || hoursText.includes('24/7')) return true;
+  try {
+    const times = openHoursStr.split('-').map(t => t.trim());
+    if (times.length === 2) {
+      const startMins = parseOpenHoursToMins(times[0]);
+      const endMins = parseOpenHoursToMins(times[1]);
+      const currentMins = currentDate.getHours() * 60 + currentDate.getMinutes();
+      if (startMins < endMins) return currentMins >= startMins && currentMins < endMins;
+      else return currentMins >= startMins || currentMins < endMins;
+    }
+    return true;
+  } catch (error) {
+    return true;
+  }
+};
+
 export default function ParkingLotPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -31,6 +62,7 @@ export default function ParkingLotPage() {
   const [loading, setLoading] = useState(true);
   
   const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
 
   const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -141,8 +173,10 @@ export default function ParkingLotPage() {
 
   if (!lot) return null;
 
-  const isSuspended = lot.status === 'suspended';
   const availableCount = slots.filter(s => s.status === 'available').length;
+  const isSuspended = lot?.status === 'suspended';
+  const activeHours = lot?.operating_hours || lot?.open_hours;
+  const isClosed = activeHours ? !isParkingOpen(activeHours, new Date()) : lot?.status === 'closed';
   const averageRating = lot.average_rating || 0;
   const totalReviews = lot.total_reviews || 0;
 
@@ -171,6 +205,13 @@ export default function ParkingLotPage() {
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {lot?.front_view_url && (
+          <Image 
+            source={{ uri: lot.front_view_url }} 
+            className="w-full h-56" 
+            resizeMode="cover" 
+          />
+        )}
         <View className="pb-10">
           {isSuspended && (
             <View className="mx-4 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex-row items-start gap-3">
@@ -190,9 +231,9 @@ export default function ParkingLotPage() {
                   <View className={`border px-2 py-0.5 rounded-md ${lot.type === 'private' ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
                     <Text className={`text-[10px] font-bold uppercase ${lot.type === 'private' ? 'text-blue-700' : 'text-slate-600'}`}>{lot.type}</Text>
                   </View>
-                  <View className={`px-2 py-0.5 rounded-full ${isSuspended ? 'bg-slate-200' : availableCount > 0 ? 'bg-emerald-100' : 'bg-rose-100'}`}>
-                    <Text className={`text-[10px] font-bold ${isSuspended ? 'text-slate-600' : availableCount > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                      {isSuspended ? "Inactive" : availableCount > 0 ? `${availableCount} Available` : "Full"}
+                  <View className={`px-2 py-0.5 rounded-full ${isSuspended || isClosed ? 'bg-slate-200' : availableCount > 0 ? 'bg-emerald-100' : 'bg-rose-100'}`}>
+                    <Text className={`text-[10px] font-bold ${isSuspended || isClosed ? 'text-slate-600' : availableCount > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {isSuspended ? "Inactive" : isClosed ? "Closed" : availableCount > 0 ? `${availableCount} Available` : "Full"}
                     </Text>
                   </View>
                 </View>
@@ -220,7 +261,7 @@ export default function ParkingLotPage() {
 
             <View className="flex-row items-center gap-2 mt-4 pt-4 border-t border-slate-100">
               <Clock size={14} color="#64748b" />
-              <Text className="text-xs font-bold text-slate-600">Open: {lot.open_hours || "24/7"}</Text>
+              <Text className="text-xs font-bold text-slate-600">Open: {lot.operating_hours || lot.open_hours || "24/7"}</Text>
             </View>
           </View>
 
@@ -228,7 +269,7 @@ export default function ParkingLotPage() {
           <View className={`mx-4 mt-4 bg-white rounded-2xl p-5 shadow-sm border border-slate-100 ${isSuspended ? 'opacity-40 pointer-events-none' : ''}`}>
             {/* Tinanggal ang Rate display sa gilid ng Select a Slot */}
             <View className="mb-5">
-              <Text className="text-base font-black text-slate-800">Select a Slot</Text>
+              <Text className="text-base font-black text-slate-800">Available Slots</Text>
             </View>
 
             {/* Floor Tabs */}
@@ -242,7 +283,11 @@ export default function ParkingLotPage() {
                   {lot.floors.map((floorName: string, idx: number) => (
                     <TouchableOpacity
                       key={idx}
-                      onPress={() => setSelectedFloorIndex(idx)}
+                      onPress={() => {
+                        setSelectedFloorIndex(idx);
+                        // @ts-ignore
+                        flatListRef.current?.scrollToIndex({ index: idx, animated: true });
+                      }}
                       className={`mr-2 px-4 py-2 rounded-full border ${selectedFloorIndex === idx ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-200'}`}
                     >
                       <Text className={`font-bold ${selectedFloorIndex === idx ? 'text-white' : 'text-slate-600'}`}>{floorName}</Text>
@@ -252,41 +297,109 @@ export default function ParkingLotPage() {
               </View>
             )}
 
-            {/* Dynamic 2D Map */}
-            <MapViewer 
-              slots={slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)} 
-              onSelectSlot={setSelectedSlot} 
-              selectedSlotId={selectedSlot?.id} 
-            />
+            {/* Dynamic 2D Map Swiping */}
+            {lot?.floors && lot.floors.length > 0 ? (
+              <FlatList
+                ref={(ref) => {
+                  // @ts-ignore
+                  flatListRef.current = ref;
+                }}
+                horizontal
+                snapToInterval={Dimensions.get('window').width - 72 + 16}
+                decelerationRate="fast"
+                contentContainerStyle={{ paddingRight: 16 }}
+                showsHorizontalScrollIndicator={false}
+                data={lot.floors}
+                keyExtractor={(item, index) => String(index)}
+                onMomentumScrollEnd={(e) => {
+                  const newIndex = Math.round(e.nativeEvent.contentOffset.x / (Dimensions.get('window').width - 72 + 16));
+                  if (newIndex !== selectedFloorIndex) {
+                    setSelectedFloorIndex(newIndex);
+                  }
+                }}
+                renderItem={({ item, index }) => (
+                  <View style={{ width: Dimensions.get('window').width - 72, marginRight: 16 }}>
+                    <MapViewer 
+                      slots={slots.filter(s => (s.floor_index || 0) === index)} 
+                      onSelectSlot={setSelectedSlot} 
+                      selectedSlotId={selectedSlot?.id} 
+                      isClosed={isClosed}
+                    />
+                  </View>
+                )}
+                getItemLayout={(data, index) => (
+                  {length: Dimensions.get('window').width - 72 + 16, offset: (Dimensions.get('window').width - 72 + 16) * index, index}
+                )}
+              />
+            ) : (
+              <MapViewer 
+                slots={slots} 
+                onSelectSlot={setSelectedSlot} 
+                selectedSlotId={selectedSlot?.id} 
+                isClosed={isClosed}
+              />
+            )}
           </View>
 
           {selectedSlot && !isSuspended && (
-            <View className="mx-4 mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-200 flex-row items-center gap-3">
+            <View className={`mx-4 mt-4 p-4 rounded-2xl border flex-row items-center gap-3 ${
+              isClosed ? 'bg-slate-50 border-slate-200' :
+              lot.type === 'public' ? (selectedSlot.status === 'available' ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200') :
+              'bg-blue-50 border-blue-200'
+            }`}>
               <View className="w-12 h-12 rounded-xl bg-white items-center justify-center shadow-sm">
-                <Car size={20} color="#1d4ed8" />
+                <Car size={20} color={
+                  isClosed ? '#64748b' : 
+                  lot.type === 'public' ? (selectedSlot.status === 'available' ? '#10b981' : '#f43f5e') : 
+                  '#1d4ed8'
+                } />
               </View>
               <View className="flex-1">
-                <Text className="text-base font-black text-blue-900">Slot {selectedSlot.label} Selected</Text>
-                <Text className="text-xs font-bold text-blue-600 mt-0.5">₱{lot.rate_per_hour}/hr · {lot.name}</Text>
+                <Text className={`text-base font-black ${
+                  isClosed ? 'text-slate-700' : 
+                  lot.type === 'public' ? (selectedSlot.status === 'available' ? 'text-emerald-800' : 'text-rose-800') : 
+                  'text-blue-900'
+                }`}>
+                  {isClosed ? `${selectedSlot.label} is currently unavailable` : 
+                   lot.type === 'public' ? `${selectedSlot.label} is ${selectedSlot.status === 'available' ? 'Vacant' : 'Occupied'}` : 
+                   `Slot ${selectedSlot.label} Selected`}
+                </Text>
+                <Text className={`text-xs font-bold mt-0.5 ${
+                  isClosed ? 'text-slate-500' : 
+                  lot.type === 'public' ? (selectedSlot.status === 'available' ? 'text-emerald-600' : 'text-rose-600') : 
+                  'text-blue-600'
+                }`}>
+                  ₱{lot.rate_per_hour}/hr · {lot.name}
+                </Text>
               </View>
-              <TouchableOpacity onPress={() => setSelectedSlot(null)} className="p-2 bg-blue-100 rounded-full">
-                <X size={16} color="#1d4ed8" />
+              <TouchableOpacity onPress={() => setSelectedSlot(null)} className={`p-2 rounded-full ${
+                isClosed ? 'bg-slate-200' : 
+                lot.type === 'public' ? (selectedSlot.status === 'available' ? 'bg-emerald-100' : 'bg-rose-100') : 
+                'bg-blue-100'
+              }`}>
+                <X size={16} color={
+                  isClosed ? '#475569' : 
+                  lot.type === 'public' ? (selectedSlot.status === 'available' ? '#059669' : '#e11d48') : 
+                  '#1d4ed8'
+                } />
               </TouchableOpacity>
             </View>
           )}
 
-          <View className="mx-4 mt-6 mb-8">
-            <TouchableOpacity
-              onPress={handleReserve}
-              disabled={isSuspended || !selectedSlot || lot.type === "public"}
-              className={`w-full h-14 rounded-xl flex-row items-center justify-center shadow-lg ${isSuspended ? 'bg-slate-300' : selectedSlot ? 'bg-blue-600' : 'bg-slate-200'}`}
-            >
-              <Text className={`text-base font-bold ${isSuspended ? 'text-slate-500' : selectedSlot ? 'text-white' : 'text-slate-400'}`}>
-                {isSuspended ? "Location Suspended" : selectedSlot ? `Reserve Slot ${selectedSlot.label}` : "Select a Slot to Reserve"}
-              </Text>
-              {!isSuspended && selectedSlot && <ChevronRight size={20} color="white" className="ml-2" />}
-            </TouchableOpacity>
-          </View>
+          {lot.type !== "public" && (
+            <View className="mx-4 mt-6 mb-8">
+              <TouchableOpacity
+                onPress={handleReserve}
+                disabled={isSuspended || !selectedSlot}
+                className={`w-full h-14 rounded-xl flex-row items-center justify-center shadow-lg ${isSuspended ? 'bg-slate-300' : selectedSlot ? 'bg-blue-600' : 'bg-slate-200'}`}
+              >
+                <Text className={`text-base font-bold ${isSuspended ? 'text-slate-500' : selectedSlot ? 'text-white' : 'text-slate-400'}`}>
+                  {isSuspended ? "Location Suspended" : selectedSlot ? `Reserve Slot ${selectedSlot.label}` : "Select a Slot to Reserve"}
+                </Text>
+                {!isSuspended && selectedSlot && <ChevronRight size={20} color="white" className="ml-2" />}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
 

@@ -58,8 +58,7 @@ export default function MyReservationsPage() {
             parking_slots (
               slot_number,
               parking_lots (id, name, address)
-            ),
-            review:parking_reviews!parking_reviews_reservation_id_fkey (id)
+            )
           `)
           .eq("profile_id", user.id)
           .order("created_at", { ascending: false });
@@ -68,7 +67,7 @@ export default function MyReservationsPage() {
 
         const enriched = (data || []).map((res: any) => ({
           ...res,
-          hasRated: res.review && res.review.length > 0
+          hasRated: false
         }));
         setReservations(enriched);
       } catch (error) {
