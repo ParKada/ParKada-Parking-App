@@ -21,6 +21,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 export default function AdminSettings() {
   const { language, setLanguage, t } = useLanguage();
   const adminRole = localStorage.getItem("admin_role") || "manager";
+  const isSuperAdmin = adminRole === "super_admin" || adminRole === "superadmin";
   const [localLanguage, setLocalLanguage] = useState(language);
   const [isSaving, setIsSaving] = useState(false);
   const [adminLotId, setAdminLotId] = useState<string | null>(null);
@@ -60,7 +61,7 @@ export default function AdminSettings() {
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
-    if (adminRole === "super_admin") {
+    if (isSuperAdmin) {
       fetchGlobalSettings();
     } else {
       fetchManagerData();
@@ -146,7 +147,7 @@ export default function AdminSettings() {
     e.preventDefault();
     setIsSaving(true);
     
-    if (adminRole === "super_admin") {
+    if (isSuperAdmin) {
       try {
         // Use service key to bypass RLS for system_settings (since this is restricted to super_admin anyway)
         const { createClient } = await import('@supabase/supabase-js');
@@ -229,7 +230,7 @@ export default function AdminSettings() {
         )}
 
         <form onSubmit={handleSaveSettings}>
-          {adminRole === "super_admin" ? (
+          {isSuperAdmin ? (
             <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto">
               <div className="flex items-center gap-3"><div className="bg-violet-500/10 p-2 rounded-xl text-violet-600"><CalendarClock size={20} /></div><h3 className="font-bold text-lg">Global Reservation Limits</h3></div>
               
@@ -425,18 +426,18 @@ export default function AdminSettings() {
             <div className="flex items-center gap-4 text-slate-600">
               <div className="bg-slate-100 p-3 rounded-full"><ShieldAlert size={24} /></div>
               <div>
-                <h4 className="font-bold text-sm">{adminRole === "super_admin" ? "Global System Rules" : "System Maintenance"}</h4>
-                <p className="text-xs text-muted-foreground">{adminRole === "super_admin" ? "Changes apply to all users across all lots." : "Pause all incoming reservations globally."}</p>
+                <h4 className="font-bold text-sm">{isSuperAdmin ? "Global System Rules" : "System Maintenance"}</h4>
+                <p className="text-xs text-muted-foreground">{isSuperAdmin ? "Changes apply to all users across all lots." : "Pause all incoming reservations globally."}</p>
               </div>
             </div>
             <Button type="submit" disabled={isSaving} className="w-full md:w-auto h-14 px-8 font-black uppercase tracking-widest rounded-xl bg-slate-900 text-white hover:bg-slate-800">
-              <Save size={18} /> {isSaving ? "Processing..." : adminRole === "super_admin" ? "Save Global Rules" : "Save Lot Settings"}
+              <Save size={18} /> {isSaving ? "Processing..." : isSuperAdmin ? "Save Global Rules" : "Save Lot Settings"}
             </Button>
           </div>
         </form>
 
         <div className="text-center text-[10px] text-muted-foreground mt-4">
-          ⚡ {adminRole === "super_admin" ? "These limits prevent abuse across the entire platform." : "Settings are automatically applied to your assigned parking establishment."}
+          ⚡ {isSuperAdmin ? "These limits prevent abuse across the entire platform." : "Settings are automatically applied to your assigned parking establishment."}
         </div>
       </div>
     </AdminLayout>

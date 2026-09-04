@@ -1,10 +1,10 @@
 import { useLocation } from "wouter";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   LayoutDashboard, ParkingSquare, BookOpen, BarChart3, 
   Settings, LogOut, Bell, User, MapPin, 
   CheckCircle2, Users, QrCode, Clock,
-  ShieldCheck, DollarSign, FileText 
+  ShieldCheck, DollarSign, FileText, Upload, Save, Pencil, Image as ImageIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -39,15 +39,22 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const [initials, setInitials] = useState<string>("A");
   const [userId, setUserId] = useState<string | null>(null);
   const [lotType, setLotType] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string>("");
+  const avatarRef = useRef<HTMLInputElement>(null);
   
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [editNameValue, setEditNameValue] = useState<string>("");
+  const [isSavingName, setIsSavingName] = useState(false);
   
   const adminRole = localStorage.getItem("admin_role") || "manager"; 
   const adminLotId = localStorage.getItem("admin_lot_id");
 
   const closeDropdowns = () => {
     setShowNotifs(false);
+    setShowProfileMenu(false);
   };
 
   const fetchNotifications = useCallback(async () => {
@@ -72,6 +79,20 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         setAdminEmail(user.email);
         setInitials(user.email.charAt(0).toUpperCase());
         setUserId(user.id);
+
+        const { data: profile } = await supabase
+          .from('admin_profiles')
+          .select('avatar_url, full_name')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+          if (profile.full_name) {
+            setFullName(profile.full_name);
+            setEditNameValue(profile.full_name);
+          }
+        }
       }
     };
 
@@ -183,6 +204,66 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     }
   };
 
+  const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+
+    const toastId = toast.loading(t("Uploading profile picture...", "Ina-upload ang profile picture..."));
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${userId}/avatar-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("lot-documents")
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("lot-documents")
+        .getPublicUrl(fileName);
+
+      const publicUrl = publicUrlData.publicUrl;
+      setAvatarUrl(publicUrl);
+
+      const { error: dbError } = await supabase
+        .from("admin_profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", userId);
+
+      if (dbError) throw dbError;
+
+      toast.success(t("Profile picture updated!", "Na-update na ang profile picture!"), { id: toastId });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(t(`Upload failed: ${err.message}`, `Nabigo ang pag-upload: ${err.message}`), { id: toastId });
+    } finally {
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!userId || !editNameValue.trim()) return;
+    setIsSavingName(true);
+    const toastId = toast.loading(t("Saving name...", "Sini-save ang pangalan..."));
+    try {
+      const { error } = await supabase
+        .from('admin_profiles')
+        .update({ full_name: editNameValue.trim() })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      
+      setFullName(editNameValue.trim());
+      toast.success(t("Name updated successfully!", "Na-update ang pangalan!"), { id: toastId });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(t(`Save failed: ${err.message}`, `Nabigo ang pag-save: ${err.message}`), { id: toastId });
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
   const filteredNavItems = allNavItems.filter(item => {
     if (!item.allowedRoles.includes(adminRole)) return false;
     if (item.path === "/admin/reservations" && lotType === "public") return false;
@@ -246,25 +327,22 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           <div className="px-3 py-4 border-t border-white/10 space-y-1">
             {/* Profile section: NON-CLICKABLE (no button) */}
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white uppercase border border-white/20">
-                {initials}
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-white/20 flex items-center justify-center text-xs font-bold text-white uppercase border border-white/20">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  initials
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white capitalize truncate">
-                  {(adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : 'Manager'}
+                  {fullName || ((adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : 'Manager')}
                 </p>
                 <p className="text-[10px] text-white/50 truncate" title={adminEmail}>
                   {adminEmail}
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-rose-400 transition-all"
-            >
-              <LogOut size={16} />
-              Sign Out
-            </button>
           </div>
         </div>
       </aside>
@@ -278,7 +356,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             {/* NOTIFICATIONS DROPDOWN */}
             <div className="relative">
               <button
-                onClick={() => { setShowNotifs(!showNotifs); }}
+                onClick={() => { setShowProfileMenu(false); setShowNotifs(!showNotifs); }}
                 className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors relative"
                 aria-label="Notifications"
               >
@@ -333,15 +411,96 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               )}
             </div>
 
-            {/* PROFILE BUTTON – GINAWANG HINDI CLICKABLE (wala nang dropdown) */}
-            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-sm border-2 border-white ring-1 ring-slate-200 cursor-default">
-              {initials}
+            {/* PROFILE DROPDOWN */}
+            <div className="relative">
+              <button 
+                onClick={() => { setShowNotifs(false); setShowProfileMenu(!showProfileMenu); }}
+                className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-sm border-2 border-white ring-1 ring-slate-200 cursor-pointer overflow-hidden hover:ring-primary transition-all"
+              >
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  initials
+                )}
+              </button>
+
+              {showProfileMenu && (
+                <div className="absolute right-0 mt-3 w-72 bg-white border border-border rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 flex flex-col">
+                  {/* Profile Header & Picture */}
+                  <div className="bg-slate-50 border-b border-border p-6 flex flex-col items-center relative">
+                    <div className="w-20 h-20 rounded-full border-4 border-white shadow-sm overflow-hidden bg-primary flex items-center justify-center text-2xl font-bold text-white relative group">
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        initials
+                      )}
+                      <div 
+                        onClick={() => avatarRef.current?.click()}
+                        className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        title="Upload Picture"
+                      >
+                        <ImageIcon size={20} className="text-white" />
+                      </div>
+                    </div>
+                    
+                    <button 
+                      onClick={() => avatarRef.current?.click()}
+                      className="mt-3 text-xs font-bold text-primary hover:underline"
+                    >
+                      Change Picture
+                    </button>
+                    
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      ref={avatarRef} 
+                      onChange={handleUploadAvatar} 
+                    />
+                  </div>
+
+                  {/* Name Configuration */}
+                  <div className="p-4 border-b border-border space-y-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1">
+                        <Pencil size={10} /> Display Name
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter full name"
+                        value={editNameValue}
+                        onChange={(e) => setEditNameValue(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                      />
+                    </div>
+                    <button 
+                      onClick={handleSaveName}
+                      disabled={isSavingName || editNameValue.trim() === fullName}
+                      className="w-full flex items-center justify-center gap-2 bg-primary text-white text-xs font-bold py-2 rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Save size={14} />
+                      {isSavingName ? "Saving..." : "Save Name"}
+                    </button>
+                  </div>
+
+                  {/* Sign Out */}
+                  <div className="p-2 bg-slate-50">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm text-rose-600 font-bold hover:bg-rose-100 transition-all"
+                    >
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
 
         {/* OVERLAY */}
-        {showNotifs && (
+        {(showNotifs || showProfileMenu) && (
           <div className="fixed inset-0 z-30" onClick={closeDropdowns} aria-hidden="true" />
         )}
 
