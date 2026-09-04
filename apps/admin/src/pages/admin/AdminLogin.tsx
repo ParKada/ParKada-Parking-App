@@ -85,7 +85,7 @@ export default function AdminLogin() {
   const processLoginSuccess = async (userId: string) => {
     const { data: profileData, error: profileError } = await supabase
       .from("admin_profiles")
-      .select("assigned_lot_id, role, status")
+      .select("assigned_lot_id, role, status, full_name")
       .eq("id", userId)
       .single();
 
@@ -107,14 +107,13 @@ export default function AdminLogin() {
       localStorage.removeItem("admin_lot_id");
     }
 
+    const userName = profileData.full_name || (profileData.role === "superadmin" ? "Super Admin" : "User");
+
     if (profileData.role === "guard") {
-      toast.success(t("Welcome, Guard! Opening scanner...", "Welcome, Guard! Opening scanner..."));
+      toast.success(t(`Welcome, ${userName}! Opening scanner...`, `Welcome, ${userName}! Opening scanner...`));
       navigate("/admin/scanner");
-    } else if (profileData.role === "manager") {
-      toast.success(t("Welcome, Lot Manager!", "Welcome, Lot Manager!"));
-      navigate("/admin/dashboard");
     } else {
-      toast.success(t("Welcome, Super Admin!", "Welcome, Super Admin!"));
+      toast.success(t(`Welcome, ${userName}!`, `Welcome, ${userName}!`));
       navigate("/admin/dashboard");
     }
   };

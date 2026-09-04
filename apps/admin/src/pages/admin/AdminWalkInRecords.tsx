@@ -68,8 +68,8 @@ export default function AdminWalkInRecords() {
       .eq("is_reservable", false)
       .eq("status", "available");
 
-    if (userRole === "manager" && userLotId) query = query.eq("lot_id", userLotId);
-    else if (userRole === "guard" && userLotId) query = query.eq("lot_id", userLotId);
+      if ((userRole === "manager" || userRole === "admin") && userLotId) query = query.eq("lot_id", userLotId);
+      else if ((userRole === "guard" || userRole === "staff") && userLotId) query = query.eq("lot_id", userLotId);
 
     const { data, error } = await query;
     if (!error && data) {
@@ -96,7 +96,7 @@ export default function AdminWalkInRecords() {
         .order("entry_time", { ascending: false });
 
       // Filter by lot if manager/guard
-      if ((userRole === "manager" || userRole === "guard") && userLotId) {
+        if ((userRole === "manager" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
         query = query.eq("lot_id", userLotId);
       }
 
@@ -484,7 +484,9 @@ export default function AdminWalkInRecords() {
             </div>
             <div>
               <p className="text-2xl font-black">₱{totalRevenue.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground uppercase font-bold">Total Revenue</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold">
+                {userRole === "manager" || userRole === "superadmin" || userRole === "super_admin" ? "Total Revenue" : "Today's Revenue"}
+              </p>
             </div>
           </div>
           <div className="bg-white rounded-2xl p-5 shadow-sm border flex items-center gap-4">
@@ -540,24 +542,28 @@ export default function AdminWalkInRecords() {
                   Archived
                 </button>
                 
-                <div className="w-px bg-slate-200 mx-2 self-stretch" />
-                
-                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
-                  {["today", "week", "month", "custom"].map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setDateFilter(f as any)}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
-                        dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
-                      )}
-                    >
-                      {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
-                    </button>
-                  ))}
-                </div>
+                {/* Date Filters (Managers/Superadmins only) */}
+                {(userRole === "manager" || userRole === "superadmin" || userRole === "super_admin") && (
+                  <>
+                    <div className="w-px bg-slate-200 mx-2 self-stretch" />
+                    <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
+                      {["today", "week", "month", "custom"].map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => setDateFilter(f as any)}
+                          className={cn(
+                            "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
+                            dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
+                          )}
+                        >
+                          {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-              {dateFilter === "custom" && (
+              {(userRole === "manager" || userRole === "superadmin" || userRole === "super_admin") && dateFilter === "custom" && (
                 <div className="flex gap-2">
                   <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-36 h-9" />
                   <span>–</span>

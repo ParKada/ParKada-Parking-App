@@ -190,6 +190,7 @@ export default function AdminParkingSlots() {
   // New states for Multi-Camera & Setup
   const [activeTab, setActiveTab] = useState("details");
   const [expandedCameraId, setExpandedCameraId] = useState<string | null>(null);
+  const [cameraPage, setCameraPage] = useState(0);
   const [lotAccounts, setLotAccounts] = useState<any[]>([]);
 
   const [cameras, setCameras] = useState<
@@ -250,7 +251,8 @@ export default function AdminParkingSlots() {
       const updates = Object.entries(pendingChanges).map(
         async ([id, changes]) => {
           const { _label, ...realChanges } = changes;
-          const { error } = await supabase
+          const adminSupabase = await getAdminSupabase();
+          const { error } = await adminSupabase
             .from("parking_slots")
             .update(realChanges)
             .eq("id", id);
@@ -678,7 +680,7 @@ export default function AdminParkingSlots() {
         .select("*")
         .order("name", { ascending: true }); // ← alphabetical
 
-      if ((userRole === "manager" || userRole === "guard") && userLotId) {
+      if ((userRole === "manager" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
         query = query.eq("id", userLotId);
       }
 
@@ -888,34 +890,37 @@ export default function AdminParkingSlots() {
     }
   };
 
-  const toggleReservableStatus = (
+  const toggleOccupancyStatus = async (
     slotId: string,
-    currentStatus: boolean,
+    currentStatus: string,
     slotLabel: string
   ) => {
-    if (userRole === "guard" || activeLot?.type === "public") return;
-
-    const newStatus = !currentStatus;
+    const newStatus = currentStatus === "occupied" ? "available" : "occupied";
     const oldSlot = slots.find(s => s.id === slotId);
 
-    if (oldSlot) {
-      setUndoHistory(prev => [
-        ...prev,
-        { action: "update_buffered", slotId, oldData: { ...oldSlot }, oldPending: pendingChanges }
-      ]);
-    }
+    // Optimistically update UI
+    setSlots(prev =>
+      prev.map(s => (s.id === slotId ? { ...s, status: newStatus } : s))
+    );
 
-    setPendingChanges(prev => {
-      const existing = prev[slotId] || {};
-      return {
-        ...prev,
-        [slotId]: {
-          ...existing,
-          is_reservable: newStatus,
-          _label: slotLabel, // Storing label just for the confirmation modal UI
-        },
-      };
-    });
+    try {
+      const adminSupabase = await getAdminSupabase();
+      const { error } = await adminSupabase
+        .from("parking_slots")
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", slotId);
+      if (error) throw error;
+      toast.success(t(`Slot ${slotLabel} is now ${newStatus}.`, `Ang slot ${slotLabel} ay ${newStatus} na.`));
+    } catch (err: any) {
+      console.error(err);
+      toast.error(t("Failed to update status.", "Nabigong i-update ang status."));
+      // Revert if error
+      if (oldSlot) {
+        setSlots(prev =>
+          prev.map(s => (s.id === slotId ? { ...s, status: oldSlot.status } : s))
+        );
+      }
+    }
   };
 
   const handleDeleteSlot = async (
@@ -1128,45 +1133,56 @@ export default function AdminParkingSlots() {
     <AdminLayout title="Parking Slots">
       <button id="hidden-undo-btn" onClick={handleUndo} className="hidden" />
       <div className="space-y-6">
-        {/* Lot Selector Dropdown */}
-        <div className="flex flex-col space-y-1.5 w-full md:max-w-md">
-          <label
-            htmlFor="lot-dropdown"
-            className="text-xs font-bold text-muted-foreground uppercase tracking-wider"
-          >
-            Select Establishment
-          </label>
-          <div className="relative">
-            <select
-              id="lot-dropdown"
-              value={selectedLotId}
-              onChange={e => setSelectedLotId(e.target.value)}
-              className="w-full appearance-none bg-white border border-border text-foreground text-sm font-semibold rounded-xl px-4 py-3 pr-10 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer"
+        {/* Lot Selector or Name Display */}
+        {lots.length > 1 ? (
+          <div className="flex flex-col space-y-1.5 w-full md:max-w-md">
+            <label
+              htmlFor="lot-dropdown"
+              className="text-xs font-bold text-muted-foreground uppercase tracking-wider"
             >
-              {lots.map(l => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-muted-foreground">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
+              Select Establishment
+            </label>
+            <div className="relative">
+              <select
+                id="lot-dropdown"
+                value={selectedLotId}
+                onChange={e => setSelectedLotId(e.target.value)}
+                className="w-full appearance-none bg-white border border-border text-foreground text-sm font-semibold rounded-xl px-4 py-3 pr-10 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M19 9l-7 7-7-7"
-                ></path>
-              </svg>
+                {lots.map(l => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-muted-foreground">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col space-y-1.5 w-full md:max-w-md">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              Establishment
+            </label>
+            <div className="w-full bg-slate-50 border border-border text-foreground text-sm font-semibold rounded-xl px-4 py-3 shadow-sm">
+              {activeLot?.name || "Loading..."}
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex space-x-2 border-b border-border pb-2">
@@ -1642,7 +1658,13 @@ export default function AdminParkingSlots() {
                         ) : slots.filter(
                             s => (s.floor_index || 0) === selectedFloorIndex
                           ).length > 0 ? (
-                          <div className="w-full h-full flex items-center justify-center min-h-[300px]">
+                          <div 
+                            className={cn(
+                              "flex items-center justify-center min-h-[300px] mx-auto",
+                              isMapFullscreen ? "w-full max-w-[1400px]" : "w-full h-full"
+                            )}
+                            style={isMapFullscreen ? { height: '80vh', maxHeight: '80vh', aspectRatio: '16/9' } : {}}
+                          >
                             <DraggableMapEditor
                               slots={slots.filter(
                                 s => (s.floor_index || 0) === selectedFloorIndex
@@ -2242,7 +2264,7 @@ export default function AdminParkingSlots() {
                   </div>
                 ))}
 
-                {userRole !== "guard" &&
+                {(userRole === "superadmin" || userRole === "super_admin") &&
                   (isAddingCamera ? (
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-center min-h-[200px]">
                       <form
@@ -2554,6 +2576,26 @@ export default function AdminParkingSlots() {
                                 <Maximize size={16} />
                               )}
                             </Button>
+                            {(userRole === "superadmin" || userRole === "super_admin") && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  const cam = cameras.find(c => c.id === expandedCameraId);
+                                  if (cam && window.confirm(`Are you sure you want to delete camera: ${cam.name}?`)) {
+                                    const newCameras = cameras.filter(c => c.id !== expandedCameraId);
+                                    setCameras(newCameras);
+                                    localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(newCameras));
+                                    setExpandedCameraId(null);
+                                    setCameraPage(0);
+                                  }
+                                }}
+                                className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-900/40 ml-2 border border-red-900/50 bg-slate-900/40 transition-colors"
+                                title="Delete Camera"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
                           </>
                         )}
                       </div>
@@ -2567,7 +2609,7 @@ export default function AdminParkingSlots() {
                     <Camera className="w-5 h-5 text-primary" /> Camera Views
                   </h3>
                   <div className="flex flex-col gap-3">
-                    {cameras.map(cam => (
+                    {cameras.slice(cameraPage * 8, (cameraPage + 1) * 8).map(cam => (
                       <button
                         key={cam.id}
                         onClick={() => {
@@ -2600,35 +2642,28 @@ export default function AdminParkingSlots() {
                     ))}
                   </div>
 
-                  {(userRole === "superadmin" ||
-                    userRole === "super_admin") && (
-                    <div className="pt-4 mt-4 border-t border-slate-200 flex justify-end">
+                  {cameras.length > 8 && (
+                    <div className="pt-4 mt-4 border-t border-slate-200 flex justify-between items-center">
                       <Button
-                        variant="ghost"
-                        onClick={() => {
-                          const cam = cameras.find(
-                            c => c.id === expandedCameraId
-                          );
-                          if (
-                            cam &&
-                            window.confirm(
-                              `Are you sure you want to delete camera: ${cam.name}?`
-                            )
-                          ) {
-                            const newCameras = cameras.filter(
-                              c => c.id !== expandedCameraId
-                            );
-                            setCameras(newCameras);
-                            localStorage.setItem(
-                              `cameras_${selectedLotId}`,
-                              JSON.stringify(newCameras)
-                            );
-                            setExpandedCameraId(null);
-                          }
-                        }}
-                        className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 h-9 px-4 transition-colors font-medium rounded-lg w-full"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCameraPage(p => Math.max(0, p - 1))}
+                        disabled={cameraPage === 0}
+                        className="rounded-lg h-9 w-12"
                       >
-                        <Trash2 size={16} className="mr-2" /> Delete Camera
+                        &lt;
+                      </Button>
+                      <span className="text-xs font-bold text-slate-500">
+                        {cameraPage + 1} / {Math.ceil(cameras.length / 8)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCameraPage(p => Math.min(Math.ceil(cameras.length / 8) - 1, p + 1))}
+                        disabled={cameraPage >= Math.ceil(cameras.length / 8) - 1}
+                        className="rounded-lg h-9 w-12"
+                      >
+                        &gt;
                       </Button>
                     </div>
                   )}
@@ -2793,14 +2828,14 @@ export default function AdminParkingSlots() {
                               <div className="flex justify-end gap-2">
                                 <button
                                   onClick={() =>
-                                    toggleReservableStatus(
+                                    toggleOccupancyStatus(
                                       slot.id,
-                                      isReservable,
+                                      slot.status,
                                       slot.label
                                     )
                                   }
-                                  className="p-2 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors inline-flex items-center"
-                                  title={`Switch to ${isReservable ? "Walk-in" : "Reservable"}`}
+                                  className="p-1.5 text-blue-500 hover:bg-blue-50 rounded"
+                                  title={`Toggle to ${slot.status === "occupied" ? "Available" : "Occupied"}`}
                                 >
                                   <ArrowLeftRight size={16} />
                                 </button>

@@ -44,6 +44,7 @@ const formatTimeRange = (start: string | null, end: string | null) => {
 export default function AdminScanner() {
   const { t } = useLanguage();
   const [managerLotId, setManagerLotId] = useState<string | null>(null);
+  const [managerLotType, setManagerLotType] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,7 +67,20 @@ export default function AdminScanner() {
           .select("assigned_lot_id")
           .eq("id", user.id)
           .single();
-        if (data) setManagerLotId(data.assigned_lot_id);
+        if (data && data.assigned_lot_id) {
+          setManagerLotId(data.assigned_lot_id);
+          const { data: lotData } = await supabase
+            .from("parking_lots")
+            .select("type")
+            .eq("id", data.assigned_lot_id)
+            .single();
+          if (lotData) {
+            setManagerLotType(lotData.type);
+            if (lotData.type === "public") {
+              setActiveTab("parked");
+            }
+          }
+        }
       }
     };
     fetchManagerData();
@@ -552,15 +566,17 @@ export default function AdminScanner() {
         {/* Three tabs: Expected, Parked, Completed History */}
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="flex border-b border-border">
-            <button
-              onClick={() => setActiveTab('expected')}
-              className={cn(
-                "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors",
-                activeTab === 'expected' ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-slate-50"
-              )}
-            >
-              <ListTodo size={18} /> Expected ({expectedList.length})
-            </button>
+            {managerLotType !== "public" && (
+              <button
+                onClick={() => setActiveTab('expected')}
+                className={cn(
+                  "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors",
+                  activeTab === 'expected' ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-slate-50"
+                )}
+              >
+                <ListTodo size={18} /> Expected ({expectedList.length})
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('parked')}
               className={cn(

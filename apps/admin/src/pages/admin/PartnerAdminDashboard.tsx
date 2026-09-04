@@ -32,6 +32,7 @@ interface ParkingLot {
   totalSlots: number;
   availableSlots: number;
   is_accredited: boolean;
+  type?: string;
 }
 
 interface Reservation {
@@ -165,7 +166,7 @@ export default function PartnerAdminDashboard() {
 
       // 1. Parking slots
       let slotsQuery = supabase.from("parking_slots").select("status, lot_id");
-      if (currentRole === "manager" && managerLotId) slotsQuery = slotsQuery.eq("lot_id", managerLotId);
+      if (currentRole !== "superadmin" && managerLotId) slotsQuery = slotsQuery.eq("lot_id", managerLotId);
       const { data: slotsData } = await slotsQuery;
 
       let total = 0, available = 0, occupied = 0, reserved = 0;
@@ -183,8 +184,8 @@ export default function PartnerAdminDashboard() {
       }
 
       // 2. Parking lots (with coordinates and accreditation)
-      let lotsQuery = supabase.from("parking_lots").select("id, name, latitude, longitude, is_accredited");
-      if (currentRole === "manager" && managerLotId) lotsQuery = lotsQuery.eq("id", managerLotId);
+      let lotsQuery = supabase.from("parking_lots").select("id, name, latitude, longitude, is_accredited, type");
+      if (currentRole !== "superadmin" && managerLotId) lotsQuery = lotsQuery.eq("id", managerLotId);
       const { data: lotsData } = await lotsQuery;
       const formattedLots: ParkingLot[] = (lotsData || []).map(lot => ({
         id: lot.id,
@@ -194,6 +195,7 @@ export default function PartnerAdminDashboard() {
         totalSlots: lotSlotCounts[lot.id]?.total || 0,
         availableSlots: lotSlotCounts[lot.id]?.available || 0,
         is_accredited: lot.is_accredited === true,
+        type: lot.type,
       }));
 
       // 3. Today's reservations
@@ -207,7 +209,7 @@ export default function PartnerAdminDashboard() {
         .select("*", { count: "exact", head: true })
         .gte("start_time", todayStart.toISOString())
         .lt("start_time", tomorrowStart.toISOString());
-      if (currentRole === "manager" && managerLotId) todayResQuery = todayResQuery.eq("lot_id", managerLotId);
+      if (currentRole !== "superadmin" && managerLotId) todayResQuery = todayResQuery.eq("lot_id", managerLotId);
       const { count: todayCount } = await todayResQuery;
 
       // 4. Recent reservations
@@ -216,7 +218,7 @@ export default function PartnerAdminDashboard() {
         .select("id, start_time, end_time, created_at, total_amount, status, parking_lots(name), parking_slots(label)")
         .order("created_at", { ascending: false })
         .limit(5);
-      if (currentRole === "manager" && managerLotId) recentResQuery = recentResQuery.eq("lot_id", managerLotId);
+      if (currentRole !== "superadmin" && managerLotId) recentResQuery = recentResQuery.eq("lot_id", managerLotId);
       const { data: reservationsData } = await recentResQuery;
 
       const formattedReservations: FormattedReservation[] = (reservationsData || []).map((res: any) => ({
@@ -302,18 +304,26 @@ export default function PartnerAdminDashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  const isPublicLot = lotsOverview.length === 1 && lotsOverview[0].type === "public";
+
   const pieData = [
     { name: "Available", value: stats.availableSlots, color: "#10b981" },
     { name: "Occupied", value: stats.occupiedSlots, color: "#f97316" },
-    { name: "Reserved", value: stats.reservedSlots, color: "#f59e0b" },
   ];
+  
+  if (!isPublicLot) {
+    pieData.push({ name: "Reserved", value: stats.reservedSlots, color: "#f59e0b" });
+  }
 
   const isSuperAdmin = userRole === "superadmin";
   const statCards = [
     { label: "Total Slots", value: stats.totalSlots, icon: ParkingSquare, color: "bg-primary/10 text-primary", path: "/admin/slots" },
     { label: "Available Now", value: stats.availableSlots, icon: Activity, color: "bg-emerald-100 text-emerald-700", path: "/admin/slots" },
-    { label: "Today's Bookings", value: stats.todayReservations, icon: BookOpen, color: "bg-amber-100 text-amber-700", path: "/admin/reservations" },
   ];
+  
+  if (!isPublicLot) {
+    statCards.push({ label: "Today's Bookings", value: stats.todayReservations, icon: BookOpen, color: "bg-amber-100 text-amber-700", path: "/admin/reservations" });
+  }
   if (isSuperAdmin) {
     statCards.push({ label: "Total Managers", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
   }
@@ -337,7 +347,11 @@ export default function PartnerAdminDashboard() {
     <AdminLayout title="Dashboard">
       <div className="space-y-6">
         {/* Stat Cards - clickable */}
-        <div className={cn("grid gap-4", isSuperAdmin ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3")}>
+        <div className={cn("grid gap-4", 
+          statCards.length === 2 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2" :
+          statCards.length === 4 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" :
+          "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+        )}>
           {statCards.map(({ label, value, icon: Icon, color, path }) => (
             <button
               key={label}
@@ -407,6 +421,7 @@ export default function PartnerAdminDashboard() {
 
 
         {/* Recent Reservations Table */}
+        {!isPublicLot && (
         <div className="bg-white rounded-2xl p-4 sm:p-5 card-elevated">
           <h3 className="text-sm font-bold text-foreground mb-4">Recent Reservations</h3>
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
@@ -452,6 +467,7 @@ export default function PartnerAdminDashboard() {
             </table>
           </div>
         </div>
+        )}
       </div>
     </AdminLayout>
   );

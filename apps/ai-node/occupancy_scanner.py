@@ -410,7 +410,8 @@ class CameraWorker:
                                     "pending_full_start": None,
                                     "pending_free_start": None,
                                     "last_occupied_time": 0,
-                                    "last_empty_time": 0
+                                    "last_empty_time": 0,
+                                    "manual_override": False
                                 })
                             else:
                                 idx = self.slot_ids.index(db_id)
@@ -420,19 +421,33 @@ class CameraWorker:
                                 self.all_slots[idx] = np.array(coords, np.int32).reshape(-1, 2)
                                 
                                 # --- SELF-HEALING SYNC ---
-                                current_status = self.slot_data[idx]["status"]
-                                if current_status == "FULL":
-                                    if db_physical != "occupied" or (db_status not in ["occupied", "reserved"]):
-                                        if db_status != "reserved":
-                                            update_supabase_bg(db_id, "occupied", "occupied")
-                                        else:
-                                            update_supabase_bg(db_id, "occupied", None)
-                                elif current_status == "FREE":
-                                    if db_physical != "empty" or (db_status not in ["available", "unmapped", "reserved"]):
-                                        if db_status != "reserved":
-                                            update_supabase_bg(db_id, "empty", "available")
-                                        else:
-                                            update_supabase_bg(db_id, "empty", None)
+                                manual_override = False
+                                updated_at_str = row.get('updated_at')
+                                if updated_at_str:
+                                    try:
+                                        import datetime
+                                        dt = datetime.datetime.fromisoformat(updated_at_str.replace('Z', '+00:00'))
+                                        if (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds() < 120:
+                                            manual_override = True
+                                    except Exception:
+                                        pass
+                                
+                                self.slot_data[idx]["manual_override"] = manual_override
+                                
+                                if not manual_override:
+                                    current_status = self.slot_data[idx]["status"]
+                                    if current_status == "FULL":
+                                        if db_physical != "occupied" or (db_status not in ["occupied", "reserved"]):
+                                            if db_status != "reserved":
+                                                update_supabase_bg(db_id, "occupied", "occupied")
+                                            else:
+                                                update_supabase_bg(db_id, "occupied", None)
+                                    elif current_status == "FREE":
+                                        if db_physical != "empty" or (db_status not in ["available", "unmapped", "reserved"]):
+                                            if db_status != "reserved":
+                                                update_supabase_bg(db_id, "empty", "available")
+                                            else:
+                                                update_supabase_bg(db_id, "empty", None)
 
                     # Handle deletions
                     for i in range(len(self.slot_ids) - 1, -1, -1):
@@ -591,10 +606,11 @@ class CameraWorker:
                                         display_frame.shape[:2]
                                     )
 
-                                if self.slot_data[i].get("db_status") != "reserved":
-                                    update_supabase_bg(self.slot_ids[i], "occupied", "occupied")
-                                else:
-                                    update_supabase_bg(self.slot_ids[i], "occupied", None)
+                                if not self.slot_data[i].get("manual_override", False):
+                                    if self.slot_data[i].get("db_status") != "reserved":
+                                        update_supabase_bg(self.slot_ids[i], "occupied", "occupied")
+                                    else:
+                                        update_supabase_bg(self.slot_ids[i], "occupied", None)
                         else:
                             if self.slot_data[i]["pending_full_start"] is not None:
                                 # Has it been empty for longer than TOLERANCE?
@@ -625,10 +641,11 @@ class CameraWorker:
                                     self.slot_data[i]["status"] = "FREE"
                                     self.slot_data[i]["time_in"] = 0
                                     self.slot_data[i]["pending_free_start"] = None
-                                    if self.slot_data[i].get("db_status") != "reserved":
-                                        update_supabase_bg(self.slot_ids[i], "empty", "available")
-                                    else:
-                                        update_supabase_bg(self.slot_ids[i], "empty", None)
+                                    if not self.slot_data[i].get("manual_override", False):
+                                        if self.slot_data[i].get("db_status") != "reserved":
+                                            update_supabase_bg(self.slot_ids[i], "empty", "available")
+                                        else:
+                                            update_supabase_bg(self.slot_ids[i], "empty", None)
                         else:
                             if self.slot_data[i]["pending_free_start"] is not None:
                                 if self.slot_data[i]["pending_full_start"] is None:
