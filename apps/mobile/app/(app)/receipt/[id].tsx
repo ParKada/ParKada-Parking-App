@@ -1,11 +1,10 @@
-import { useEffect, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ShieldCheck, MapPin, Clock, Car, CircleCheck, Share2, ChevronLeft } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
 import QRCode from "react-native-qrcode-svg";
-import * as Sharing from "expo-sharing";
 
 const formatTimeFromISO = (isoString: string) => {
   if (!isoString) return "--:--";
@@ -24,9 +23,6 @@ export default function DigitalReceiptPage() {
   const [res, setRes] = useState<any>(null);
   const [receiptRef, setReceiptRef] = useState<string>("PROCESSING"); 
   const [loading, setLoading] = useState(true);
-
-  // Note: View capture for React Native typically requires 'react-native-view-shot'. 
-  // We'll focus on the UI and sharing text first since capturing the view natively requires that package.
 
   useEffect(() => {
     const fetchReceipt = async () => {
@@ -52,7 +48,7 @@ export default function DigitalReceiptPage() {
           .single();
 
         if (receiptData) {
-            setReceiptRef(receiptData.reference_no);
+          setReceiptRef(receiptData.reference_no);
         }
 
       } catch (err) {
@@ -61,28 +57,19 @@ export default function DigitalReceiptPage() {
         setLoading(false);
       }
     };
+
     fetchReceipt();
   }, [id]);
 
   const handleShare = async () => {
     if (!res) return;
     try {
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert("Error", "Sharing is not available on this device.");
-        return;
-      }
-
-      // Sharing simple text for now since we'd need react-native-view-shot for image capturing
-      const shareMessage = `iParkBayan Ticket\n\nLocation: ${res?.parking_lots?.name}\nSlot: ${res?.parking_slots?.label}\nVehicle: ${res?.plate_number}\nRef: ${receiptRef}`;
-      // expo-sharing is mostly for files. For text we use standard RN Share, but wait, let's just show an alert or use a fallback.
-      import('react-native').then(({ Share }) => {
-        Share.share({
-          message: shareMessage,
-          title: "My Parking Ticket"
-        });
+      const shareMessage = `Parkada Ticket\n\nLocation: ${res.parking_lots?.name || 'N/A'}\nSlot: ${res.parking_slots?.label || 'N/A'}\nVehicle: ${res.plate_number}\nRef: ${receiptRef}`;
+      
+      await Share.share({
+        message: shareMessage,
+        title: "My Parking Ticket"
       });
-
     } catch (error) {
       console.error("Share error:", error);
       Alert.alert("Error", "Failed to share receipt.");
@@ -155,12 +142,12 @@ export default function DigitalReceiptPage() {
             <View className="items-center mb-6">
               <Text className="text-[10px] font-black text-slate-400 uppercase tracking-tight mb-1">Your Reserved Slot</Text>
               <Text className="text-6xl font-black text-[#0A1D37] tracking-tighter">
-                {res.parking_slots?.label}
+                {res.parking_slots?.label || "--"}
               </Text>
             </View>
 
             <View className="p-4 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 mb-6">
-                <QRCode value={qrData} size={140} color="#0A1D37" backgroundColor="transparent" />
+              <QRCode value={qrData} size={140} color="#0A1D37" backgroundColor="transparent" />
             </View>
 
             <View className="items-center">
@@ -182,7 +169,7 @@ export default function DigitalReceiptPage() {
                 <MapPin size={20} color="#0A1D37" />
                 <View className="flex-1">
                   <Text className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Location</Text>
-                  <Text className="text-xs font-bold text-slate-800" numberOfLines={1}>{res.parking_lots?.name}</Text>
+                  <Text className="text-xs font-bold text-slate-800" numberOfLines={1}>{res.parking_lots?.name || "N/A"}</Text>
                 </View>
               </View>
 
@@ -215,13 +202,13 @@ export default function DigitalReceiptPage() {
         </View>
 
         <View className="pt-6 pb-12">
-           <TouchableOpacity 
-             onPress={handleShare} 
-             className="w-full h-14 rounded-2xl bg-white border border-slate-200 flex-row items-center justify-center gap-2 shadow-sm"
-           >
-              <Share2 size={18} color="#64748B" />
-              <Text className="font-bold text-slate-700 text-base">Share Receipt Details</Text>
-           </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={handleShare} 
+            className="w-full h-14 rounded-2xl bg-white border border-slate-200 flex-row items-center justify-center gap-2 shadow-sm"
+          >
+            <Share2 size={18} color="#64748B" />
+            <Text className="font-bold text-slate-700 text-base">Share Receipt Details</Text>
+          </TouchableOpacity>
         </View>
 
       </ScrollView>
