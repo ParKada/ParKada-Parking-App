@@ -186,6 +186,7 @@ export default function AdminParkingSlots() {
   const itemsPerPage = 10;
   const userRole = localStorage.getItem("admin_role") || "guard";
   const userLotId = localStorage.getItem("admin_lot_id");
+  const canEditPhotos = userRole === "manager" || userRole === "admin" || userRole === "superadmin" || userRole === "super_admin";
 
   // New states for Multi-Camera & Setup
   const [activeTab, setActiveTab] = useState("details");
@@ -1961,9 +1962,9 @@ export default function AdminParkingSlots() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
                     {/* Front View */}
                     <div
-                      className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${userRole === "manager" ? "cursor-pointer" : activeLot?.front_view_url ? "cursor-zoom-in" : ""}`}
+                      className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${canEditPhotos ? "cursor-pointer" : activeLot?.front_view_url ? "cursor-zoom-in" : ""}`}
                       onClick={() => {
-                        if (userRole === "manager") {
+                        if (canEditPhotos) {
                           frontViewRef.current?.click();
                         } else if (activeLot?.front_view_url) {
                           setExpandedImageUrl(activeLot.front_view_url);
@@ -1992,14 +1993,14 @@ export default function AdminParkingSlots() {
                               e.stopPropagation();
                               setExpandedImageUrl(activeLot.front_view_url);
                             }}
-                            className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${userRole === "manager" ? "opacity-0 group-hover:opacity-100" : "hidden"}`}
+                            className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${canEditPhotos ? "opacity-0 group-hover:opacity-100" : "hidden"}`}
                             title="View Full Image"
                           >
                             <Maximize2 size={16} />
                           </button>
 
                           {/* Delete Button */}
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <button
                               onClick={e => {
                                 e.stopPropagation();
@@ -2012,7 +2013,7 @@ export default function AdminParkingSlots() {
                             </button>
                           )}
 
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity z-10">
                               <Upload size={24} className="mb-2" />
                               <span className="text-sm font-semibold">
@@ -2020,7 +2021,7 @@ export default function AdminParkingSlots() {
                               </span>
                             </div>
                           )}
-                          {userRole !== "manager" && (
+                          {!canEditPhotos && (
                             <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm z-10">
                               Front View
                             </div>
@@ -2028,13 +2029,13 @@ export default function AdminParkingSlots() {
                         </>
                       ) : (
                         <div
-                          className={`w-full h-full flex flex-col items-center justify-center ${userRole === "manager" ? "hover:bg-slate-100 transition-colors" : ""}`}
+                          className={`w-full h-full flex flex-col items-center justify-center ${canEditPhotos ? "hover:bg-slate-100 transition-colors" : ""}`}
                         >
                           <Camera size={24} className="mb-2" />
                           <span className="text-sm font-semibold">
                             Front View
                           </span>
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <span className="text-[10px] mt-1 text-primary">
                               Click to upload
                             </span>
@@ -2045,9 +2046,9 @@ export default function AdminParkingSlots() {
 
                     {/* Business Permit */}
                     <div
-                      className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${userRole === "manager" ? "cursor-pointer" : activeLot?.business_permit_url ? "cursor-zoom-in" : ""}`}
+                      className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${canEditPhotos ? "cursor-pointer" : activeLot?.business_permit_url ? "cursor-zoom-in" : ""}`}
                       onClick={() => {
-                        if (userRole === "manager") {
+                        if (canEditPhotos) {
                           businessPermitRef.current?.click();
                         } else if (activeLot?.business_permit_url) {
                           setExpandedImageUrl(activeLot.business_permit_url);
@@ -2078,14 +2079,14 @@ export default function AdminParkingSlots() {
                                 activeLot.business_permit_url
                               );
                             }}
-                            className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${userRole === "manager" ? "opacity-0 group-hover:opacity-100" : "hidden"}`}
+                            className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${canEditPhotos ? "opacity-0 group-hover:opacity-100" : "hidden"}`}
                             title="View Full Image"
                           >
                             <Maximize2 size={16} />
                           </button>
 
                           {/* Delete Button */}
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <button
                               onClick={e => {
                                 e.stopPropagation();
@@ -2098,7 +2099,7 @@ export default function AdminParkingSlots() {
                             </button>
                           )}
 
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity z-10">
                               <Upload size={24} className="mb-2" />
                               <span className="text-sm font-semibold">
@@ -2106,7 +2107,7 @@ export default function AdminParkingSlots() {
                               </span>
                             </div>
                           )}
-                          {userRole !== "manager" && (
+                          {!canEditPhotos && (
                             <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm z-10">
                               Business Permit
                             </div>
@@ -2114,13 +2115,13 @@ export default function AdminParkingSlots() {
                         </>
                       ) : (
                         <div
-                          className={`w-full h-full flex flex-col items-center justify-center ${userRole === "manager" ? "hover:bg-slate-100 transition-colors" : ""}`}
+                          className={`w-full h-full flex flex-col items-center justify-center ${canEditPhotos ? "hover:bg-slate-100 transition-colors" : ""}`}
                         >
                           <Camera size={24} className="mb-2" />
                           <span className="text-sm font-semibold">
                             Business Permit
                           </span>
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <span className="text-[10px] mt-1 text-primary">
                               Click to upload
                             </span>
@@ -2131,7 +2132,7 @@ export default function AdminParkingSlots() {
 
                     {/* Other Photos Section */}
                     {(activeLot?.other_photos?.length > 0 ||
-                      userRole === "manager") && (
+                      canEditPhotos) && (
                       <div className="pt-4 mt-2 border-t border-slate-100">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-sm font-bold text-slate-700">
@@ -2143,9 +2144,9 @@ export default function AdminParkingSlots() {
                             (url: string, idx: number) => (
                               <div
                                 key={idx}
-                                className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl overflow-hidden ${userRole !== "manager" ? "cursor-zoom-in" : ""}`}
+                                className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl overflow-hidden ${!canEditPhotos ? "cursor-zoom-in" : ""}`}
                                 onClick={() => {
-                                  if (userRole !== "manager")
+                                  if (!canEditPhotos)
                                     setExpandedImageUrl(url);
                                 }}
                               >
@@ -2155,7 +2156,7 @@ export default function AdminParkingSlots() {
                                   className="w-full h-full object-cover"
                                 />
 
-                                {userRole === "manager" && (
+                                {canEditPhotos && (
                                   <>
                                     {/* Expand Button for Manager */}
                                     <button
@@ -2186,7 +2187,7 @@ export default function AdminParkingSlots() {
                             )
                           )}
 
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <div
                               className="aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-100 hover:border-primary/50 transition-colors"
                               onClick={() => otherPhotoRef.current?.click()}
