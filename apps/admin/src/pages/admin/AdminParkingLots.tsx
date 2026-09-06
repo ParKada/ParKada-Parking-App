@@ -11,6 +11,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
 import { RefreshCw, Building2, Plus, Trash2, MapPin, Tag, Ban, CheckCircle2, Award, XCircle, Smartphone, Upload } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -34,7 +35,6 @@ export default function AdminParkingLots() {
   const { t } = useLanguage();
 
   const getAdminSupabase = async () => {
-    const { createClient } = await import('@supabase/supabase-js');
     return createClient(
       import.meta.env.VITE_SUPABASE_URL,
       import.meta.env.VITE_SUPABASE_SERVICE_KEY,

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import CameraGridEditor from "@/components/parking/CameraGridEditor";
+import { createClient } from "@supabase/supabase-js";
 import {
   Loader2,
   Plus,
@@ -39,6 +40,7 @@ import {
   Building2,
   PenTool,
   X,
+  Search,
 } from "lucide-react";
 import {
   Dialog,
@@ -47,6 +49,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@parkada/shared";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -54,7 +57,6 @@ export default function AdminParkingSlots() {
   const { t } = useLanguage();
 
   const getAdminSupabase = async () => {
-    const { createClient } = await import('@supabase/supabase-js');
     return createClient(
       import.meta.env.VITE_SUPABASE_URL,
       import.meta.env.VITE_SUPABASE_SERVICE_KEY,
@@ -67,6 +69,9 @@ export default function AdminParkingSlots() {
   const [slots, setSlots] = useState<any[]>([]);
   const [loadingLots, setLoadingLots] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cameraSearchQuery, setCameraSearchQuery] = useState("");
+  const [slotSearchQuery, setSlotSearchQuery] = useState("");
+  const [slotFilters, setSlotFilters] = useState<string[]>([]);
 
   const [isAdding, setIsAdding] = useState(false);
   const [isEditingMap, setIsEditingMap] = useState(false);
@@ -2219,8 +2224,26 @@ export default function AdminParkingSlots() {
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             {expandedCameraId === null ? (
               // MULTI-CAMERA GRID VIEW
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-                {cameras.map(cam => (
+              <>
+                <div className="mb-6">
+                  <div className="relative max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder={t("Search cameras...", "Maghanap ng camera...")}
+                      value={cameraSearchQuery}
+                      onChange={(e) => setCameraSearchQuery(e.target.value)}
+                      className="pl-9 bg-white shadow-sm border-slate-200 focus-visible:ring-primary"
+                    />
+                  </div>
+                </div>
+                {cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-slate-200">
+                    <Camera className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500 font-medium">No cameras found matching your search.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                    {cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).map(cam => (
                   <div
                     key={cam.id}
                     className="bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-800 cursor-pointer group hover:ring-4 hover:ring-primary/50 transition-all"
@@ -2314,6 +2337,8 @@ export default function AdminParkingSlots() {
                     </div>
                   ))}
               </div>
+              )}
+            </>
             ) : (
               // EXPANDED SINGLE CAMERA VIEW
               <div className="flex flex-col xl:flex-row gap-6 items-start w-full">
@@ -2609,8 +2634,38 @@ export default function AdminParkingSlots() {
                   <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <Camera className="w-5 h-5 text-primary" /> Camera Views
                   </h3>
+                  
+                  <div className="mb-4">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        placeholder="Search cameras..." 
+                        value={cameraSearchQuery}
+                        onChange={(e) => {
+                          setCameraSearchQuery(e.target.value);
+                          setCameraPage(0); // reset page on search
+                        }}
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                      />
+                      <svg className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                      </svg>
+                      {cameraSearchQuery && (
+                        <button 
+                          onClick={() => setCameraSearchQuery("")}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex flex-col gap-3">
-                    {cameras.slice(cameraPage * 8, (cameraPage + 1) * 8).map(cam => (
+                    {cameras
+                      .filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase()))
+                      .slice(cameraPage * 7, (cameraPage + 1) * 7)
+                      .map(cam => (
                       <button
                         key={cam.id}
                         onClick={() => {
@@ -2643,7 +2698,7 @@ export default function AdminParkingSlots() {
                     ))}
                   </div>
 
-                  {cameras.length > 8 && (
+                  {cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length > 7 && (
                     <div className="pt-4 mt-4 border-t border-slate-200 flex justify-between items-center">
                       <Button
                         variant="outline"
@@ -2655,13 +2710,13 @@ export default function AdminParkingSlots() {
                         &lt;
                       </Button>
                       <span className="text-xs font-bold text-slate-500">
-                        {cameraPage + 1} / {Math.ceil(cameras.length / 8)}
+                        {cameraPage + 1} / {Math.ceil(cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length / 7)}
                       </span>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCameraPage(p => Math.min(Math.ceil(cameras.length / 8) - 1, p + 1))}
-                        disabled={cameraPage >= Math.ceil(cameras.length / 8) - 1}
+                        onClick={() => setCameraPage(p => Math.min(Math.ceil(cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length / 7) - 1, p + 1))}
+                        disabled={cameraPage >= Math.ceil(cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length / 7) - 1}
                         className="rounded-lg h-9 w-12"
                       >
                         &gt;
@@ -2698,6 +2753,63 @@ export default function AdminParkingSlots() {
                     )
                   )}
                 </select>
+
+                <div className="ml-auto flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-muted-foreground mr-1 uppercase">Filter:</span>
+                    <Button 
+                      variant={slotFilters.includes('walk-in') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setSlotFilters(prev => prev.includes('walk-in') ? prev.filter(f => f !== 'walk-in') : [...prev, 'walk-in']);
+                        setCurrentPage(1);
+                      }}
+                      className="rounded-full h-8 text-xs px-3"
+                    >Walk-in</Button>
+                    <Button 
+                      variant={slotFilters.includes('reservable') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setSlotFilters(prev => prev.includes('reservable') ? prev.filter(f => f !== 'reservable') : [...prev, 'reservable']);
+                        setCurrentPage(1);
+                      }}
+                      className="rounded-full h-8 text-xs px-3"
+                    >Reservable</Button>
+                    <Button 
+                      variant={slotFilters.includes('pwd') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setSlotFilters(prev => prev.includes('pwd') ? prev.filter(f => f !== 'pwd') : [...prev, 'pwd']);
+                        setCurrentPage(1);
+                      }}
+                      className="rounded-full h-8 text-xs px-3"
+                    >PWD/Priority</Button>
+                  </div>
+                  
+                  <div className="relative w-full sm:w-auto">
+                    <input 
+                      type="text" 
+                      placeholder="Search slot label..." 
+                      value={slotSearchQuery}
+                      onChange={(e) => {
+                        setSlotSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="h-10 pl-9 pr-8 py-2 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]"
+                    />
+                    <svg className="absolute left-3 top-3 w-4 h-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    {slotSearchQuery && (
+                      <button 
+                        onClick={() => { setSlotSearchQuery(""); setCurrentPage(1); }}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
               <h3
                 className="text-base font-bold text-foreground mb-4"
@@ -2729,9 +2841,22 @@ export default function AdminParkingSlots() {
                   <tbody className="divide-y divide-border">
                     {(() => {
                       const filtered = slots.filter(
-                        s =>
-                          selectedFloorIndex === -1 ||
-                          (s.floor_index || 0) === selectedFloorIndex
+                        s => {
+                          const isFloorMatch = selectedFloorIndex === -1 || (s.floor_index || 0) === selectedFloorIndex;
+                          const isSearchMatch = (s.label || "").toLowerCase().includes(slotSearchQuery.toLowerCase());
+                          
+                          const isReservable = s.is_reservable !== false && String(s.is_reservable) !== "false";
+                          
+                          let isFilterMatch = true;
+                          if (slotFilters.length > 0) {
+                            const matchesWalkIn = slotFilters.includes('walk-in') && !isReservable;
+                            const matchesReservable = slotFilters.includes('reservable') && isReservable;
+                            const matchesPwd = slotFilters.includes('pwd') && s.is_pwd;
+                            isFilterMatch = matchesWalkIn || matchesReservable || matchesPwd;
+                          }
+                          
+                          return isFloorMatch && isSearchMatch && isFilterMatch;
+                        }
                       );
                       const paginated = filtered.slice(
                         (currentPage - 1) * itemsPerPage,

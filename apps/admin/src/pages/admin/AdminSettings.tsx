@@ -5,6 +5,7 @@
  */
 import { useState, useEffect } from "react";
 import { supabase } from "@parkada/shared";
+import { createClient } from "@supabase/supabase-js";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,8 +150,6 @@ export default function AdminSettings() {
     
     if (isSuperAdmin) {
       try {
-        // Use service key to bypass RLS for system_settings (since this is restricted to super_admin anyway)
-        const { createClient } = await import('@supabase/supabase-js');
         const adminSupabase = createClient(
           import.meta.env.VITE_SUPABASE_URL,
           import.meta.env.VITE_SUPABASE_SERVICE_KEY,
@@ -250,6 +249,32 @@ export default function AdminSettings() {
                   <div className="flex items-center justify-between">
                     <div><p className="text-sm font-bold">Global Maintenance Mode</p><p className="text-[10px] text-muted-foreground">Pause all new reservations across the ENTIRE platform</p></div>
                     <Switch checked={globalMaintenanceMode} onCheckedChange={setGlobalMaintenanceMode} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Language Preferences (Super Admin) */}
+              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto mt-6">
+                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
+                    <div className="flex bg-slate-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("en")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("tl")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        Tagalog
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -381,48 +406,42 @@ export default function AdminSettings() {
                 </div>
               </div>
 
-
-
-              {/* Payment Gateway (mock) */}
-              <div className="bg-slate-50 rounded-3xl border p-6 space-y-4">
-                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><div className="bg-white p-2 rounded-xl shadow-sm"><CreditCard size={20} /></div><h3 className="font-bold text-lg">Payment Gateway</h3></div><span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-1 rounded-md">Coming Soon</span></div>
-                <div className="space-y-3">
-                  <div><Label className="text-[10px] font-bold uppercase">Merchant ID</Label><Input type="text" className="h-10 rounded-lg bg-white font-mono text-sm mt-1" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
-                  <div><Label className="text-[10px] font-bold uppercase">Production API Key</Label><div className="relative mt-1"><Input type={showKey ? "text" : "password"} className="h-10 rounded-lg bg-white font-mono text-sm pr-10" defaultValue="pk_live_51HXXXXXParKadagcash" /><button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
+              {/* Language Preferences */}
+              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6">
+                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
+                    <div className="flex bg-slate-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("en")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("tl")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        Tagalog
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+
+
               </div>
             </div>
           )}
 
-          {/* Language Preferences */}
-          <div className="mt-8 bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto">
-            <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
-                <div className="flex bg-slate-100 rounded-lg p-1">
-                  <button
-                    type="button"
-                    onClick={() => setLocalLanguage("en")}
-                    className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
-                  >
-                    English
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLocalLanguage("tl")}
-                    className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
-                  >
-                    Tagalog
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+
 
           {/* Save Button */}
-          <div className="mt-8 bg-white border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm max-w-3xl mx-auto">
+          <div className={cn("mt-8 bg-white border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm", isSuperAdmin ? "max-w-3xl mx-auto" : "w-full")}>
             <div className="flex items-center gap-4 text-slate-600">
               <div className="bg-slate-100 p-3 rounded-full"><ShieldAlert size={24} /></div>
               <div>
