@@ -1,6 +1,6 @@
 {
   "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm --filter portal build",
+  "buildCommand": "./node_modules/.bin/tsc -b && ./node_modules/.bin/vite build",
   "outputDirectory": "dist",
   "rewrites": [
     {
