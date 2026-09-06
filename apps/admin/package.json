@@ -104,6 +104,5 @@
     "vite": "^7.1.7",
     "vite-plugin-manus-runtime": "^0.0.57",
     "vitest": "^4.1.8"
-  },
-  "packageManager": "pnpm@9.0.0"
+  }
 }
