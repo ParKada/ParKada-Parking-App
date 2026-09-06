@@ -29,6 +29,7 @@ export default function LoginPage() {
   // openAuthSessionAsync() result) which would otherwise try to
   // exchange the same one-time PKCE code twice and throw an error.
   const isProcessingAuth = useRef(false);
+  const processedUrls = useRef(new Set<string>());
 
   useEffect(() => {
     WebBrowser.warmUpAsync();
@@ -83,18 +84,25 @@ export default function LoginPage() {
   };
 
   const handleAuthUrl = async (url: string | null) => {
-    if (!url || isProcessingAuth.current) return;
+    if (!url) return;
+    if (isProcessingAuth.current || processedUrls.current.has(url)) return;
+
+    const { accessToken, refreshToken, code, errorDesc } = parseUrlParams(url);
+    if (!accessToken && !code && !errorDesc) return;
+
     isProcessingAuth.current = true;
+    processedUrls.current.add(url);
+    setGoogleLoading(true);
 
     if (Platform.OS === "android") {
       WebBrowser.dismissBrowser();
     }
 
     try {
-      const { accessToken, refreshToken, code, errorDesc } = parseUrlParams(url);
-
       if (errorDesc) {
         Alert.alert("Authentication Alert", errorDesc);
+        setGoogleLoading(false);
+        isProcessingAuth.current = false;
         return;
       }
 
@@ -104,24 +112,24 @@ export default function LoginPage() {
           refresh_token: refreshToken,
         });
         if (error) throw error;
-        // No navigation here — the root layout's auth listener reacts to
-        // the session change and routes to the right place on its own.
+        // Succeeded: Keep googleLoading true until root layout routes away
       } else if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) throw error;
+        // Succeeded: Keep googleLoading true until root layout routes away
       }
     } catch (e: any) {
       console.log("URL Handling Exception:", e);
       Alert.alert("Authentication Error", e.message || "Failed to authenticate session.");
-    } finally {
       setGoogleLoading(false);
       isProcessingAuth.current = false;
     }
   };
 
   useEffect(() => {
-    Linking.getInitialURL().then(handleAuthUrl).catch((err) => console.log("Linking error:", err));
-
+    // Do NOT call getInitialURL() here — it can return stale OAuth URLs from
+    // a previous session, causing a double-processing race condition.
+    // Fresh redirects arrive via the event listener and the openAuthSessionAsync result.
     const sub = Linking.addEventListener("url", (event) => {
       handleAuthUrl(event.url);
     });
@@ -197,13 +205,16 @@ export default function LoginPage() {
         } else {
           // If the user cancelled the auth session, immediately stop the loading indicator
           setGoogleLoading(false);
+          isProcessingAuth.current = false;
         }
       } else {
         setGoogleLoading(false);
+        isProcessingAuth.current = false;
       }
     } catch (error: any) {
       Alert.alert("Google Login Alert", error?.message || "An error occurred during Google sign-in.");
       setGoogleLoading(false);
+      isProcessingAuth.current = false;
     }
   };
 

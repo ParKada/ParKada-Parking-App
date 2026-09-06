@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { View, ActivityIndicator, Platform, LogBox } from 'react-native';
+import { View, Text, Image, ActivityIndicator, Platform, LogBox, StyleSheet } from 'react-native';
 import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { supabase } from '../lib/supabase';
@@ -85,17 +85,19 @@ async function registerForPushNotificationsAsync() {
 }
 
 function RootNavigation() {
-  const { session, isSessionReady, profileStatus, isAdmin } = useAuth();
+  const { session, isSessionReady, profileStatus, isAdmin, authMessage } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
-  // True while we still don't actually know where the user should land.
-  // Nothing below should navigate or render real screens while this is true.
-  const stillResolving = !isSessionReady || (!!session && profileStatus === 'loading');
+  // True only when the app is cold-booting and initial session/profile is not determined.
+  const isColdBooting = !isSessionReady;
+
+  // True when user has logged in and we are actively checking their profile status.
+  const isResolvingProfile = !!session && profileStatus === 'loading';
 
   // --- Navigation: the ONLY place in the app that calls router.replace() ---
   useEffect(() => {
-    if (stillResolving) return;
+    if (!isSessionReady || isResolvingProfile) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const onCompleteProfile = segments.join('/').includes('complete-profile');
@@ -115,9 +117,9 @@ function RootNavigation() {
     }
 
     if ((inAuthGroup || !segments[0]) && !isRegistering) {
-      router.replace('/');
+      router.replace('/(app)');
     }
-  }, [stillResolving, session, profileStatus, isAdmin, segments]);
+  }, [isSessionReady, isResolvingProfile, session, profileStatus, isAdmin, segments]);
 
   // --- Push token registration: separate concern, unrelated to navigation ---
   useEffect(() => {
@@ -136,7 +138,7 @@ function RootNavigation() {
     });
   }, [session?.user?.id, profileStatus]);
 
-  if (stillResolving) {
+  if (isColdBooting) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#0ea5e9" />
@@ -144,7 +146,104 @@ function RootNavigation() {
     );
   }
 
-  return <Slot />;
+  return (
+    <View style={{ flex: 1 }}>
+      <Slot />
+      {isResolvingProfile && (
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            {
+              backgroundColor: '#ffffff',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 99999,
+              paddingHorizontal: 32,
+            },
+          ]}
+        >
+          {/* ParKada Logo Container */}
+          <View
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: 26,
+              backgroundColor: '#0A1D37',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 24,
+              shadowColor: '#0A1D37',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.18,
+              shadowRadius: 18,
+              elevation: 10,
+            }}
+          >
+            <Image
+              source={require('../assets/ParKadav2.png')}
+              style={{ width: 54, height: 54 }}
+              resizeMode="contain"
+            />
+          </View>
+
+          {/* Title (e.g. "Signing In Back to ParKada") */}
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: '900',
+              color: '#0A1D37',
+              textAlign: 'center',
+              letterSpacing: -0.5,
+              marginBottom: 8,
+            }}
+          >
+            {authMessage?.title || 'Signing In Back to ParKada'}
+          </Text>
+
+          {/* Subtitle */}
+          <Text
+            style={{
+              fontSize: 14,
+              color: '#64748B',
+              textAlign: 'center',
+              lineHeight: 20,
+              marginBottom: 32,
+              paddingHorizontal: 12,
+            }}
+          >
+            {authMessage?.subtitle || 'Verifying your account details...'}
+          </Text>
+
+          {/* Activity Indicator */}
+          <ActivityIndicator size="large" color="#0A1D37" />
+
+          {/* Footer Security Badge */}
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 44,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' }} />
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: '800',
+                color: '#94A3B8',
+                letterSpacing: 0.8,
+                textTransform: 'uppercase',
+              }}
+            >
+              ParKada Authentication
+            </Text>
+          </View>
+        </View>
+      )}
+    </View>
+  );
 }
 
 export default function RootLayout() {

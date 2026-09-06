@@ -8,8 +8,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 
 const ALLOWED_CAR_BRANDS = [
-  "Audi", "BMW", "BYD", "Changan", "Chery", "Chevrolet", "Dodge", "Dongfeng", "Ford", "Foton", "GAC Motor", "Geely", "GWM", 
-  "Honda", "Hyundai", "Isuzu", "Jaecoo", "Jaguar", "Jeep", "Jetour", "Kia", "Land Rover", "Lexus", "Mahindra", "Mazda", "Mercedes-Benz", 
+  "Audi", "BMW", "BYD", "Changan", "Chery", "Chevrolet", "Dodge", "Dongfeng", "Ford", "Foton", "GAC Motor", "Geely", "GWM",
+  "Honda", "Hyundai", "Isuzu", "Jaecoo", "Jaguar", "Jeep", "Jetour", "Kia", "Land Rover", "Lexus", "Mahindra", "Mazda", "Mercedes-Benz",
   "MG", "Mini", "Mitsubishi", "Nissan", "Omoda", "Peugeot", "Porsche", "Subaru", "Suzuki", "Tata", "Toyota", "Volkswagen", "Volvo", "Wuling"
 ];
 
@@ -108,7 +108,7 @@ export default function RegisterPage() {
       .select("plate_number")
       .eq("plate_number", formattedPlate);
 
-    if (error) return; 
+    if (error) return;
     if (existingPlate && existingPlate.length > 0) {
       throw new Error("This Plate Number is already registered to another account.");
     }
@@ -186,7 +186,7 @@ export default function RegisterPage() {
       Alert.alert("Vehicle Details Required", "Please fill in all mandatory vehicle details to continue.");
       return;
     }
-    
+
     if (!isPlateValid) {
       Alert.alert("Invalid Plate Number", "Please input a valid LTO plate number format (e.g., ABC 123 or ABC 1234).");
       return;
@@ -230,14 +230,14 @@ export default function RegisterPage() {
       Alert.alert("Wait", `Please wait ${Math.ceil(countdown / 60)} minutes before requesting a new code.`);
       return;
     }
-    
+
     if (!isSilent) setResending(true);
     try {
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: getCleanEmail(),
       });
-      
+
       if (error) {
         if (error.message.includes("User already confirmed")) {
           Alert.alert("Error", "This email is already verified. Please login.");
@@ -246,7 +246,7 @@ export default function RegisterPage() {
         }
         throw new Error(error.message || "Unable to resend code. Please try again later.");
       }
-      
+
       if (!isSilent) {
         const newResendCount = resendCount + 1;
         setResendCount(newResendCount);
@@ -307,7 +307,7 @@ export default function RegisterPage() {
 
       setAttempts(0);
       const userId = verifyRes.data.user?.id || verifyRes.data.session?.user?.id;
-      
+
       if (!userId) {
         throw new Error("Verification succeeded but active User Session was not found. Please try logging in.");
       }
@@ -323,10 +323,13 @@ export default function RegisterPage() {
           email: cleanEmail,
           first_name: firstName,
           last_name: lastName,
+          preferred_name: firstName, // Use first name as default preferred name
           phone_number: phoneNumber.trim(),
           user_type: "driver",
           verification_status: "unverified",
-          discount_type: "regular"
+          discount_type: "regular",
+          profile_completed: true,   // Mark as complete so returning logins skip the setup gate
+          updated_at: new Date().toISOString(),
         }
       ], { onConflict: 'id' });
 
@@ -338,16 +341,16 @@ export default function RegisterPage() {
       // 3. Insert Vehicle Data (UPSERT to avoid duplication)
       const fullBrand = `${vehicleBrand} ${vehicleModel.trim()}`.trim();
 
-const { error: vehicleError } = await supabase.from("vehicles").upsert([
-  {
-    profile_id: userId,
-    plate_number: plateNumber.toUpperCase().trim(),
-    vehicle_type: "4-wheel",
-    brand: fullBrand, // Isasave bilang Halimbawa: "Toyota Vios"
-    color: vehicleColor.trim(),
-    is_active: true
-  }
-], { onConflict: 'plate_number' });
+      const { error: vehicleError } = await supabase.from("vehicles").upsert([
+        {
+          profile_id: userId,
+          plate_number: plateNumber.toUpperCase().trim(),
+          vehicle_type: "4-wheel",
+          brand: fullBrand, // Isasave bilang Halimbawa: "Toyota Vios"
+          color: vehicleColor.trim(),
+          is_active: true
+        }
+      ], { onConflict: 'plate_number' });
 
       if (vehicleError) {
         console.error("Vehicle saving error:", vehicleError);
@@ -456,8 +459,8 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
               </Text>
             </View>
 
-            <TouchableOpacity 
-              onPress={handleAcceptTerms} 
+            <TouchableOpacity
+              onPress={handleAcceptTerms}
               className="w-full h-14 bg-[#0A1D37] rounded-xl flex items-center justify-center mt-8 mb-12 shadow-md"
             >
               <Text className="text-white font-bold text-base">I Understand & Accept</Text>
@@ -470,7 +473,7 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
 
   return (
     <View className="flex-1 bg-white">
-      <KeyboardAwareScrollView 
+      <KeyboardAwareScrollView
         contentContainerStyle={{ flexGrow: 1, paddingBottom: Math.max(insets.bottom, 12) }}
         enableOnAndroid={true}
         enableAutomaticScroll={true}
@@ -482,8 +485,8 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
         <View>
           {/* Header Banner */}
           <View className="bg-[#0A1D37] px-6 pt-12 pb-8 rounded-b-[40px] shadow-lg">
-            <TouchableOpacity 
-              onPress={() => { if (step === 3) setStep(2); else if (step === 2) setStep(1); else router.back(); }} 
+            <TouchableOpacity
+              onPress={() => { if (step === 3) setStep(2); else if (step === 2) setStep(1); else router.back(); }}
               className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mb-6"
             >
               <ArrowLeft size={20} color="white" />
@@ -511,16 +514,15 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
                 {/* EMAIL ADDRESS */}
                 <View>
                   <Text className="text-sm font-bold text-slate-800 mb-1.5">Email Address</Text>
-                  <TextInput 
-                    value={email} 
+                  <TextInput
+                    value={email}
                     onChangeText={setEmail}
                     onBlur={() => setEmailTouched(true)}
-                    keyboardType="email-address" 
-                    autoCapitalize="none" 
-                    placeholder="jec_123@example.com" 
-                    className={`w-full h-14 px-4 rounded-xl bg-slate-50 border text-sm ${
-                      emailTouched && email && !isEmailValid ? "border-rose-500" : "border-slate-200"
-                    }`} 
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    placeholder="jec_123@example.com"
+                    className={`w-full h-14 px-4 rounded-xl bg-slate-50 border text-sm ${emailTouched && email && !isEmailValid ? "border-rose-500" : "border-slate-200"
+                      }`}
                   />
                   {emailTouched && email && !isEmailValid ? (
                     <Text className="text-xs font-semibold text-rose-500 mt-1">
@@ -532,16 +534,15 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
                 {/* CONTACT NUMBER */}
                 <View>
                   <Text className="text-sm font-bold text-slate-800 mb-1.5">Contact Number</Text>
-                  <TextInput 
-                    value={phoneNumber} 
-                    onChangeText={setPhoneNumber} 
+                  <TextInput
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
                     onBlur={() => setPhoneTouched(true)}
-                    keyboardType="numeric" 
-                    maxLength={11} 
-                    placeholder="09XXXXXXXXX" 
-                    className={`w-full h-14 px-4 rounded-xl bg-slate-50 border text-sm ${
-                      phoneTouched && phoneNumber && !isPhoneValid ? "border-rose-500" : "border-slate-200"
-                    }`} 
+                    keyboardType="numeric"
+                    maxLength={11}
+                    placeholder="09XXXXXXXXX"
+                    className={`w-full h-14 px-4 rounded-xl bg-slate-50 border text-sm ${phoneTouched && phoneNumber && !isPhoneValid ? "border-rose-500" : "border-slate-200"
+                      }`}
                   />
                   {phoneTouched && phoneNumber && !isPhoneValid ? (
                     <Text className="text-xs font-semibold text-rose-500 mt-1">
@@ -561,21 +562,17 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
                   {password ? (
                     <View className="mt-2">
                       <View className="flex-row gap-1 mb-1.5">
-                        <View className={`h-1.5 flex-1 rounded-full ${
-                          getPasswordStrength(password) === "Weak Password" ? "bg-rose-500" : 
-                          getPasswordStrength(password) === "Strong Password" || getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
-                        }`} />
-                        <View className={`h-1.5 flex-1 rounded-full ${
-                          getPasswordStrength(password) === "Strong Password" || getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
-                        }`} />
-                        <View className={`h-1.5 flex-1 rounded-full ${
-                          getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
-                        }`} />
+                        <View className={`h-1.5 flex-1 rounded-full ${getPasswordStrength(password) === "Weak Password" ? "bg-rose-500" :
+                            getPasswordStrength(password) === "Strong Password" || getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
+                          }`} />
+                        <View className={`h-1.5 flex-1 rounded-full ${getPasswordStrength(password) === "Strong Password" || getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
+                          }`} />
+                        <View className={`h-1.5 flex-1 rounded-full ${getPasswordStrength(password) === "Very Strong Password" ? "bg-emerald-500" : "bg-slate-200"
+                          }`} />
                       </View>
-                      <Text className={`text-xs font-semibold ${
-                        getPasswordStrength(password) === "Very Strong Password" ? "text-emerald-600" :
-                        getPasswordStrength(password) === "Strong Password" ? "text-amber-500" : "text-rose-500"
-                      }`}>
+                      <Text className={`text-xs font-semibold ${getPasswordStrength(password) === "Very Strong Password" ? "text-emerald-600" :
+                          getPasswordStrength(password) === "Strong Password" ? "text-amber-500" : "text-rose-500"
+                        }`}>
                         {getPasswordStrength(password)}
                       </Text>
                       {getPasswordStrength(password) !== "Very Strong Password" && (
@@ -602,12 +599,11 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
                   ) : null}
                 </View>
 
-                <TouchableOpacity 
-                  onPress={handleNextStep} 
-                  disabled={loading || !isStep1Valid} 
-                  className={`w-full h-14 rounded-xl flex-row items-center justify-center mt-4 ${
-                    isStep1Valid && !loading ? "bg-[#0A1D37]" : "bg-slate-300"
-                  }`}
+                <TouchableOpacity
+                  onPress={handleNextStep}
+                  disabled={loading || !isStep1Valid}
+                  className={`w-full h-14 rounded-xl flex-row items-center justify-center mt-4 ${isStep1Valid && !loading ? "bg-[#0A1D37]" : "bg-slate-300"
+                    }`}
                 >
                   {loading && <ActivityIndicator color="white" className="mr-2" />}
                   <Text className="text-white font-bold">Continue</Text>
@@ -626,19 +622,18 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
             {step === 2 && (
               <View className="space-y-4 flex-col gap-4">
                 <Text className="text-sm text-slate-500 mb-2">Register your mandatory 4-wheel vehicle for verification. No motorcycles allowed.</Text>
-                
+
                 {/* PLATE NUMBER FIELD */}
                 <View>
                   <Text className="text-sm font-bold text-slate-800 mb-1.5">Plate Number</Text>
-                  <TextInput 
-                    value={plateNumber} 
-                    onChangeText={setPlateNumber} 
+                  <TextInput
+                    value={plateNumber}
+                    onChangeText={setPlateNumber}
                     onBlur={() => setPlateTouched(true)}
-                    autoCapitalize="characters" 
-                    placeholder="ABC 1234" 
-                    className={`w-full h-14 px-4 rounded-xl bg-slate-50 border text-sm ${
-                      plateTouched && plateNumber && !isPlateValid ? "border-rose-500" : "border-slate-200"
-                    }`} 
+                    autoCapitalize="characters"
+                    placeholder="ABC 1234"
+                    className={`w-full h-14 px-4 rounded-xl bg-slate-50 border text-sm ${plateTouched && plateNumber && !isPlateValid ? "border-rose-500" : "border-slate-200"
+                      }`}
                   />
                   {plateTouched && plateNumber && !isPlateValid ? (
                     <Text className="text-xs font-semibold text-rose-500 mt-1">
@@ -650,7 +645,7 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
                 {/* CAR BRAND SELECTION BUTTON */}
                 <View>
                   <Text className="text-sm font-bold text-slate-800 mb-1.5">Car Brand</Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => setShowBrandModal(true)}
                     className="w-full h-14 px-4 rounded-xl bg-slate-50 border border-slate-200 flex-row items-center justify-between"
                   >
@@ -691,7 +686,7 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
                 </View>
 
                 <View className="w-full">
-                  <TextInput 
+                  <TextInput
                     value={otpCode}
                     onChangeText={setOtpCode}
                     keyboardType="number-pad"
@@ -701,12 +696,11 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
                   />
                 </View>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={handleVerifyOtpAndSave}
                   disabled={loading || isLocked || otpCode.length !== 8}
-                  className={`w-full h-14 rounded-xl flex-row items-center justify-center ${
-                    otpCode.length === 8 && !loading && !isLocked ? "bg-[#0A1D37]" : "bg-slate-300"
-                  }`}
+                  className={`w-full h-14 rounded-xl flex-row items-center justify-center ${otpCode.length === 8 && !loading && !isLocked ? "bg-[#0A1D37]" : "bg-slate-300"
+                    }`}
                 >
                   {loading && <ActivityIndicator color="white" className="mr-2" />}
                   <Text className="text-white font-bold">Verify & Create Account</Text>
@@ -738,7 +732,7 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
             {/* Modal Header */}
             <View className="flex-row items-center justify-between pb-4 border-b border-slate-100">
               <Text className="text-lg font-bold text-slate-900">Select Vehicle Brand</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   setShowBrandModal(false);
                   setBrandSearchQuery("");
@@ -779,9 +773,8 @@ const { error: vehicleError } = await supabase.from("vehicles").upsert([
                     setShowBrandModal(false);
                     setBrandSearchQuery("");
                   }}
-                  className={`py-3.5 px-4 rounded-xl flex-row items-center justify-between my-0.5 ${
-                    vehicleBrand === item ? "bg-slate-100" : "active:bg-slate-50"
-                  }`}
+                  className={`py-3.5 px-4 rounded-xl flex-row items-center justify-between my-0.5 ${vehicleBrand === item ? "bg-slate-100" : "active:bg-slate-50"
+                    }`}
                 >
                   <Text className={`text-base ${vehicleBrand === item ? "font-bold text-[#0A1D37]" : "text-slate-700"}`}>
                     {item}

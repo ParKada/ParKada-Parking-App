@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { View, Text, Image, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { MapPin, Clock, ChevronRight, Bell, Search, RefreshCcw, Navigation, WifiOff, Star } from "lucide-react-native";
 import { useNetInfo } from "@react-native-community/netinfo";
 import * as Location from "expo-location";
@@ -118,6 +118,34 @@ export default function DriverHome() {
       let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       setUserLocation({ lat: location.coords.latitude, lng: location.coords.longitude });
     })();
+
+    // Immediate profile name fetch on mount
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("profiles")
+        .select("first_name, preferred_name")
+        .eq("id", user.id)
+        .maybeSingle()
+        .then(({ data: profile }) => {
+          const cleanPreferred = profile?.preferred_name?.trim();
+          const cleanFirst = profile?.first_name?.trim();
+          const metaName =
+            user.user_metadata?.preferred_name?.trim() ||
+            user.user_metadata?.given_name?.trim() ||
+            user.user_metadata?.first_name?.trim() ||
+            (user.user_metadata?.full_name ? user.user_metadata.full_name.trim().split(" ")[0] : "") ||
+            (user.user_metadata?.name ? user.user_metadata.name.trim().split(" ")[0] : "");
+
+          if (cleanPreferred) {
+            setUserName(cleanPreferred);
+          } else if (cleanFirst) {
+            setUserName(cleanFirst);
+          } else if (metaName) {
+            setUserName(metaName);
+          }
+        });
+    });
   }, []);
 
   const runCleanup = useCallback(async (userId: string) => {
@@ -159,20 +187,29 @@ export default function DriverHome() {
       
       const { data: profile } = await supabase
         .from("profiles")
-        .select("first_name, full_name, preferred_name")
+        .select("first_name, preferred_name")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
-      // Preferred name (the nickname set on the Complete Profile screen)
-      // takes priority over the legal first_name whenever it's set.
-      if (profile?.preferred_name) {
-        setUserName(profile.preferred_name);
-      } else if (profile?.first_name) {
-        setUserName(profile.first_name);
-      } else if (profile?.full_name) {
-        setUserName(profile.full_name.split(" ")[0]);
-      } else if (user.user_metadata?.full_name) {
-        setUserName(user.user_metadata.full_name.split(" ")[0]);
+      // Prioritize preferred_name. If not provided, fallback to the user's first_name
+      // from registration/profile, then auth metadata, or default to "Driver".
+      const cleanPreferred = profile?.preferred_name?.trim();
+      const cleanFirst = profile?.first_name?.trim();
+      const metaName =
+        user.user_metadata?.preferred_name?.trim() ||
+        user.user_metadata?.given_name?.trim() ||
+        user.user_metadata?.first_name?.trim() ||
+        (user.user_metadata?.full_name ? user.user_metadata.full_name.trim().split(" ")[0] : "") ||
+        (user.user_metadata?.name ? user.user_metadata.name.trim().split(" ")[0] : "");
+
+      if (cleanPreferred) {
+        setUserName(cleanPreferred);
+      } else if (cleanFirst) {
+        setUserName(cleanFirst);
+      } else if (metaName) {
+        setUserName(metaName);
+      } else {
+        setUserName("Driver");
       }
       
       const { data: unreadNotif } = await supabase.from("notifications").select("id").eq("user_id", user.id).eq("read", false).limit(1);
@@ -255,6 +292,14 @@ export default function DriverHome() {
   useEffect(() => {
     if (isOnline) fetchAllData();
   }, [isOnline]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isOnline) {
+        fetchAllData(true);
+      }
+    }, [isOnline, fetchAllData])
+  );
 
   const isLotOpen = (openHoursStr?: string) => {
     if (!openHoursStr) return true;

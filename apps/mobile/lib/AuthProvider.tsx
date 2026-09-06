@@ -1,15 +1,21 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Alert } from "react-native";
-import { Session } from "@supabase/supabase-js";
+import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
 export type ProfileStatus = "loading" | "no-profile" | "incomplete" | "complete";
 
+export type AuthMessage = {
+  title: string;
+  subtitle: string;
+};
+
 type AuthContextValue = {
   session: Session | null;
-  isSessionReady: boolean; // true once the initial getSession() check has resolved
+  isSessionReady: boolean;
   profileStatus: ProfileStatus;
   isAdmin: boolean;
+  authMessage: AuthMessage;
   refreshProfileStatus: () => Promise<void>;
 };
 
@@ -20,75 +26,152 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>("loading");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authMessage, setAuthMessage] = useState<AuthMessage>({
+    title: "Signing In Back to ParKada",
+    subtitle: "Verifying your account...",
+  });
 
-  const checkProfile = async (user: { id: string; app_metadata?: { provider?: string } }) => {
+  /**
+   * Determines where a user should be routed after authentication.
+   *
+   * Routing logic:
+   *   - Admin accounts     → signed out immediately (access denied)
+   *   - Email/Password     → always "complete" (registered via the full flow)
+   *   - First-time Google  → "no-profile" (no row in profiles table yet)
+   *   - Abandoned Google   → "incomplete" (row exists but profile_completed is false)
+   *   - Returning Google   → "complete" (profile_completed = true & phone_number present)
+   */
+  const checkProfile = async (user: User, isColdStart = false): Promise<void> => {
     setProfileStatus("loading");
 
-    const { data: adminData } = await supabase
-      .from("admin_profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
+    try {
+      // 1. Admin gate — admins are not allowed in the Driver App at all.
+      const { data: adminData } = await supabase
+        .from("admin_profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
 
-    if (adminData) {
-      // Admins are not allowed in the Driver App at all. Sign them out;
-      // the resulting auth-state change will reset everything back to
-      // "logged out" and the root layout will route to /login.
-      Alert.alert(
-        "Access Denied",
-        "Admin accounts cannot use the Driver App. Please log in via the Admin Portal."
-      );
-      await supabase.auth.signOut();
-      return;
+      if (adminData) {
+        Alert.alert(
+          "Access Denied",
+          "Admin accounts cannot use the Driver App. Please log in via the Admin Portal."
+        );
+        setIsAdmin(true);
+        await supabase.auth.signOut();
+        return;
+      }
+
+      setIsAdmin(false);
+
+      // 2. Detect provider
+      const isGoogleUser =
+        user.app_metadata?.provider === "google" ||
+        (user.app_metadata?.providers as string[] | undefined)?.includes("google") ||
+        user.identities?.some((identity) => identity.provider === "google");
+
+      if (!isGoogleUser) {
+        setAuthMessage({
+          title: "Signing In to ParKada",
+          subtitle: "Loading your dashboard...",
+        });
+        if (!isColdStart) {
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        }
+        setProfileStatus("complete");
+        return;
+      }
+
+      // 3. Google sign-in detected
+      setAuthMessage({
+        title: "Signing In Back to ParKada",
+        subtitle: "Verifying your Google credentials...",
+      });
+
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("phone_number, profile_completed")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Profile query error:", error.message);
+        setProfileStatus("incomplete");
+        return;
+      }
+
+      if (!profile) {
+        // Truly first-time Google sign-in
+        setAuthMessage({
+          title: "Setting Up Account",
+          subtitle: "Taking you to complete your profile...",
+        });
+        if (!isColdStart) {
+          await new Promise((resolve) => setTimeout(resolve, 450));
+        }
+        setProfileStatus("no-profile");
+        return;
+      }
+
+      // A row exists. Check if the profile is complete.
+      const isComplete = Boolean(profile.profile_completed && profile.phone_number);
+      if (isComplete) {
+        // RETURNING GOOGLE USER: "Signing In Back to ParKada"
+        setAuthMessage({
+          title: "Signing In Back to ParKada",
+          subtitle: "Welcome back! Taking you to the driver home...",
+        });
+        if (!isColdStart) {
+          // Reassuring display time so the user smoothly sees the "Signing In Back to ParKada" page
+          await new Promise((resolve) => setTimeout(resolve, 750));
+        }
+        setProfileStatus("complete");
+      } else {
+        setAuthMessage({
+          title: "Completing Profile",
+          subtitle: "Taking you to complete your details...",
+        });
+        if (!isColdStart) {
+          await new Promise((resolve) => setTimeout(resolve, 450));
+        }
+        setProfileStatus("incomplete");
+      }
+    } catch (err) {
+      console.error("Unexpected error in checkProfile:", err);
+      setProfileStatus("incomplete");
     }
-
-    setIsAdmin(false);
-
-    // The Complete Profile gate only applies to Google sign-ins — an
-    // account created via email/password already went through the
-    // regular registration flow and collected everything needed, so
-    // it should always proceed straight through regardless of what's
-    // currently in the profiles row.
-    const isGoogleSignIn = user.app_metadata?.provider === "google";
-
-    if (!isGoogleSignIn) {
-      setProfileStatus("complete");
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("phone_number, profile_completed")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!profile) {
-      setProfileStatus("no-profile");
-      return;
-    }
-
-    setProfileStatus(profile.profile_completed && profile.phone_number ? "complete" : "incomplete");
   };
 
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    // COLD START — checkProfile before isSessionReady = true
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!mounted) return;
       setSession(data.session);
-      setIsSessionReady(true);
+
       if (data.session?.user) {
-        checkProfile(data.session.user);
+        await checkProfile(data.session.user, true);
+      } else {
+        setProfileStatus("complete");
+        setIsAdmin(false);
+      }
+
+      if (mounted) {
+        setIsSessionReady(true);
       }
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    // AUTH STATE CHANGES — fired on OAuth login, sign-in, token refresh
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (!mounted) return;
       setSession(newSession);
       setIsSessionReady(true);
+
       if (newSession?.user) {
-        checkProfile(newSession.user);
+        await checkProfile(newSession.user, false);
       } else {
-        setProfileStatus("loading");
+        setProfileStatus("complete");
         setIsAdmin(false);
       }
     });
@@ -106,8 +189,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isSessionReady,
         profileStatus,
         isAdmin,
+        authMessage,
         refreshProfileStatus: async () => {
-          if (session?.user) await checkProfile(session.user);
+          if (session?.user) await checkProfile(session.user, false);
         },
       }}
     >
@@ -120,4 +204,4 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
   return ctx;
-}
+}
