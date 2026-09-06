@@ -1,25 +1,41 @@
-import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import { View, Text, TextInput, TouchableOpacity, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react-native";
 import { supabase } from "../../lib/supabase";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import * as AuthSession from "expo-auth-session";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 
-// Kinakailangan para sa in-app browser auth sessions
 WebBrowser.maybeCompleteAuthSession();
 
 const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/ParKada-mobile-bg-8Wgq9qnQX7R8Lyxjz9xWvm.webp";
+const GOOGLE_LOGO_PNG = "https://developers.google.com/identity/images/g-logo.png";
 
 export default function LoginPage() {
   const router = useRouter();
-  
+
   const [view, setView] = useState<"login" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Prevents the same OAuth redirect from being processed twice
+  // (once via the Linking "url" event listener, once via the direct
+  // openAuthSessionAsync() result) which would otherwise try to
+  // exchange the same one-time PKCE code twice and throw an error.
+  const isProcessingAuth = useRef(false);
+
+  useEffect(() => {
+    WebBrowser.warmUpAsync();
+    return () => {
+      WebBrowser.coolDownAsync();
+    };
+  }, []);
 
   const handleBackNavigation = () => {
     if (view === "forgot") {
@@ -31,63 +47,94 @@ export default function LoginPage() {
     }
   };
 
-  // Helper para kumuha ng url params mula sa Hash (#) o Search (?)
-  const extractTokensFromUrl = (url: string) => {
-    let accessToken: string | null = null;
-    let refreshToken: string | null = null;
+  // Improved to safely extract both Query params (?) and Hash params (#)
+  const parseUrlParams = (url: string) => {
+    const params: Record<string, string> = {};
 
-    if (url.includes("#")) {
-      const hashString = url.split("#")[1];
-      const params = new URLSearchParams(hashString);
-      accessToken = params.get("access_token");
-      refreshToken = params.get("refresh_token");
+    try {
+      const queryPart = url.includes('?') ? url.split('?')[1].split('#')[0] : '';
+      const hashPart = url.includes('#') ? url.split('#')[1] : '';
+
+      const extract = (str: string) => {
+        if (!str) return;
+        str.split('&').forEach(pair => {
+          // Use indexOf instead of split('=') so values that themselves
+          // contain '=' (common in base64/URL-encoded tokens) aren't truncated.
+          const idx = pair.indexOf('=');
+          if (idx === -1) return;
+          const key = pair.slice(0, idx);
+          const val = pair.slice(idx + 1);
+          if (key && val) params[key] = decodeURIComponent(val.replace(/\+/g, ' '));
+        });
+      };
+
+      extract(queryPart);
+      extract(hashPart);
+    } catch (e) {
+      console.log("Error parsing URL", e);
     }
 
-    if (!accessToken && url.includes("?")) {
-      const queryString = url.split("?")[1];
-      const params = new URLSearchParams(queryString);
-      accessToken = params.get("access_token");
-      refreshToken = params.get("refresh_token");
-    }
-
-    return { accessToken, refreshToken };
+    return {
+      accessToken: params.access_token || null,
+      refreshToken: params.refresh_token || null,
+      code: params.code || null,
+      errorDesc: params.error_description || null
+    };
   };
 
-  // Deep Link Listener para sa Google OAuth Callback
-  useEffect(() => {
-    const handleUrl = async (url: string | null) => {
-      if (!url) return;
-      if (url.includes("access_token") || url.includes("refresh_token") || url.includes("code=")) {
-        try {
-          const { accessToken, refreshToken } = extractTokensFromUrl(url);
+  const handleAuthUrl = async (url: string | null) => {
+    if (!url || isProcessingAuth.current) return;
+    isProcessingAuth.current = true;
 
-          if (accessToken && refreshToken) {
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (error) throw error;
-            if (data?.user) {
-              await verifyAndEnsureRegularUser(data.user);
-              return;
-            }
-          }
+    if (Platform.OS === "android") {
+      WebBrowser.dismissBrowser();
+    }
 
-          const { data, error } = await (supabase.auth as any).getSessionFromUrl(url);
-          if (error) throw error;
-          if (data?.session?.user) {
-            await verifyAndEnsureRegularUser(data.session.user);
-          }
-        } catch (e: any) {
-          Alert.alert("Authentication Error", e.message || "Failed to process login token.");
+    let shouldResetGuard = true;
+
+    try {
+      const { accessToken, refreshToken, code, errorDesc } = parseUrlParams(url);
+
+      if (errorDesc) {
+        Alert.alert("Authentication Alert", errorDesc);
+        return;
+      }
+
+      if (accessToken && refreshToken) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) throw error;
+        if (data?.user) {
+          shouldResetGuard = false; // navigating away; no need to accept more redirects
+          await verifyAndEnsureRegularUser(data.user);
         }
       }
-    };
+      else if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) throw error;
+        if (data?.user) {
+          shouldResetGuard = false;
+          await verifyAndEnsureRegularUser(data.user);
+        }
+      }
+    } catch (e: any) {
+      console.log("URL Handling Exception:", e);
+      Alert.alert("Authentication Error", e.message || "Failed to authenticate session.");
+    } finally {
+      setGoogleLoading(false);
+      if (shouldResetGuard) {
+        isProcessingAuth.current = false;
+      }
+    }
+  };
 
-    Linking.getInitialURL().then(handleUrl);
+  useEffect(() => {
+    Linking.getInitialURL().then(handleAuthUrl).catch((err) => console.log("Linking error:", err));
 
     const sub = Linking.addEventListener("url", (event) => {
-      handleUrl(event.url);
+      handleAuthUrl(event.url);
     });
 
     return () => sub.remove();
@@ -97,7 +144,6 @@ export default function LoginPage() {
     if (!user) return;
 
     try {
-      // 1. Harangin kung Admin account
       const { data: adminData } = await supabase
         .from("admin_profiles")
         .select("id")
@@ -113,7 +159,6 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. Suriin kung umiiral na ang profile
       const { data: profile } = await supabase
         .from("profiles")
         .select("id")
@@ -121,13 +166,11 @@ export default function LoginPage() {
         .maybeSingle();
 
       if (!profile) {
-        // Parse Name mula sa Google metadata
         const rawName = user.user_metadata?.full_name || user.user_metadata?.name || "Driver User";
         const nameParts = rawName.split(" ");
         const firstName = nameParts[0] || "Driver";
         const lastName = nameParts.slice(1).join(" ") || "User";
 
-        // BAGONG USER: I-upsert sa profiles table gamit ang tamang columns
         const { error: insertError } = await supabase.from("profiles").upsert({
           id: user.id,
           email: user.email,
@@ -140,48 +183,69 @@ export default function LoginPage() {
         });
 
         if (insertError) {
-          console.error("PROFILES INSERT ERROR:", insertError);
-          throw insertError;
+          Alert.alert("Account Setup Alert", "Failed to set up profile details.");
+          return;
         }
       }
 
-      // 3. DIREKTANG REDIRECT SA HOME PAGE
-      router.replace("/(tabs)");
+      router.replace("/");
 
     } catch (error: any) {
-      console.error("VERIFY USER ERROR:", error);
-      Alert.alert("Login Error", error.message || "Failed to complete sign-in.");
+      console.log("VERIFY USER ERROR:", error);
+      Alert.alert("Login Alert", error?.message || "Failed to complete sign-in.");
     }
   };
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please enter both email and password.");
+      Alert.alert("Required Fields", "Please enter both email and password.");
       return;
     }
 
+    setLoginLoading(true);
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        const userFriendlyMsg = authError.message.includes("Invalid login credentials")
+          ? "Incorrect email or password. Please check your credentials and try again."
+          : authError.message;
+        Alert.alert("Login Failed", userFriendlyMsg);
+        return;
+      }
 
-      if (authData.user) {
+      if (authData?.user) {
         await verifyAndEnsureRegularUser(authData.user);
       }
     } catch (error: any) {
-      console.error("LOGIN ERROR:", error);
-      Alert.alert("Login Failed", error.message || "Invalid login credentials.");
+      Alert.alert("Login Alert", "An unexpected error occurred. Please try again.");
+    } finally {
+      setLoginLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      const redirectUrl = Linking.createURL('/', { scheme: 'parkada' });
-      
+      // Inside Expo Go, forcing a custom "parkada" scheme produces a
+      // parkada:// URI that Expo Go isn't registered to catch, so the
+      // redirect back into the app silently fails. Only force the
+      // custom scheme in a dev/production build; let Expo Go fall back
+      // to its own exp:// proxy URL.
+      // NOTE: Constants.appOwnership is unreliable on newer Expo SDKs
+      // (can be null/undefined even inside Expo Go), so we check
+      // executionEnvironment instead, which is the currently
+      // recommended way to detect Expo Go.
+      const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+      const redirectUrl = AuthSession.makeRedirectUri(
+        isExpoGo ? {} : { scheme: "parkada" }
+      );
+
+      console.log("Registered Redirect URI:", redirectUrl);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -196,86 +260,71 @@ export default function LoginPage() {
       if (error) throw error;
 
       if (data?.url) {
+        console.log("Full Google Auth URL:", data.url);
         const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-
-        if (res.type === 'success' && res.url) {
-          const { accessToken, refreshToken } = extractTokensFromUrl(res.url);
-
-          if (accessToken && refreshToken) {
-            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-
-            if (sessionError) throw sessionError;
-
-            if (sessionData.user) {
-              await verifyAndEnsureRegularUser(sessionData.user);
-              return;
-            }
-          }
-
-          const { data: sessionData, error: sessionError } = await (supabase.auth as any).getSessionFromUrl(res.url);
-          if (sessionError) throw sessionError;
-
-          if (sessionData.session?.user) {
-            await verifyAndEnsureRegularUser(sessionData.session.user);
-          }
+        // Process the redirect purely from the WebBrowser response for a smoother transition
+        if (res.type === "success" && res.url) {
+          await handleAuthUrl(res.url);
+        } else {
+          // If the user cancelled the auth session, immediately stop the loading indicator
+          setGoogleLoading(false);
         }
+      } else {
+        setGoogleLoading(false);
       }
     } catch (error: any) {
-      console.error("GOOGLE LOGIN ERROR:", error);
-      Alert.alert("Google Login Failed", error.message || "An error occurred during Google sign-in.");
-    } finally {
+      Alert.alert("Google Login Alert", error?.message || "An error occurred during Google sign-in.");
       setGoogleLoading(false);
     }
   };
 
   const handleResetPassword = async () => {
     if (!email) {
-      Alert.alert("Error", "Please enter your email address first.");
+      Alert.alert("Required Field", "Please enter your email address first.");
       return;
     }
 
     setResetLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: "parkada://update-password",
       });
 
       if (error) throw error;
 
       Alert.alert("Success", "Password reset link sent! Please check your inbox.");
-      setView("login"); 
-      
+      setView("login");
+
     } catch (error: any) {
-      console.error("RESET ERROR:", error);
-      Alert.alert("Failed", error.message || "Failed to send reset link. Try again.");
+      Alert.alert("Reset Password Alert", error?.message || "Failed to send reset link. Try again.");
     } finally {
       setResetLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"} 
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1 bg-white"
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false}>
-        {/* Header Area */}
-        <View className="relative h-64 overflow-hidden shrink-0">
-          <Image source={{ uri: BG_IMG }} className="w-full h-full" resizeMode="cover" />
-          <View className="absolute inset-0 bg-[#0A1D37]/80" />
-          
-          <TouchableOpacity 
-            onPress={handleBackNavigation} 
-            className="absolute top-12 left-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
+        <View className="relative h-64 overflow-hidden shrink-0 bg-[#0A1D37]">
+          <Image
+            source={{ uri: BG_IMG }}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode="cover"
+          />
+          <View className="absolute inset-0 bg-[#0A1D37]/50" />
+
+          <TouchableOpacity
+            onPress={handleBackNavigation}
+            className="absolute top-12 left-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center z-10"
           >
             <ArrowLeft size={20} color="white" />
           </TouchableOpacity>
 
-          <View className="absolute bottom-8 left-6 right-6">
-            <Text className="text-white/70 text-sm font-medium mb-1">
+          <View className="absolute bottom-8 left-6 right-6 z-10">
+            <Text className="text-white/80 text-sm font-medium mb-1">
               {view === "login" ? "Welcome to ParKada: Your Parking Buddy" : "Account Recovery"}
             </Text>
             <Text className="text-3xl font-extrabold text-white">
@@ -284,34 +333,35 @@ export default function LoginPage() {
           </View>
         </View>
 
-        {/* Form Area */}
-        <View className="flex-1 bg-white rounded-t-[30px] -mt-6 px-6 pt-8 pb-8">
+        <View className="flex-1 bg-white rounded-t-[30px] -mt-6 px-6 pt-8 pb-8 z-20">
           {view === "login" ? (
             <View className="space-y-6 flex-col gap-5">
               <View className="flex-col gap-2">
                 <Text className="text-sm font-semibold text-slate-700">Email Address</Text>
-                <TextInput 
+                <TextInput
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  value={email} 
-                  onChangeText={setEmail} 
-                  placeholder="juan@example.com" 
-                  className="h-14 px-4 rounded-xl bg-slate-100 text-slate-800" 
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="juan@example.com"
+                  className="h-14 px-4 rounded-xl bg-slate-100 text-slate-800"
+                  editable={!loginLoading}
                 />
               </View>
 
               <View className="flex-col gap-2">
                 <Text className="text-sm font-semibold text-slate-700">Password</Text>
                 <View className="relative justify-center">
-                  <TextInput 
+                  <TextInput
                     secureTextEntry={!showPass}
-                    value={password} 
-                    onChangeText={setPassword} 
-                    placeholder="Enter your password" 
-                    className="h-14 px-4 pr-12 rounded-xl bg-slate-100 text-slate-800" 
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Enter your password"
+                    className="h-14 px-4 pr-12 rounded-xl bg-slate-100 text-slate-800"
+                    editable={!loginLoading}
                   />
-                  <TouchableOpacity 
-                    onPress={() => setShowPass(!showPass)} 
+                  <TouchableOpacity
+                    onPress={() => setShowPass(!showPass)}
                     className="absolute right-4"
                   >
                     {showPass ? <EyeOff size={20} color="#64748B" /> : <Eye size={20} color="#64748B" />}
@@ -328,10 +378,14 @@ export default function LoginPage() {
               <View>
                 <TouchableOpacity
                   onPress={handleLogin}
+                  disabled={loginLoading}
                   className="w-full h-14 bg-[#0A1D37] rounded-xl flex-row justify-center items-center"
                 >
+                  {loginLoading ? (
+                    <ActivityIndicator color="white" className="mr-2" />
+                  ) : null}
                   <Text className="text-white text-base font-bold">
-                    Log In
+                    {loginLoading ? "Logging in..." : "Log In"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -342,7 +396,6 @@ export default function LoginPage() {
                 <View className="flex-1 h-[1px] bg-slate-200" />
               </View>
 
-              {/* Continue with Google button */}
               <TouchableOpacity
                 onPress={handleGoogleLogin}
                 disabled={googleLoading}
@@ -351,7 +404,7 @@ export default function LoginPage() {
                 {googleLoading ? (
                   <ActivityIndicator color="#0A1D37" className="mr-3" />
                 ) : (
-                  <Image source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" }} className="w-5 h-5 mr-3" />
+                  <Image source={{ uri: GOOGLE_LOGO_PNG }} className="w-5 h-5 mr-3" />
                 )}
                 <Text className="text-slate-700 text-base font-bold">
                   {googleLoading ? "Signing in..." : "Continue with Google"}
@@ -374,13 +427,13 @@ export default function LoginPage() {
 
               <View className="flex-col gap-2">
                 <Text className="text-sm font-semibold text-slate-700">Email Address</Text>
-                <TextInput 
+                <TextInput
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  value={email} 
-                  onChangeText={setEmail} 
-                  placeholder="juan@example.com" 
-                  className="h-14 px-4 rounded-xl bg-slate-100 text-slate-800" 
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="juan@example.com"
+                  className="h-14 px-4 rounded-xl bg-slate-100 text-slate-800"
                   editable={!resetLoading}
                 />
               </View>
@@ -401,4 +454,4 @@ export default function LoginPage() {
       </ScrollView>
     </KeyboardAvoidingView>
   );
-} 
+}
