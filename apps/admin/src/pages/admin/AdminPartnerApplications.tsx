@@ -119,7 +119,7 @@ export default function AdminPartnerApplications() {
           password: adminPassword,
           full_name: selectedApp.rep_first_name + ' ' + selectedApp.rep_last_name,
           lot_id: newLot.id, // Pass the real UUID here!
-          role: "manager",
+          role: "admin",
           application_id: selectedApp.id
         }
       });

@@ -20,13 +20,13 @@ import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminSettings() {
   const { language, setLanguage, t } = useLanguage();
-  const adminRole = localStorage.getItem("admin_role") || "manager";
+  const adminRole = localStorage.getItem("admin_role") || "admin";
   const isSuperAdmin = adminRole === "super_admin" || adminRole === "superadmin";
   const [localLanguage, setLocalLanguage] = useState(language);
   const [isSaving, setIsSaving] = useState(false);
   const [adminLotId, setAdminLotId] = useState<string | null>(null);
   
-  // 1. Standard Rates (Manager)
+  // 1. Standard Rates (Admin)
   const [pricingScheme, setPricingScheme] = useState<"hourly" | "fixed">("hourly");
   const [baseRate, setBaseRate] = useState("50");
   const [hourlyRate, setHourlyRate] = useState("20");
@@ -64,7 +64,7 @@ export default function AdminSettings() {
     if (isSuperAdmin) {
       fetchGlobalSettings();
     } else {
-      fetchManagerData();
+      fetchAdminData();
     }
   }, [adminRole]);
 
@@ -77,7 +77,7 @@ export default function AdminSettings() {
     }
   };
 
-  const fetchManagerData = async () => {
+  const fetchAdminData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data } = await supabase
@@ -222,7 +222,7 @@ export default function AdminSettings() {
     <AdminLayout title="System Configurations">
       <div className="max-w-6xl mx-auto space-y-6 pb-12">
         
-        {adminRole === "manager" && (
+        {adminRole === "admin" && (
           <div className="bg-rose-500/10 border border-rose-500/20 p-5 rounded-2xl flex items-start gap-4">
             <div className="bg-rose-500/20 p-2 rounded-full shrink-0"><Ban className="text-rose-600" size={24} /></div>
             <div><h4 className="text-rose-800 font-black text-sm uppercase tracking-wider">No Refund Policy</h4><p className="text-rose-700/80 text-xs font-medium mt-1">ParKada does NOT issue refunds for any reason. Once a reservation is paid, it is final.</p></div>

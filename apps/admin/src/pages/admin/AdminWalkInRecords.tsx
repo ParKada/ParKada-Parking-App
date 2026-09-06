@@ -68,7 +68,7 @@ export default function AdminWalkInRecords() {
       .eq("is_reservable", false)
       .eq("status", "available");
 
-      if ((userRole === "manager" || userRole === "admin") && userLotId) query = query.eq("lot_id", userLotId);
+      if ((userRole === "admin" || userRole === "admin") && userLotId) query = query.eq("lot_id", userLotId);
       else if ((userRole === "guard" || userRole === "staff") && userLotId) query = query.eq("lot_id", userLotId);
 
     const { data, error } = await query;
@@ -96,7 +96,7 @@ export default function AdminWalkInRecords() {
         .order("entry_time", { ascending: false });
 
       // Filter by lot if manager/guard
-        if ((userRole === "manager" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
+        if ((userRole === "admin" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
         query = query.eq("lot_id", userLotId);
       }
 
@@ -485,7 +485,7 @@ export default function AdminWalkInRecords() {
             <div>
               <p className="text-2xl font-black">₱{totalRevenue.toFixed(2)}</p>
               <p className="text-xs text-muted-foreground uppercase font-bold">
-                {userRole === "manager" || userRole === "superadmin" || userRole === "super_admin" ? "Total Revenue" : "Today's Revenue"}
+                {userRole === "admin" || userRole === "superadmin" || userRole === "super_admin" ? "Total Revenue" : "Today's Revenue"}
               </p>
             </div>
           </div>
@@ -542,8 +542,8 @@ export default function AdminWalkInRecords() {
                   Archived
                 </button>
                 
-                {/* Date Filters (Managers/Superadmins only) */}
-                {(userRole === "manager" || userRole === "superadmin" || userRole === "super_admin") && (
+                {/* Date Filters (Admins/Superadmins only) */}
+                {(userRole === "admin" || userRole === "superadmin" || userRole === "super_admin") && (
                   <>
                     <div className="w-px bg-slate-200 mx-2 self-stretch" />
                     <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
@@ -563,7 +563,7 @@ export default function AdminWalkInRecords() {
                   </>
                 )}
               </div>
-              {(userRole === "manager" || userRole === "superadmin" || userRole === "super_admin") && dateFilter === "custom" && (
+              {(userRole === "admin" || userRole === "superadmin" || userRole === "super_admin") && dateFilter === "custom" && (
                 <div className="flex gap-2">
                   <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-36 h-9" />
                   <span>–</span>

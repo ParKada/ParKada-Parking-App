@@ -1,5 +1,5 @@
 /*
- * ParKada — ManageGuards (Manager Creation & Roster for Guards)
+ * ParKada — ManageGuards (Admin Creation & Roster for Guards)
  * Added: Strong password indication, eye icon to toggle visibility.
  */
 import { useState, useEffect } from "react";
@@ -26,7 +26,7 @@ import { supabase } from "@parkada/shared";
 import { createClient } from "@supabase/supabase-js";
 import { useLanguage } from "@/hooks/useLanguage";
 
-// Secondary Client gamit ang ANON KEY para hindi ma-logout si Manager
+// Secondary Client gamit ang ANON KEY para hindi ma-logout si Admin
 const authSupabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -40,8 +40,8 @@ const authSupabase = createClient(
 
 export default function ManageGuards() {
   const { t } = useLanguage();
-  const [managerLotId, setManagerLotId] = useState<string | null>(null);
-  const [managerLotName, setManagerLotName] = useState<string>("");
+  const [managerLotId, setAdminLotId] = useState<string | null>(null);
+  const [managerLotName, setAdminLotName] = useState<string>("");
   const [guards, setGuards] = useState<any[]>([]);
   
   const [guardName, setGuardName] = useState("");
@@ -51,15 +51,15 @@ export default function ManageGuards() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchManagerDataAndGuards();
+    fetchAdminDataAndGuards();
   }, []);
 
-  const fetchManagerDataAndGuards = async () => {
+  const fetchAdminDataAndGuards = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Kunin ang Lot ID at Lot Name ng Manager
+      // 1. Kunin ang Lot ID at Lot Name ng Admin
       const { data: profile, error: profileError } = await supabase
         .from('admin_profiles')
         .select('assigned_lot_id, parking_lots(name)')
@@ -69,14 +69,14 @@ export default function ManageGuards() {
       if (profileError) throw profileError;
 
       if (profile && profile.assigned_lot_id) {
-        setManagerLotId(profile.assigned_lot_id);
+        setAdminLotId(profile.assigned_lot_id);
         
         // 🔥 FIX PARA SA TYPESCRIPT ERROR 🔥
         const lotData: any = profile.parking_lots;
         const lotName = Array.isArray(lotData) ? lotData[0]?.name : lotData?.name;
-        setManagerLotName(lotName || "Assigned Lot");
+        setAdminLotName(lotName || "Assigned Lot");
 
-        // 2. Fetch guards na kabilang lang sa Lot ng Manager
+        // 2. Fetch guards na kabilang lang sa Lot ng Admin
         const { data: guardsData, error } = await supabase
           .from('admin_profiles')
           .select('id, full_name, role, status') 
@@ -166,7 +166,7 @@ export default function ManageGuards() {
       toast.success(t(`Guard account para kay ${guardName} nagawa na!`, `Guard account para kay ${guardName} nagawa na!`));
       setGuardName(""); setGuardEmail(""); setGuardPassword("");
       setShowPassword(false);
-      fetchManagerDataAndGuards(); 
+      fetchAdminDataAndGuards(); 
     } catch (error: any) {
       console.error(error);
       toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
@@ -194,7 +194,7 @@ export default function ManageGuards() {
       if (error) throw error;
 
       toast.success(t(`Access ni ${name} ay na-${newStatus.toLowerCase()} na.`, `Access ni ${name} ay na-${newStatus.toLowerCase()} na.`));
-      fetchManagerDataAndGuards();
+      fetchAdminDataAndGuards();
     } catch (error: any) {
       console.error(error);
       toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
@@ -216,7 +216,7 @@ export default function ManageGuards() {
       if (error) throw error;
       
       toast.success(t(`Ang account ni ${name} ay permanenteng natanggal.`, `Ang account ni ${name} ay permanenteng natanggal.`));
-      fetchManagerDataAndGuards();
+      fetchAdminDataAndGuards();
     } catch (error: any) {
       console.error(error);
       toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));

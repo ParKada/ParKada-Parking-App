@@ -18,18 +18,18 @@ interface AdminLayoutProps {
 }
 
 const allNavItems = [
-  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "superadmin", "manager", "admin"] },
+  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] },
   { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["super_admin", "superadmin"] },
-  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "superadmin", "manager", "admin", "guard", "staff"] },
-  { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager", "admin", "guard", "staff"] },
+  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "superadmin", "admin", "admin", "guard", "staff"] },
+  { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["admin", "admin", "guard", "staff"] },
   { path: "/admin/applications", icon: FileText, label: "Partner Applications", allowedRoles: ["super_admin", "superadmin"] },
   { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["super_admin", "superadmin"] }, 
   { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin", "superadmin"] }, 
-  { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "admin", "guard", "staff"] },
-  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "superadmin", "manager", "admin"] },
-  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "superadmin", "manager", "admin"] },
-  { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager", "admin"] },
-  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "superadmin", "manager", "admin"] }, 
+  { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["admin", "admin", "guard", "staff"] },
+  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] },
+  { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] },
+  { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["admin", "admin"] },
+  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] }, 
 ];
 
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
@@ -49,7 +49,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const [editNameValue, setEditNameValue] = useState<string>("");
   const [isSavingName, setIsSavingName] = useState(false);
   
-  const adminRole = localStorage.getItem("admin_role") || "manager"; 
+  const adminRole = localStorage.getItem("admin_role") || "admin"; 
   const adminLotId = localStorage.getItem("admin_lot_id");
 
   const closeDropdowns = () => {
@@ -64,7 +64,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       .eq('recipient_role', 'admin') 
       .order('created_at', { ascending: false });
 
-    if (adminRole === "manager" && adminLotId) {
+    if (adminRole === "admin" && adminLotId) {
       query = query.or(`lot_id.eq.${adminLotId},lot_id.is.null`);
     }
 
@@ -298,7 +298,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             <div className="text-left">
               <p className="font-bold text-lg text-white">ParKada</p>
               <p className="text-xs text-white/70 capitalize">
-                {(adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : (adminRole === 'staff' || adminRole === 'guard') ? 'Staff' : 'Lot Manager'} Panel
+                {(adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : (adminRole === 'staff' || adminRole === 'guard') ? 'Staff' : 'Admin'} Panel
               </p>
             </div>
           </button>
@@ -336,7 +336,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white capitalize truncate">
-                  {fullName || ((adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : 'Manager')}
+                  {fullName || ((adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : 'Admin')}
                 </p>
                 <p className="text-[10px] text-white/50 truncate" title={adminEmail}>
                   {adminEmail}

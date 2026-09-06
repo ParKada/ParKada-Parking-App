@@ -186,7 +186,7 @@ export default function AdminParkingSlots() {
   const itemsPerPage = 10;
   const userRole = localStorage.getItem("admin_role") || "guard";
   const userLotId = localStorage.getItem("admin_lot_id");
-  const canEditPhotos = userRole === "manager" || userRole === "admin" || userRole === "superadmin" || userRole === "super_admin";
+  const canEditPhotos = userRole === "admin" || userRole === "admin" || userRole === "superadmin" || userRole === "super_admin";
 
   // New states for Multi-Camera & Setup
   const [activeTab, setActiveTab] = useState("details");
@@ -681,7 +681,7 @@ export default function AdminParkingSlots() {
         .select("*")
         .order("name", { ascending: true }); // ← alphabetical
 
-      if ((userRole === "manager" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
+      if ((userRole === "admin" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
         query = query.eq("id", userLotId);
       }
 
@@ -755,7 +755,7 @@ export default function AdminParkingSlots() {
     if (
       userRole !== "superadmin" &&
       userRole !== "super_admin" &&
-      userRole !== "manager"
+      userRole !== "admin"
     )
       return;
 
@@ -1113,7 +1113,7 @@ export default function AdminParkingSlots() {
     // Use the camera-specific stream path if a cameraId is provided
     const path = cameraId ? `/video_feed/${cameraId}` : "/video_feed";
 
-    // Super admins and managers use the Cloudflare public URL (internet access)
+    // Super admins and admins use the Cloudflare public URL (internet access)
     // Guards use the LAN URL (same WiFi as the camera machine)
     if (userRole === "superadmin" || userRole === "super_admin") {
       return publicBase ? `${publicBase}${path}` : `${lanBase}${path}`;
@@ -1920,7 +1920,7 @@ export default function AdminParkingSlots() {
                 {userRole === "super_admin" && (
                   <div className="bg-white p-6 rounded-2xl shadow-sm border border-border">
                     <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
-                      <UserIcon className="text-primary w-5 h-5" /> Manager
+                      <UserIcon className="text-primary w-5 h-5" /> Admin
                       Accounts
                     </h3>
                     <div className="space-y-3">
@@ -2158,7 +2158,7 @@ export default function AdminParkingSlots() {
 
                                 {canEditPhotos && (
                                   <>
-                                    {/* Expand Button for Manager */}
+                                    {/* Expand Button for Admin */}
                                     <button
                                       onClick={e => {
                                         e.stopPropagation();

@@ -101,7 +101,7 @@ export default function AdminReservations() {
       .from('reservations')
       .select(`*, parking_lots (name), parking_slots (label)`)
       .order('created_at', { ascending: false });
-    if (userRole === 'manager' && userLotId) {
+    if (userRole === 'admin' && userLotId) {
       query = query.eq('lot_id', userLotId);
     }
     query = applyDateFilters(query);

@@ -1,5 +1,5 @@
 /*
- * ParKada — AdminDashboard (Supabase Connected - Super Admin & Manager)
+ * ParKada — AdminDashboard (Supabase Connected - Super Admin & Admin)
  * Real‑time updates, TypeScript, map view, clickable cards, skeleton loading.
  * UPDATED: Parking Lots Overview shows only accredited lots.
  */
@@ -230,13 +230,13 @@ export default function PartnerAdminDashboard() {
         status: res.status,
       }));
 
-      // 5. Active managers (superadmin only)
+      // 5. Active admins (superadmin only)
       let activeCount = 0;
       if (currentRole === "superadmin") {
         const { count } = await supabase
           .from("admin_profiles")
           .select("*", { count: "exact", head: true })
-          .eq("role", "manager");
+          .eq("role", "admin");
         activeCount = count || 0;
       }
 
@@ -259,7 +259,7 @@ export default function PartnerAdminDashboard() {
         .not("status", "eq", "cancelled")
         .lt("start_time", endOfWeek.toISOString())
         .gte("end_time", startOfWeek.toISOString());
-      if (currentRole === "manager" && managerLotId) reservationsQuery = reservationsQuery.eq("lot_id", managerLotId);
+      if (currentRole === "admin" && managerLotId) reservationsQuery = reservationsQuery.eq("lot_id", managerLotId);
       const { data: weekReservations } = await reservationsQuery;
 
       for (let i = 0; i < 7; i++) {
@@ -325,7 +325,7 @@ export default function PartnerAdminDashboard() {
     statCards.push({ label: "Today's Bookings", value: stats.todayReservations, icon: BookOpen, color: "bg-amber-100 text-amber-700", path: "/admin/reservations" });
   }
   if (isSuperAdmin) {
-    statCards.push({ label: "Total Managers", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
+    statCards.push({ label: "Total Admins", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
   }
 
   if (isLoading) {

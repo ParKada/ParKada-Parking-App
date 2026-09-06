@@ -110,7 +110,7 @@ function Router() {
 }
 
 function App() {
-  // Manager invitation links can arrive with tokens at unexpected routes.
+  // Admin invitation links can arrive with tokens at unexpected routes.
   // Password pages handle their own sessions, so do not intercept them here.
   const pathname = window.location.pathname.replace(/\/$/, "") || "/";
   const hash = window.location.hash;

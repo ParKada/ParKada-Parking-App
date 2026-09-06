@@ -79,7 +79,7 @@ export default function AdminReports() {
           id, total_amount, status, created_at, start_time, lot_id,
           parking_lots (name, type, total_slots, operating_hours)
         `);
-      if (userRole === 'manager' && userLotId) {
+      if (userRole === 'admin' && userLotId) {
         reservationsQuery = reservationsQuery.eq('lot_id', userLotId);
       }
       const { data: reservationsData, error: resError } = await reservationsQuery;
@@ -91,7 +91,7 @@ export default function AdminReports() {
           id, amount_paid, entry_time, exit_time, created_at, lot_id,
           parking_lots (id, name, type)
         `);
-      if (userRole === 'manager' && userLotId) {
+      if (userRole === 'admin' && userLotId) {
         walkInQuery = walkInQuery.eq('lot_id', userLotId);
       }
       const { data: walkInData, error: walkError } = await walkInQuery;
@@ -101,7 +101,7 @@ export default function AdminReports() {
         .from('plate_validation_logs')
         .select(`id, lot_id, camera_id, detected_plate, confidence_score, validation_status, created_at`)
         .order('created_at', { ascending: false });
-      if (userRole === 'manager' && userLotId) {
+      if (userRole === 'admin' && userLotId) {
         ocrQuery = ocrQuery.eq('lot_id', userLotId);
       }
       const { data: ocrData, error: ocrError } = await ocrQuery;
@@ -110,7 +110,7 @@ export default function AdminReports() {
       }
 
       let lotsQuery = supabase.from('parking_lots').select('operating_hours');
-      if (userRole === 'manager' && userLotId) {
+      if (userRole === 'admin' && userLotId) {
         lotsQuery = lotsQuery.eq('id', userLotId);
       }
       const { data: lotsData } = await lotsQuery;

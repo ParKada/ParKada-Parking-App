@@ -44,6 +44,6 @@ export default function AdminDashboardRouter() {
     return <SuperAdminDashboard />;
   }
 
-  // Default to the partner admin dashboard for "manager" / "admin"
+  // Default to the partner admin dashboard for "admin" / "admin"
   return <PartnerAdminDashboard />;
 }
