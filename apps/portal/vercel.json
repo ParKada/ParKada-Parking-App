@@ -1,6 +1,6 @@
 {
   "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm --filter parkada build",
+  "buildCommand": "cd ../.. && pnpm --filter portal build",
   "outputDirectory": "dist",
   "rewrites": [
     {
