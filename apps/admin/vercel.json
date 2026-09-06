@@ -1,6 +1,6 @@
 {
   "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm --filter parkada build",
+  "buildCommand": "./node_modules/.bin/vite build",
   "outputDirectory": "dist",
   "rewrites": [
     {
