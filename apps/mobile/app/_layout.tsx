@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { supabase } from '../lib/supabase';
-import { Session } from '@supabase/supabase-js';
 import { View, ActivityIndicator, Platform, LogBox } from 'react-native';
 import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { supabase } from '../lib/supabase';
+import { AuthProvider, useAuth } from '../lib/AuthProvider';
 import '../global.css';
 
 // I-suppress ang mga paulit-ulit na Firebase/FCM errors sa terminal habang nagde-develop
@@ -84,63 +84,59 @@ async function registerForPushNotificationsAsync() {
   }
 }
 
-export default function RootLayout() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [initialized, setInitialized] = useState(false);
+function RootNavigation() {
+  const { session, isSessionReady, profileStatus, isAdmin } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
-  // Handle Supabase Auth Session Initialization
+  // True while we still don't actually know where the user should land.
+  // Nothing below should navigate or render real screens while this is true.
+  const stillResolving = !isSessionReady || (!!session && profileStatus === 'loading');
+
+  // --- Navigation: the ONLY place in the app that calls router.replace() ---
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setInitialized(true);
-    });
+    if (stillResolving) return;
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+    const inAuthGroup = segments[0] === '(auth)';
+    const onCompleteProfile = segments.join('/').includes('complete-profile');
+    const isRegistering = segments.includes('register');
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Handle Protected Routes & Initial App Landing
-  useEffect(() => {
-    if (!initialized) return;
-
-    const segment = segments?.[0];
-    const inAuthGroup = segment === '(auth)';
-    const isRegistering = segments?.includes('register');
-
-    if (session?.user?.id && !isExpoGo) {
-      registerForPushNotificationsAsync().then((token) => {
-        if (token) {
-          supabase
-            .from('profiles')
-            .update({ expo_push_token: token })
-            .eq('id', session.user.id)
-            .then(({ error }) => {
-              if (error) console.error("Error updating push token:", error);
-            });
-        }
-      });
+    if (!session) {
+      if (!inAuthGroup) router.replace('/(auth)');
+      return;
     }
 
-    const timer = setTimeout(() => {
-      if (!session && !inAuthGroup) {
-        router.replace('/(auth)');
-      } else if (session && (inAuthGroup || !segment) && !isRegistering) {
-        // BAGONG BAGO: Diretso na sa / (index.tsx) kung saan nakalagay ang DriverHome
-        router.replace('/');
+    // Logged in from here on. Admins never get past this point in this
+    // app — AuthProvider signs them out automatically, so `session` will
+    // become null again shortly and this effect will re-run above.
+    if (!isAdmin && (profileStatus === 'no-profile' || profileStatus === 'incomplete')) {
+      if (!onCompleteProfile) router.replace('/(auth)/complete-profile');
+      return;
+    }
+
+    if ((inAuthGroup || !segments[0]) && !isRegistering) {
+      router.replace('/');
+    }
+  }, [stillResolving, session, profileStatus, isAdmin, segments]);
+
+  // --- Push token registration: separate concern, unrelated to navigation ---
+  useEffect(() => {
+    if (isExpoGo || !session?.user?.id || profileStatus !== 'complete') return;
+
+    registerForPushNotificationsAsync().then((token) => {
+      if (token) {
+        supabase
+          .from('profiles')
+          .update({ expo_push_token: token })
+          .eq('id', session.user.id)
+          .then(({ error }) => {
+            if (error) console.error('Error updating push token:', error);
+          });
       }
-    }, 0);
+    });
+  }, [session?.user?.id, profileStatus]);
 
-    return () => clearTimeout(timer);
-  }, [session, initialized, segments]);
-
-  if (!initialized) {
+  if (stillResolving) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#0ea5e9" />
@@ -149,4 +145,12 @@ export default function RootLayout() {
   }
 
   return <Slot />;
+}
+
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootNavigation />
+    </AuthProvider>
+  );
 }

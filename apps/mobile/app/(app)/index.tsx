@@ -159,11 +159,15 @@ export default function DriverHome() {
       
       const { data: profile } = await supabase
         .from("profiles")
-        .select("first_name, full_name")
+        .select("first_name, full_name, preferred_name")
         .eq("id", user.id)
         .single();
 
-      if (profile?.first_name) {
+      // Preferred name (the nickname set on the Complete Profile screen)
+      // takes priority over the legal first_name whenever it's set.
+      if (profile?.preferred_name) {
+        setUserName(profile.preferred_name);
+      } else if (profile?.first_name) {
         setUserName(profile.first_name);
       } else if (profile?.full_name) {
         setUserName(profile.full_name.split(" ")[0]);

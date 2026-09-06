@@ -90,8 +90,6 @@ export default function LoginPage() {
       WebBrowser.dismissBrowser();
     }
 
-    let shouldResetGuard = true;
-
     try {
       const { accessToken, refreshToken, code, errorDesc } = parseUrlParams(url);
 
@@ -101,32 +99,23 @@ export default function LoginPage() {
       }
 
       if (accessToken && refreshToken) {
-        const { data, error } = await supabase.auth.setSession({
+        const { error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
         if (error) throw error;
-        if (data?.user) {
-          shouldResetGuard = false; // navigating away; no need to accept more redirects
-          await verifyAndEnsureRegularUser(data.user);
-        }
-      }
-      else if (code) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        // No navigation here — the root layout's auth listener reacts to
+        // the session change and routes to the right place on its own.
+      } else if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) throw error;
-        if (data?.user) {
-          shouldResetGuard = false;
-          await verifyAndEnsureRegularUser(data.user);
-        }
       }
     } catch (e: any) {
       console.log("URL Handling Exception:", e);
       Alert.alert("Authentication Error", e.message || "Failed to authenticate session.");
     } finally {
       setGoogleLoading(false);
-      if (shouldResetGuard) {
-        isProcessingAuth.current = false;
-      }
+      isProcessingAuth.current = false;
     }
   };
 
@@ -140,62 +129,6 @@ export default function LoginPage() {
     return () => sub.remove();
   }, []);
 
-  const verifyAndEnsureRegularUser = async (user: any) => {
-    if (!user) return;
-
-    try {
-      const { data: adminData } = await supabase
-        .from("admin_profiles")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (adminData) {
-        await supabase.auth.signOut();
-        Alert.alert(
-          "Access Denied",
-          "Admin accounts cannot use the Driver App. Please log in via the Admin Portal."
-        );
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!profile) {
-        const rawName = user.user_metadata?.full_name || user.user_metadata?.name || "Driver User";
-        const nameParts = rawName.split(" ");
-        const firstName = nameParts[0] || "Driver";
-        const lastName = nameParts.slice(1).join(" ") || "User";
-
-        const { error: insertError } = await supabase.from("profiles").upsert({
-          id: user.id,
-          email: user.email,
-          first_name: firstName,
-          last_name: lastName,
-          user_type: "driver",
-          discount_type: "regular",
-          verification_status: "unverified",
-          updated_at: new Date().toISOString(),
-        });
-
-        if (insertError) {
-          Alert.alert("Account Setup Alert", "Failed to set up profile details.");
-          return;
-        }
-      }
-
-      router.replace("/");
-
-    } catch (error: any) {
-      console.log("VERIFY USER ERROR:", error);
-      Alert.alert("Login Alert", error?.message || "Failed to complete sign-in.");
-    }
-  };
-
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Required Fields", "Please enter both email and password.");
@@ -204,7 +137,7 @@ export default function LoginPage() {
 
     setLoginLoading(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -214,12 +147,8 @@ export default function LoginPage() {
           ? "Incorrect email or password. Please check your credentials and try again."
           : authError.message;
         Alert.alert("Login Failed", userFriendlyMsg);
-        return;
       }
-
-      if (authData?.user) {
-        await verifyAndEnsureRegularUser(authData.user);
-      }
+      // On success, the root layout's auth listener handles navigation.
     } catch (error: any) {
       Alert.alert("Login Alert", "An unexpected error occurred. Please try again.");
     } finally {
