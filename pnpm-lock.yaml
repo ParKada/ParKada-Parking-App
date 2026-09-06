@@ -248,9 +248,6 @@ importers:
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
-      pnpm:
-        specifier: ^10.15.1
-        version: 10.34.3
       postcss:
         specifier: ^8.4.47
         version: 8.5.15
@@ -6662,11 +6659,6 @@ packages:
   pngjs@5.0.0:
     resolution: {integrity: sha512-40QW5YalBNfQo5yRYmiw7Yz6TKKVr3h6970B2YE+3fQpsWcrbj1PzJgxeJ19DRQjhMbKPIuMY8rFaXc8moolVw==}
     engines: {node: '>=10.13.0'}
-
-  pnpm@10.34.3:
-    resolution: {integrity: sha512-8sUxsIgp175/A8kK3cJmYV+cVHdGPkvx0nXLJjzp6lfPDVWZEQ2UZJqbs/7Z8LXvzqdKcBa2FTKiTLmth4YMHQ==}
-    engines: {node: '>=18.12'}
-    hasBin: true
 
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
@@ -15263,8 +15255,6 @@ snapshots:
   pngjs@3.4.0: {}
 
   pngjs@5.0.0: {}
-
-  pnpm@10.34.3: {}
 
   points-on-curve@0.2.0: {}
 
