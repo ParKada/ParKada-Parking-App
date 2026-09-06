@@ -24,7 +24,6 @@
     },
     "android": {
       "package": "parkada.mobile",
-      "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -49,9 +48,6 @@
       "@react-native-google-signin/google-signin"
     ],
     "extra": {
-      "router": {
-        "origin": false
-      },
       "eas": {
         "projectId": "793af5a3-4b8c-4cb9-bcc7-a44964e20070"
       }

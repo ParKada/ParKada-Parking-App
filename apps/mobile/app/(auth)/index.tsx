@@ -1,9 +1,7 @@
-import { useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from 'expo-router';
 import { MapPin, Shield, Clock, ChevronRight } from 'lucide-react-native';
-import { supabase } from '../../lib/supabase';
 
 const features = [
   { icon: MapPin, title: "Real-Time Availability", desc: "See open slots instantly as they update" },
@@ -14,14 +12,6 @@ const features = [
 export default function AuthLanding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        router.replace('/(app)');
-      }
-    });
-  }, []);
 
   return (
     <View className="flex-1 bg-white">
