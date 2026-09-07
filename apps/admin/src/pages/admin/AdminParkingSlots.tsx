@@ -439,6 +439,9 @@ export default function AdminParkingSlots() {
       `cameras_${selectedLotId}`,
       JSON.stringify(newCameras)
     );
+    // Sync newly added camera to Supabase
+    supabase.from("parking_lots").update({ cameras: newCameras }).eq("id", selectedLotId).then();
+    
     setNewCameraName("");
     setNewCameraUrl("");
     setIsAddingCamera(false);
@@ -669,7 +672,18 @@ export default function AdminParkingSlots() {
             setCameras([]);
           }
         } else {
-          setCameras([]);
+          // If no cameras are found anywhere, auto-add default cameras for Feldgrau
+          const lotName = lots.find(l => l.id === selectedLotId)?.name || "";
+          if (lotName.toLowerCase().includes("feldgrau")) {
+            const defaultCameras = [
+              { id: `cam1_${selectedLotId}`, name: "Camera 1", stream_url: "" },
+              { id: `cam2_${selectedLotId}`, name: "Camera 2", stream_url: "" }
+            ];
+            setCameras(defaultCameras);
+            supabase.from("parking_lots").update({ cameras: defaultCameras }).eq("id", selectedLotId).then();
+          } else {
+            setCameras([]);
+          }
         }
       } catch (err) {
         console.error("Error fetching cameras:", err);
@@ -695,20 +709,7 @@ export default function AdminParkingSlots() {
     }
   }, [activeTab, selectedLotId]);
 
-  // Save cameras to local storage and Supabase whenever they change
-  useEffect(() => {
-    if (selectedLotId) {
-      localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(cameras));
-      // Sync cameras to Supabase
-      supabase
-        .from("parking_lots")
-        .update({ cameras: cameras })
-        .eq("id", selectedLotId)
-        .then(({ error }) => {
-          if (error) console.warn("Camera sync to Supabase failed:", error.message);
-        });
-    }
-  }, [cameras, selectedLotId]);
+
 
   // 🔥 UPDATED: Only accredited lots, sorted alphabetically
   const fetchLots = async () => {
@@ -2268,8 +2269,8 @@ export default function AdminParkingSlots() {
                     />
                   </div>
                 </div>
-                {cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length === 0 ? (
-                  <div className="text-center py-12 bg-white rounded-2xl border border-slate-200">
+                {cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length === 0 && !isAddingCamera ? (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 mb-6">
                     <Camera className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                     <p className="text-slate-500 font-medium">No cameras found matching your search.</p>
                   </div>
@@ -2308,10 +2309,10 @@ export default function AdminParkingSlots() {
                           Camera Offline
                         </p>
                       </div>
-                      <div className="absolute top-3 left-3 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-md backdrop-blur-sm max-w-[70%] truncate">
+                      <div className="absolute top-3 left-3 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-md backdrop-blur-sm max-w-[70%] truncate z-20">
                         {cam.name}
                       </div>
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center z-30">
                         <div className="bg-primary/90 text-primary-foreground p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 shadow-lg">
                           <Eye size={20} />
                         </div>
@@ -2319,9 +2320,12 @@ export default function AdminParkingSlots() {
                     </div>
                   </div>
                 ))}
+                  </div>
+                )}
 
-                {(userRole === "superadmin" || userRole === "super_admin") &&
-                  (isAddingCamera ? (
+                {(userRole === "superadmin" || userRole === "super_admin") && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                  {isAddingCamera ? (
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-center min-h-[200px]">
                       <form
                         onSubmit={handleAddCamera}
@@ -2367,9 +2371,9 @@ export default function AdminParkingSlots() {
                         Add New Camera
                       </span>
                     </div>
-                  ))}
-              </div>
-              )}
+                  )}
+                  </div>
+                )}
             </>
             ) : (
               // EXPANDED SINGLE CAMERA VIEW
@@ -2394,18 +2398,20 @@ export default function AdminParkingSlots() {
                             <Button
                               size="sm"
                               onClick={() => {
-                                if (editingCameraName.trim()) {
-                                  const newCameras = cameras.map(c =>
-                                    c.id === expandedCameraId
-                                      ? { ...c, name: editingCameraName.trim() }
-                                      : c
-                                  );
-                                  setCameras(newCameras);
-                                  localStorage.setItem(
-                                    `cameras_${selectedLotId}`,
-                                    JSON.stringify(newCameras)
-                                  );
-                                }
+                                  if (editingCameraName.trim()) {
+                                    const newCameras = cameras.map(c =>
+                                      c.id === expandedCameraId
+                                        ? { ...c, name: editingCameraName.trim() }
+                                        : c
+                                    );
+                                    setCameras(newCameras);
+                                    localStorage.setItem(
+                                      `cameras_${selectedLotId}`,
+                                      JSON.stringify(newCameras)
+                                    );
+                                    // Sync edited camera to Supabase
+                                    supabase.from("parking_lots").update({ cameras: newCameras }).eq("id", selectedLotId).then();
+                                  }
                                 setEditingCameraId(null);
                                 setEditingCameraField(null);
                               }}
