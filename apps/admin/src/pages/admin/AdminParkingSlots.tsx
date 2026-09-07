@@ -56,14 +56,6 @@ import { useLanguage } from "@/hooks/useLanguage";
 export default function AdminParkingSlots() {
   const { t } = useLanguage();
 
-  const getAdminSupabase = async () => {
-    return createClient(
-      import.meta.env.VITE_SUPABASE_URL,
-      import.meta.env.VITE_SUPABASE_SERVICE_KEY,
-      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-    );
-  };
-
   const [lots, setLots] = useState<any[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string>("");
   const [slots, setSlots] = useState<any[]>([]);
@@ -257,8 +249,7 @@ export default function AdminParkingSlots() {
       const updates = Object.entries(pendingChanges).map(
         async ([id, changes]) => {
           const { _label, ...realChanges } = changes;
-          const adminSupabase = await getAdminSupabase();
-          const { error } = await adminSupabase
+          const { error } = await supabase
             .from("parking_slots")
             .update(realChanges)
             .eq("id", id);
@@ -510,7 +501,7 @@ export default function AdminParkingSlots() {
         updatePayload = { [updateField]: publicUrl };
       }
 
-      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update(updatePayload)
+      const { error: dbError } = await supabase.from("parking_lots").update(updatePayload)
         .eq("id", selectedLotId);
 
       if (dbError) {
@@ -543,7 +534,7 @@ export default function AdminParkingSlots() {
       const currentOthers = activeLot.other_photos || [];
       const newOthers = currentOthers.filter((u: string) => u !== urlToDelete);
 
-      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update({ other_photos: newOthers })
+      const { error: dbError } = await supabase.from("parking_lots").update({ other_photos: newOthers })
         .eq("id", selectedLotId);
 
       if (dbError) throw dbError;
@@ -571,7 +562,7 @@ export default function AdminParkingSlots() {
     try {
       const updateField =
         type === "front_view" ? "front_view_url" : "business_permit_url";
-      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update({ [updateField]: null })
+      const { error: dbError } = await supabase.from("parking_lots").update({ [updateField]: null })
         .eq("id", selectedLotId);
 
       if (dbError) throw dbError;
@@ -625,34 +616,68 @@ export default function AdminParkingSlots() {
       )
       .subscribe();
 
-    // Load cameras for this lot
-    const storedCameras = localStorage.getItem(`cameras_${selectedLotId}`);
-    if (storedCameras) {
+    // Load cameras from Supabase (primary) or localStorage (fallback)
+    const fetchCameras = async () => {
       try {
-        let parsedCameras = JSON.parse(storedCameras);
-        // MIGRATION: Ensure first two cameras match Python AI Node expectations
-        let changed = false;
-        parsedCameras = parsedCameras.map((cam: any, idx: number) => {
-          if (idx === 0 && !cam.id.startsWith("cam1_")) {
-            changed = true;
-            return { ...cam, id: `cam1_${selectedLotId}` };
-          }
-          if (idx === 1 && !cam.id.startsWith("cam2_")) {
-            changed = true;
-            return { ...cam, id: `cam2_${selectedLotId}` };
-          }
-          return cam;
-        });
-        setCameras(parsedCameras);
-        if (changed) {
-          localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(parsedCameras));
+        const { data: lotData, error } = await supabase
+          .from("parking_lots")
+          .select("cameras")
+          .eq("id", selectedLotId)
+          .single();
+
+        let remoteCameras = null;
+        if (!error && lotData && lotData.cameras) {
+          remoteCameras = lotData.cameras;
         }
-      } catch (e) {
+
+        const storedCameras = localStorage.getItem(`cameras_${selectedLotId}`);
+
+        if (remoteCameras && Array.isArray(remoteCameras) && remoteCameras.length > 0) {
+          setCameras(remoteCameras);
+          localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(remoteCameras));
+        } else if (storedCameras) {
+          try {
+            let parsedCameras = JSON.parse(storedCameras);
+            // MIGRATION: Ensure first two cameras match Python AI Node expectations
+            let changed = false;
+            parsedCameras = parsedCameras.map((cam: any, idx: number) => {
+              if (idx === 0 && !cam.id.startsWith("cam1_")) {
+                changed = true;
+                return { ...cam, id: `cam1_${selectedLotId}` };
+              }
+              if (idx === 1 && !cam.id.startsWith("cam2_")) {
+                changed = true;
+                return { ...cam, id: `cam2_${selectedLotId}` };
+              }
+              return cam;
+            });
+            setCameras(parsedCameras);
+            if (changed) {
+              localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(parsedCameras));
+            }
+            
+            // Initial sync to Supabase if it was only in localStorage
+            supabase
+              .from("parking_lots")
+              .update({ cameras: parsedCameras })
+              .eq("id", selectedLotId)
+              .then(({ error }) => {
+                if (error) console.warn("Camera initial sync to Supabase failed:", error.message);
+              });
+              
+          } catch (e) {
+            setCameras([]);
+          }
+        } else {
+          setCameras([]);
+        }
+      } catch (err) {
+        console.error("Error fetching cameras:", err);
         setCameras([]);
       }
-    } else {
-      setCameras([]);
-    }
+    };
+    
+    fetchCameras();
 
     return () => {
       supabase.removeChannel(channel);
@@ -670,10 +695,18 @@ export default function AdminParkingSlots() {
     }
   }, [activeTab, selectedLotId]);
 
-  // Save cameras to local storage whenever they change
+  // Save cameras to local storage and Supabase whenever they change
   useEffect(() => {
     if (selectedLotId) {
       localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(cameras));
+      // Sync cameras to Supabase
+      supabase
+        .from("parking_lots")
+        .update({ cameras: cameras })
+        .eq("id", selectedLotId)
+        .then(({ error }) => {
+          if (error) console.warn("Camera sync to Supabase failed:", error.message);
+        });
     }
   }, [cameras, selectedLotId]);
 
@@ -910,8 +943,7 @@ export default function AdminParkingSlots() {
     );
 
     try {
-      const adminSupabase = await getAdminSupabase();
-      const { error } = await adminSupabase
+      const { error } = await supabase
         .from("parking_slots")
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq("id", slotId);
@@ -990,7 +1022,7 @@ export default function AdminParkingSlots() {
       const updatedFloors = currentFloors.filter(
         (_: any, idx: number) => idx !== floorIndex
       );
-      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
+      const { error } = await supabase.from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -1057,7 +1089,7 @@ export default function AdminParkingSlots() {
       const updatedFloors = [...currentFloors];
       updatedFloors[selectedFloorIndex] = renameFloorName.trim();
 
-      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
+      const { error } = await supabase.from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -1078,7 +1110,7 @@ export default function AdminParkingSlots() {
     try {
       const currentFloors = activeLot.floors || ["Main Floor"];
       const updatedFloors = [...currentFloors, newFloorName.trim()];
-      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
+      const { error } = await supabase.from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 

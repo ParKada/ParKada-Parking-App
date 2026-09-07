@@ -192,6 +192,10 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             await supabase.auth.signOut();
             localStorage.removeItem('admin_role');
             localStorage.removeItem('admin_lot_id');
+            localStorage.removeItem('admin_avatar_cache');
+            localStorage.removeItem('admin_fullname_cache');
+            localStorage.removeItem('admin_initials_cache');
+            localStorage.removeItem('admin_email_cache');
             setTimeout(() => { setLocation("/admin"); }, 2000);
           }
         }
@@ -204,6 +208,10 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       await supabase.auth.signOut();
       localStorage.removeItem('admin_role');
       localStorage.removeItem('admin_lot_id');
+      localStorage.removeItem('admin_avatar_cache');
+      localStorage.removeItem('admin_fullname_cache');
+      localStorage.removeItem('admin_initials_cache');
+      localStorage.removeItem('admin_email_cache');
       toast.success(t("Successfully logged out", "Successfully logged out"));
       setLocation("/admin");
     } catch (error) {
