@@ -420,34 +420,29 @@ class CameraWorker:
                                 self.slot_data[idx]["is_reservable"] = is_reservable
                                 self.all_slots[idx] = np.array(coords, np.int32).reshape(-1, 2)
                                 
-                                # --- SELF-HEALING SYNC ---
-                                manual_override = False
-                                updated_at_str = row.get('updated_at')
-                                if updated_at_str:
-                                    try:
-                                        import datetime
-                                        dt = datetime.datetime.fromisoformat(updated_at_str.replace('Z', '+00:00'))
-                                        if (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds() < 120:
-                                            manual_override = True
-                                    except Exception:
-                                        pass
+                                # --- STATE-CHANGE TRIGGERED SYNC ---
+                                current_status = self.slot_data[idx]["status"]
                                 
-                                self.slot_data[idx]["manual_override"] = manual_override
+                                # Convert AI status to DB string for easy comparison
+                                ai_physical = "occupied" if current_status == "FULL" else "empty"
                                 
-                                if not manual_override:
-                                    current_status = self.slot_data[idx]["status"]
-                                    if current_status == "FULL":
-                                        if db_physical != "occupied" or (db_status not in ["occupied", "reserved"]):
-                                            if db_status != "reserved":
-                                                update_supabase_bg(db_id, "occupied", "occupied")
-                                            else:
-                                                update_supabase_bg(db_id, "occupied", None)
-                                    elif current_status == "FREE":
-                                        if db_physical != "empty" or (db_status not in ["available", "unmapped", "reserved"]):
-                                            if db_status != "reserved":
-                                                update_supabase_bg(db_id, "empty", "available")
-                                            else:
-                                                update_supabase_bg(db_id, "empty", None)
+                                # We ONLY trigger a DB update if the PHYSICAL state changed according to the AI.
+                                # This allows the Admin to change `db_status` at any time, and the AI won't 
+                                # override it until the physical car leaves or arrives.
+                                if db_physical != ai_physical:
+                                    if ai_physical == "occupied":
+                                        if db_status != "reserved":
+                                            update_supabase_bg(db_id, "occupied", "occupied")
+                                        else:
+                                            update_supabase_bg(db_id, "occupied", None)
+                                    else:
+                                        if db_physical == "unmapped" and db_status != "unmapped":
+                                            # Admin manually set status before AI initialized physical_status
+                                            update_supabase_bg(db_id, "empty", None)
+                                        elif db_status != "reserved":
+                                            update_supabase_bg(db_id, "empty", "available")
+                                        else:
+                                            update_supabase_bg(db_id, "empty", None)
 
                     # Handle deletions
                     for i in range(len(self.slot_ids) - 1, -1, -1):
