@@ -556,8 +556,8 @@ class CameraWorker:
                         
                     vehicle_boxes.append((cx, cy, x1, y1, x2, y2))
                     # Draw detected vehicle bounding box (cyan)
-                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
-                    cv2.circle(display_frame, (cx, cy), 4, (0, 0, 255), -1)
+                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (255, 255, 0), 1, cv2.LINE_AA)
+                    cv2.circle(display_frame, (cx, cy), 2, (0, 0, 255), -1)
 
             def box_overlaps_polygon(poly_pts, bx1, by1, bx2, by2, threshold=0.10):
                 """
@@ -713,10 +713,10 @@ class CameraWorker:
                             text = f"{slot_label}: OCCUPIED ({mins}m {secs}s)"
 
                     # Always draw slot polygon
-                    cv2.polylines(display_frame, [slot_raw.reshape((-1, 1, 2))], True, color, 2)
+                    cv2.polylines(display_frame, [slot_raw.reshape((-1, 1, 2))], True, color, 1, cv2.LINE_AA)
                     cv2.putText(display_frame, text,
                                 (slot_raw[0][0], slot_raw[0][1] - 8),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
 
             # Push annotated frame for web streaming
             with shared_frames_lock:

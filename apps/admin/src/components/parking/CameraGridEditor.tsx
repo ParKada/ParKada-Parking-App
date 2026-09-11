@@ -280,7 +280,7 @@ export default function CameraGridEditor({
               points={zone.points.map(ptToPx).join(' ')}
               fill={getColorForStatus(zone.status)}
               stroke={getBorderColorForStatus(zone.status)}
-              strokeWidth="2"
+              strokeWidth="1"
               className={cn(
                 "transition-all duration-300",
                 interactive ? "hover:fill-red-500/20 hover:stroke-red-500 cursor-move" : ""
@@ -292,8 +292,8 @@ export default function CameraGridEditor({
               x={`${zone.points.reduce((sum, p) => sum + p.x, 0) / 4}%`}
               y={`${zone.points.reduce((sum, p) => sum + p.y, 0) / 4}%`}
               fill="white"
-              fontSize="12"
-              fontWeight="bold"
+              fontSize="10"
+              fontWeight="normal"
               textAnchor="middle"
               dominantBaseline="middle"
               className="drop-shadow-md pointer-events-none"
@@ -306,10 +306,10 @@ export default function CameraGridEditor({
                 key={i}
                 cx={`${p.x}%`}
                 cy={`${p.y}%`}
-                r="7"
+                r="3"
                 fill="white"
                 stroke={getBorderColorForStatus(zone.status)}
-                strokeWidth="2"
+                strokeWidth="1"
                 className="cursor-move"
                 onPointerDown={(e) => handlePointerDownSaved(e, zone.slotId, i)}
               />
@@ -331,8 +331,8 @@ export default function CameraGridEditor({
               x={`${pendingZone.points.reduce((sum, p) => sum + p.x, 0) / 4}%`}
               y={`${pendingZone.points.reduce((sum, p) => sum + p.y, 0) / 4}%`}
               fill="white"
-              fontSize="12"
-              fontWeight="bold"
+              fontSize="10"
+              fontWeight="normal"
               textAnchor="middle"
               dominantBaseline="middle"
               className="drop-shadow-md pointer-events-none"
@@ -345,10 +345,10 @@ export default function CameraGridEditor({
                 key={i}
                 cx={`${p.x}%`}
                 cy={`${p.y}%`}
-                r="8"
+                r="3"
                 fill="rgb(251, 191, 36)"
                 stroke="white"
-                strokeWidth="2.5"
+                strokeWidth="1"
                 className="cursor-move"
                 onPointerDown={(e) => handlePointerDownPending(e, i)}
               />
@@ -360,7 +360,7 @@ export default function CameraGridEditor({
         {activeSlotId && drawingPoints.length > 0 && (
           <g>
             {drawingPoints.map((p, i) => (
-              <circle key={i} cx={`${p.x}%`} cy={`${p.y}%`} r="5" fill="white" stroke="white" strokeWidth="1" />
+              <circle key={i} cx={`${p.x}%`} cy={`${p.y}%`} r="2" fill="white" stroke="white" strokeWidth="1" />
             ))}
             {drawingPoints.length > 1 && (
               <polyline
