@@ -1155,10 +1155,11 @@ export default function AdminParkingSlots() {
       import.meta.env.VITE_CAMERA_LAN_URL || "http://192.168.8.156:5000";
     const publicBase = import.meta.env.VITE_CAMERA_PUBLIC_URL || "https://camera.parkada.site";
 
-    // SuperAdmins get the delayed AI-processed stream with bounding boxes for setup.
-    // Everyone else gets the buttery smooth raw video stream.
+    // SuperAdmins get the delayed AI-processed stream with bounding boxes ONLY when they toggle the grid on
+    // Everyone else gets the buttery smooth raw video stream at all times.
     const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
-    const feedEndpoint = isSuperAdmin ? "/video_feed" : "/video_feed_raw";
+    const wantsAIFeed = isSuperAdmin && (showCameraGrid || isDrawingGrid);
+    const feedEndpoint = wantsAIFeed ? "/video_feed" : "/video_feed_raw";
 
     const path = cameraId ? `${feedEndpoint}/${cameraId}` : feedEndpoint;
 
@@ -2556,7 +2557,7 @@ export default function AdminParkingSlots() {
                         expandedCameraId && (
                           <CameraGridEditor
                             interactive={isDrawingGrid}
-                            slots={(selectedFloorIndex === -1 ? slots : slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)).filter(s => ["R1", "R2", "R3", "R4", "R5"].includes(s.label))}
+                            slots={selectedFloorIndex === -1 ? slots : slots.filter(s => (s.floor_index || 0) === selectedFloorIndex)}
                             cameraId={expandedCameraId}
                             onSaveZone={handleUpdateCameraZone}
                             onDeleteZone={handleDeleteCameraZone}
