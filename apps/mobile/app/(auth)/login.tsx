@@ -250,10 +250,10 @@ export default function LoginPage() {
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false}>
         <View className="relative h-64 overflow-hidden shrink-0 bg-[#0A1D37]">
           <Image
-            source={{ uri: BG_IMG }}
-            style={StyleSheet.absoluteFillObject}
-            resizeMode="cover"
-          />
+  source={{ uri: BG_IMG }}
+  style={StyleSheet.absoluteFill}
+  resizeMode="cover"
+/>
           <View className="absolute inset-0 bg-[#0A1D37]/50" />
 
           <TouchableOpacity

@@ -45,7 +45,8 @@
       "expo-build-properties",
       "expo-web-browser",
       "expo-notifications",
-      "@react-native-google-signin/google-signin"
+      "expo-sharing",
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {
