@@ -1155,7 +1155,12 @@ export default function AdminParkingSlots() {
       import.meta.env.VITE_CAMERA_LAN_URL || "http://192.168.8.156:5000";
     const publicBase = import.meta.env.VITE_CAMERA_PUBLIC_URL || "https://camera.parkada.site";
 
-    const path = cameraId ? `/video_feed/${cameraId}` : "/video_feed";
+    // SuperAdmins get the delayed AI-processed stream with bounding boxes for setup.
+    // Everyone else gets the buttery smooth raw video stream.
+    const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
+    const feedEndpoint = isSuperAdmin ? "/video_feed" : "/video_feed_raw";
+
+    const path = cameraId ? `${feedEndpoint}/${cameraId}` : feedEndpoint;
 
     // If we are developing locally or accessing via LAN, use the local stream to avoid Cloudflare loopback issues
     if (

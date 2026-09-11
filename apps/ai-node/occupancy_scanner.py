@@ -245,19 +245,36 @@ CORS(app)
 shared_frames = {}  # { camera_id: frame_or_None }
 shared_frames_lock = threading.Lock()
 
+shared_raw_frames = {}  # { camera_id: raw_frame_or_None }
+shared_raw_frames_lock = threading.Lock()
+
 def generate_frames(camera_id):
-    """Generator that yields the latest frame for a specific camera."""
+    """Generator that yields the latest PROCESSED frame (with boxes) for a specific camera."""
     while True:
         with shared_frames_lock:
             frame = shared_frames.get(camera_id)
 
         if frame is not None:
-            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 28])
+            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
             if ret:
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        time.sleep(0.1)  # ~10 fps
+        time.sleep(0.06)  # fps
+
+def generate_raw_frames(camera_id):
+    """Generator that yields the latest RAW frame (buttery smooth) for a specific camera."""
+    while True:
+        with shared_raw_frames_lock:
+            frame = shared_raw_frames.get(camera_id)
+
+        if frame is not None:
+            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+            if ret:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        time.sleep(0.03)  # ~30 fps
 
 @app.route('/')
 def index():
@@ -269,8 +286,35 @@ def index():
 
 @app.route('/video_feed/<camera_id>')
 def video_feed(camera_id):
-    print(f"[FLASK] Incoming request for video stream: {camera_id}")
-    return Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    print(f"[FLASK] Incoming request for PROCESSED video stream: {camera_id}")
+    
+    # Check if the camera is configured
+    valid_camera = any(c["camera_id"] == camera_id for c in CAMERAS)
+    if not valid_camera:
+        from flask import abort
+        abort(404, description="Camera not configured or offline")
+        
+    response = Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/video_feed_raw/<camera_id>')
+def video_feed_raw(camera_id):
+    print(f"[FLASK] Incoming request for RAW video stream: {camera_id}")
+    
+    # Check if the camera is configured
+    valid_camera = any(c["camera_id"] == camera_id for c in CAMERAS)
+    if not valid_camera:
+        from flask import abort
+        abort(404, description="Camera not configured or offline")
+        
+    response = Response(generate_raw_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 def run_flask():
     print("Starting Flask web server...")
@@ -372,6 +416,8 @@ class CameraWorker:
         # Initialize this camera's frame slot
         with shared_frames_lock:
             shared_frames[self.camera_id] = None
+        with shared_raw_frames_lock:
+            shared_raw_frames[self.camera_id] = None
 
     def sync_db_loop(self):
         """Polls Supabase every 2s to load/sync slots for this specific camera."""
@@ -676,10 +722,20 @@ class CameraWorker:
             with shared_frames_lock:
                 shared_frames[self.camera_id] = display_frame.copy()
 
+    def raw_stream_loop(self):
+        """Bypasses the slow AI loop to push raw frames instantly for smooth viewing."""
+        while True:
+            ret, frame = self.stream.read()
+            if ret and frame is not None:
+                with shared_raw_frames_lock:
+                    shared_raw_frames[self.camera_id] = frame.copy()
+            time.sleep(0.03)
+
     def start(self):
-        """Start both the DB sync and AI loop in background threads."""
+        """Start DB sync, AI loop, and RAW stream loop in background threads."""
         threading.Thread(target=self.sync_db_loop, daemon=True).start()
         threading.Thread(target=self.ai_loop, daemon=True).start()
+        threading.Thread(target=self.raw_stream_loop, daemon=True).start()
         print(f"[{self.label}] Worker started. Stream: /video_feed/{self.camera_id}")
 
 # =============================================================
