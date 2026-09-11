@@ -1157,18 +1157,18 @@ export default function AdminParkingSlots() {
 
     const path = cameraId ? `/video_feed/${cameraId}` : "/video_feed";
 
-    // If we are developing locally, ALWAYS use the local stream to avoid Cloudflare loopback issues
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    // If we are developing locally or accessing via LAN, use the local stream to avoid Cloudflare loopback issues
+    if (
+      window.location.hostname === "localhost" || 
+      window.location.hostname === "127.0.0.1" || 
+      window.location.hostname.startsWith("192.168.")
+    ) {
       return `${lanBase}${path}`;
     }
 
-    // Super admins and admins use the Cloudflare public URL (internet access)
-    // Guards use the LAN URL (same WiFi as the camera machine)
-    if (userRole === "superadmin" || userRole === "super_admin") {
-      return publicBase ? `${publicBase}${path}` : `${lanBase}${path}`;
-    }
-    // Everyone else (manager, guard) uses the local LAN stream directly — no Cloudflare needed
-    return `${lanBase}${path}`;
+    // If accessed via the internet (Vercel domain), we MUST use the Cloudflare public URL
+    // Otherwise the browser will block the local IP stream due to mixed-content rules (HTTPS vs HTTP)
+    return publicBase ? `${publicBase}${path}` : `${lanBase}${path}`;
   };
 
   const activeLot = lots.find(l => l.id === selectedLotId);
