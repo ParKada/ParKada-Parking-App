@@ -188,6 +188,12 @@ export default function AdminParkingSlots() {
   // New states for Multi-Camera & Setup
   const [activeTab, setActiveTab] = useState("details");
   const [expandedCameraId, setExpandedCameraId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Reset image error state when switching cameras
+    setImageError(false);
+  }, [expandedCameraId, selectedLotId]);
+
   const [cameraPage, setCameraPage] = useState(0);
   const [lotAccounts, setLotAccounts] = useState<any[]>([]);
 
@@ -204,6 +210,7 @@ export default function AdminParkingSlots() {
   const [editingCameraName, setEditingCameraName] = useState("");
   const [editingCameraUrl, setEditingCameraUrl] = useState("");
   const [showStreamUrl, setShowStreamUrl] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [cameraTestStatus, setCameraTestStatus] = useState<
@@ -1146,10 +1153,14 @@ export default function AdminParkingSlots() {
   const getCameraUrl = (cameraId?: string) => {
     const lanBase =
       import.meta.env.VITE_CAMERA_LAN_URL || "http://192.168.8.156:5000";
-    const publicBase = import.meta.env.VITE_CAMERA_PUBLIC_URL || "";
+    const publicBase = import.meta.env.VITE_CAMERA_PUBLIC_URL || "https://camera.parkada.site";
 
-    // Use the camera-specific stream path if a cameraId is provided
     const path = cameraId ? `/video_feed/${cameraId}` : "/video_feed";
+
+    // If we are developing locally, ALWAYS use the local stream to avoid Cloudflare loopback issues
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      return `${lanBase}${path}`;
+    }
 
     // Super admins and admins use the Cloudflare public URL (internet access)
     // Guards use the LAN URL (same WiFi as the camera machine)
@@ -2499,40 +2510,41 @@ export default function AdminParkingSlots() {
                       )}
                     >
                       <img
+                        key={expandedCameraId}
                         id="expanded-camera-feed"
                         src={
                           cameras.find(c => c.id === expandedCameraId)
                             ?.stream_url ||
                           getCameraUrl(expandedCameraId ?? undefined)
                         }
-                        className="absolute inset-0 w-full h-full object-contain opacity-90"
-                        onError={e => {
-                          e.currentTarget.style.display = "none";
-                          const fallbackMsg = document.getElementById(
-                            "stream-fallback-expanded"
-                          );
-                          if (fallbackMsg) fallbackMsg.style.display = "flex";
-                        }}
+                        className={cn(
+                          "absolute inset-0 w-full h-full object-contain opacity-90",
+                          imageError ? "hidden" : "block"
+                        )}
+                        onLoad={() => setImageError(false)}
+                        onError={() => setImageError(true)}
                       />
-                      {activeLot.name.includes("Thesis Demo") && (
+                      {activeLot.name.includes("Thesis Demo") && !imageError && (
                         <div className="absolute top-4 right-4 bg-red-600/90 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg backdrop-blur-sm z-10">
                           <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>{" "}
                           LIVE
                         </div>
                       )}
-                      <div
-                        id="stream-fallback-expanded"
-                        className="absolute inset-0 flex-col items-center justify-center text-slate-400 hidden"
-                      >
-                        <Eye size={48} className="mb-4 opacity-50" />
-                        <p className="text-xl font-bold text-slate-300">
-                          Camera Feed Offline
-                        </p>
-                        <p className="text-sm opacity-70 mt-2 font-medium">
-                          Please check the connection or start the local stream
-                          script.
-                        </p>
-                      </div>
+                      {imageError && (
+                        <div
+                          id="stream-fallback-expanded"
+                          className="absolute inset-0 flex flex-col items-center justify-center text-slate-400"
+                        >
+                          <Eye size={48} className="mb-4 opacity-50" />
+                          <p className="text-xl font-bold text-slate-300">
+                            Camera Feed Offline
+                          </p>
+                          <p className="text-sm opacity-70 mt-2 font-medium">
+                            Please check the connection or start the local stream
+                            script.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Camera Grid Overlay */}
                       {(showCameraGrid || isDrawingGrid) &&
