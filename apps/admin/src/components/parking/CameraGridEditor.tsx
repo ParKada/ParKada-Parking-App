@@ -48,8 +48,8 @@ export default function CameraGridEditor({
     if (mappedZones.some(z => z.slotId === s.id)) return false;
     // Belongs to a different camera — exclude from this camera's list
     if (s.camera_id && s.camera_id !== cameraId) return false;
-    // Only show truly unmapped slots
-    return s.status === 'unmapped';
+    // Allow mapping any slot that hasn't been drawn yet, regardless of its status string
+    return true;
   });
 
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
