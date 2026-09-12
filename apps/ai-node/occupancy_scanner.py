@@ -1,12 +1,12 @@
-import cv2
-import numpy as np
+import cv2  # type: ignore
+import numpy as np  # type: ignore
 import os
 import time
 import threading
-from ultralytics import YOLO
-import easyocr
-from supabase import create_client, Client, ClientOptions
-from dotenv import load_dotenv
+from ultralytics import YOLO  # type: ignore
+import easyocr  # type: ignore
+from supabase import create_client, Client, ClientOptions  # type: ignore
+from dotenv import load_dotenv  # type: ignore
 import urllib.request
 import json
 
