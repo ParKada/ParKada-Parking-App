@@ -12,8 +12,8 @@ import json
 
 # IMPORTS FOR WEB STREAMING
 # pyrefly: ignore [missing-import]
-from flask import Flask, Response
-from flask_cors import CORS
+from flask import Flask, Response, abort  # type: ignore
+from flask_cors import CORS  # type: ignore
 
 # =============================================================
 # 1. SECURE DATABASE SETUP
@@ -291,7 +291,6 @@ def video_feed(camera_id):
     # Check if the camera is configured
     valid_camera = any(c["camera_id"] == camera_id for c in CAMERAS)
     if not valid_camera:
-        from flask import abort
         abort(404, description="Camera not configured or offline")
         
     response = Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
@@ -307,7 +306,6 @@ def video_feed_raw(camera_id):
     # Check if the camera is configured
     valid_camera = any(c["camera_id"] == camera_id for c in CAMERAS)
     if not valid_camera:
-        from flask import abort
         abort(404, description="Camera not configured or offline")
         
     response = Response(generate_raw_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
