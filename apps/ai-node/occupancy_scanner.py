@@ -405,6 +405,7 @@ class CameraWorker:
         self.label      = config["label"]
         self.rtsp_url   = config["rtsp_url"]
         self.camera_id  = config["camera_id"]
+        self.stream     = RTSPStream(self.rtsp_url)
 
         # Per-camera slot state
         self.data_lock  = threading.Lock()
@@ -505,7 +506,7 @@ class CameraWorker:
 
     def ai_loop(self):
         """Main AI detection loop for this camera."""
-        cap = RTSPStream(self.rtsp_url)
+        cap = self.stream
         print(f"[{self.label}] RTSP stream reader started...")
         time.sleep(2)  # Let stream stabilize
 
