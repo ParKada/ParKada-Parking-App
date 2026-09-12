@@ -1,19 +1,19 @@
-import cv2
-import numpy as np
+import cv2  # type: ignore
+import numpy as np  # type: ignore
 import os
 import time
 import threading
-from ultralytics import YOLO
-import easyocr
-from supabase import create_client, Client, ClientOptions
-from dotenv import load_dotenv
+from ultralytics import YOLO  # type: ignore
+import easyocr  # type: ignore
+from supabase import create_client, Client, ClientOptions  # type: ignore
+from dotenv import load_dotenv  # type: ignore
 import urllib.request
 import json
 
 # IMPORTS FOR WEB STREAMING
 # pyrefly: ignore [missing-import]
-from flask import Flask, Response
-from flask_cors import CORS
+from flask import Flask, Response, abort  # type: ignore
+from flask_cors import CORS  # type: ignore
 
 # =============================================================
 # 1. SECURE DATABASE SETUP
@@ -245,19 +245,36 @@ CORS(app)
 shared_frames = {}  # { camera_id: frame_or_None }
 shared_frames_lock = threading.Lock()
 
+shared_raw_frames = {}  # { camera_id: raw_frame_or_None }
+shared_raw_frames_lock = threading.Lock()
+
 def generate_frames(camera_id):
-    """Generator that yields the latest frame for a specific camera."""
+    """Generator that yields the latest PROCESSED frame (with boxes) for a specific camera."""
     while True:
         with shared_frames_lock:
             frame = shared_frames.get(camera_id)
 
         if frame is not None:
-            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 28])
+            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
             if ret:
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        time.sleep(0.1)  # ~10 fps
+        time.sleep(0.06)  # fps
+
+def generate_raw_frames(camera_id):
+    """Generator that yields the latest RAW frame (buttery smooth) for a specific camera."""
+    while True:
+        with shared_raw_frames_lock:
+            frame = shared_raw_frames.get(camera_id)
+
+        if frame is not None:
+            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+            if ret:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        time.sleep(0.03)  # ~30 fps
 
 @app.route('/')
 def index():
@@ -269,8 +286,33 @@ def index():
 
 @app.route('/video_feed/<camera_id>')
 def video_feed(camera_id):
-    print(f"[FLASK] Incoming request for video stream: {camera_id}")
-    return Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    print(f"[FLASK] Incoming request for PROCESSED video stream: {camera_id}")
+    
+    # Check if the camera is configured
+    valid_camera = any(c["camera_id"] == camera_id for c in CAMERAS)
+    if not valid_camera:
+        abort(404, description="Camera not configured or offline")
+        
+    response = Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/video_feed_raw/<camera_id>')
+def video_feed_raw(camera_id):
+    print(f"[FLASK] Incoming request for RAW video stream: {camera_id}")
+    
+    # Check if the camera is configured
+    valid_camera = any(c["camera_id"] == camera_id for c in CAMERAS)
+    if not valid_camera:
+        abort(404, description="Camera not configured or offline")
+        
+    response = Response(generate_raw_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 def run_flask():
     print("Starting Flask web server...")
@@ -361,6 +403,7 @@ class CameraWorker:
         self.label      = config["label"]
         self.rtsp_url   = config["rtsp_url"]
         self.camera_id  = config["camera_id"]
+        self.stream     = RTSPStream(self.rtsp_url)
 
         # Per-camera slot state
         self.data_lock  = threading.Lock()
@@ -372,6 +415,8 @@ class CameraWorker:
         # Initialize this camera's frame slot
         with shared_frames_lock:
             shared_frames[self.camera_id] = None
+        with shared_raw_frames_lock:
+            shared_raw_frames[self.camera_id] = None
 
     def sync_db_loop(self):
         """Polls Supabase every 2s to load/sync slots for this specific camera."""
@@ -459,7 +504,7 @@ class CameraWorker:
 
     def ai_loop(self):
         """Main AI detection loop for this camera."""
-        cap = RTSPStream(self.rtsp_url)
+        cap = self.stream
         print(f"[{self.label}] RTSP stream reader started...")
         time.sleep(2)  # Let stream stabilize
 
@@ -510,8 +555,8 @@ class CameraWorker:
                         
                     vehicle_boxes.append((cx, cy, x1, y1, x2, y2))
                     # Draw detected vehicle bounding box (cyan)
-                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
-                    cv2.circle(display_frame, (cx, cy), 4, (0, 0, 255), -1)
+                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (255, 255, 0), 1, cv2.LINE_AA)
+                    cv2.circle(display_frame, (cx, cy), 2, (0, 0, 255), -1)
 
             def box_overlaps_polygon(poly_pts, bx1, by1, bx2, by2, threshold=0.10):
                 """
@@ -667,19 +712,29 @@ class CameraWorker:
                             text = f"{slot_label}: OCCUPIED ({mins}m {secs}s)"
 
                     # Always draw slot polygon
-                    cv2.polylines(display_frame, [slot_raw.reshape((-1, 1, 2))], True, color, 2)
+                    cv2.polylines(display_frame, [slot_raw.reshape((-1, 1, 2))], True, color, 1, cv2.LINE_AA)
                     cv2.putText(display_frame, text,
                                 (slot_raw[0][0], slot_raw[0][1] - 8),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
 
             # Push annotated frame for web streaming
             with shared_frames_lock:
                 shared_frames[self.camera_id] = display_frame.copy()
 
+    def raw_stream_loop(self):
+        """Bypasses the slow AI loop to push raw frames instantly for smooth viewing."""
+        while True:
+            ret, frame = self.stream.read()
+            if ret and frame is not None:
+                with shared_raw_frames_lock:
+                    shared_raw_frames[self.camera_id] = frame.copy()
+            time.sleep(0.03)
+
     def start(self):
-        """Start both the DB sync and AI loop in background threads."""
+        """Start DB sync, AI loop, and RAW stream loop in background threads."""
         threading.Thread(target=self.sync_db_loop, daemon=True).start()
         threading.Thread(target=self.ai_loop, daemon=True).start()
+        threading.Thread(target=self.raw_stream_loop, daemon=True).start()
         print(f"[{self.label}] Worker started. Stream: /video_feed/{self.camera_id}")
 
 # =============================================================
