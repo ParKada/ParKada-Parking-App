@@ -44,9 +44,7 @@
       "expo-router",
       "expo-build-properties",
       "expo-web-browser",
-      "expo-notifications",
-      "expo-sharing",
-      "expo-status-bar"
+      "expo-notifications"
     ],
     "extra": {
       "eas": {
