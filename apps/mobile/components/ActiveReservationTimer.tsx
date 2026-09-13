@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Clock, X, ChevronRight } from 'lucide-react-native';
+import { Clock, X, ChevronRight, Car } from 'lucide-react-native';
 import { supabase } from "../lib/supabase";
 
 interface ActiveReservationTimerProps {
@@ -24,6 +24,7 @@ interface ActiveReservationTimerProps {
     grace_period_minutes: number;
     allow_extensions: boolean;
     total_amount: number;
+    slot_label?: string;
   };
   onUpdate: () => void;
 }
@@ -165,7 +166,13 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
               {isOvertime ? "OVERTIME" : isExpiringSoon ? "ENDING SOON" : "TIME REMAINING"}
             </Text>
           </View>
-          {!isOvertime && !isExpiringSoon && (
+          {reservation.slot_label && (
+            <View className="flex-row items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-full">
+              <Car size={12} color="#e2e8f0" />
+              <Text className="text-[10px] font-black text-slate-200">Slot {reservation.slot_label}</Text>
+            </View>
+          )}
+          {!reservation.slot_label && !isOvertime && !isExpiringSoon && (
             <Text className="text-[10px] font-bold text-slate-500">{Math.floor(progress)}%</Text>
           )}
         </View>

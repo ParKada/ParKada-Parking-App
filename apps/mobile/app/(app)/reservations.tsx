@@ -79,10 +79,11 @@ export default function MyReservationsPage() {
     fetchMyReservations();
   }, []);
 
+  // Status vocabulary in the DB: pending | reserved | active | completed | cancelled
   const filteredReservations = reservations.filter((res) => {
     if (activeTab === "all") return true;
-    if (activeTab === "active") return res.status === "active" || res.status === "booked";
-    if (activeTab === "completed") return res.status !== "active" && res.status !== "booked";
+    if (activeTab === "active") return res.status === "active" || res.status === "reserved" || res.status === "pending";
+    if (activeTab === "completed") return res.status === "completed" || res.status === "cancelled";
     return true;
   });
 
@@ -167,11 +168,17 @@ export default function MyReservationsPage() {
             <View className="pb-20 space-y-4">
               {filteredReservations.map(res => {
                 const isOngoing = res.status === "active";
-                const isBooked = res.status === "booked";
-                const isCompleted = !isOngoing && !isBooked;
+                const isReserved = res.status === "reserved" || res.status === "pending";
+                const isCancelled = res.status === "cancelled";
+                const isCompleted = res.status === "completed";
                 const startTimeFormatted = formatTimeFromISO(res.start_time);
                 const endTimeFormatted = formatTimeFromISO(res.end_time);
                 const bookingDate = formatDate(res.created_at);
+
+                const badgeLabel = isOngoing ? "Active" : isReserved ? "Reserved" : isCancelled ? "Cancelled" : "Completed";
+                const badgeBg = isOngoing ? "bg-emerald-100" : isReserved ? "bg-blue-100" : isCancelled ? "bg-red-100" : "bg-slate-100";
+                const badgeText = isOngoing ? "text-emerald-700" : isReserved ? "text-blue-700" : isCancelled ? "text-red-700" : "text-slate-500";
+                const badgeIconColor = isOngoing ? "#059669" : isReserved ? "#2563EB" : isCancelled ? "#DC2626" : "#64748B";
 
                 return (
                   <TouchableOpacity
@@ -184,10 +191,10 @@ export default function MyReservationsPage() {
                       <Text className="text-base font-black text-slate-800 flex-1 mr-2" numberOfLines={1}>
                         {res.parking_slots?.parking_lots?.name || "Parking Lot"}
                       </Text>
-                      <View className={`px-2 py-1 rounded-full flex-row items-center gap-1 ${isOngoing ? "bg-emerald-100" : isBooked ? "bg-blue-100" : "bg-slate-100"}`}>
-                        {isBooked ? <BookmarkCheck size={12} color="#2563EB" /> : <CheckCircle2 size={12} color={isOngoing ? "#059669" : "#64748B"} />}
-                        <Text className={`text-[10px] font-bold ${isOngoing ? "text-emerald-700" : isBooked ? "text-blue-700" : "text-slate-500"}`}>
-                          {isOngoing ? "Active" : isBooked ? "Booked" : "Completed"}
+                      <View className={`px-2 py-1 rounded-full flex-row items-center gap-1 ${badgeBg}`}>
+                        {isReserved ? <BookmarkCheck size={12} color={badgeIconColor} /> : <CheckCircle2 size={12} color={badgeIconColor} />}
+                        <Text className={`text-[10px] font-bold ${badgeText}`}>
+                          {badgeLabel}
                         </Text>
                       </View>
                     </View>
