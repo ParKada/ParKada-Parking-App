@@ -471,10 +471,16 @@ class CameraWorker:
                                 # Convert AI status to DB string for easy comparison
                                 ai_physical = "occupied" if current_status == "FULL" else "empty"
                                 
-                                # We ONLY trigger a DB update if the PHYSICAL state changed according to the AI.
-                                # This allows the Admin to change `db_status` at any time, and the AI won't 
-                                # override it until the physical car leaves or arrives.
+                                # Check if physical state OR main status is out of sync with reality
+                                needs_update = False
                                 if db_physical != ai_physical:
+                                    needs_update = True
+                                elif ai_physical == "occupied" and db_status not in ["occupied", "reserved"]:
+                                    needs_update = True
+                                elif ai_physical == "empty" and db_status not in ["available", "reserved", "unmapped", "maintenance"]:
+                                    needs_update = True
+
+                                if needs_update:
                                     if ai_physical == "occupied":
                                         if db_status != "reserved":
                                             update_supabase_bg(db_id, "occupied", "occupied")
