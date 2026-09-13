@@ -153,8 +153,8 @@ export default function PaymentPage() {
 
   if (isSuccess) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
-        <View className="items-center mb-8">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
+        <View className="items-center px-6">
           <View className="w-24 h-24 bg-emerald-100 rounded-full items-center justify-center mb-6">
             <CheckCircle2 size={48} color="#059669" />
           </View>
@@ -162,29 +162,40 @@ export default function PaymentPage() {
           <Text className="text-sm text-slate-500 mt-2 text-center">
             Your reservation for <Text className="font-bold text-slate-800">{params.plate}</Text> is now active.
           </Text>
-        </View>
 
-        <View className="w-full bg-slate-50 rounded-3xl p-6 border border-slate-100 mb-8">
-           <View className="flex-row justify-between items-center mb-4">
-             <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sales Invoice No.</Text>
-             <Text className="text-sm font-black text-slate-800 uppercase tracking-tight">
-               {invoiceNo || "GENERATING..."}
-             </Text>
-           </View>
-           <View className="flex-row justify-between items-center">
-             <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Method</Text>
-             <Text className="text-sm font-black text-slate-800 uppercase">{params.pay}</Text>
-           </View>
-        </View>
+          <View className="w-full bg-slate-50 rounded-3xl p-6 border border-slate-100 mt-8 mb-8">
+             <View className="flex-row justify-between items-center mb-4">
+               <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sales Invoice No.</Text>
+               <Text className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                 {invoiceNo || "GENERATING..."}
+               </Text>
+             </View>
+             <View className="flex-row justify-between items-center">
+               <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Method</Text>
+               <Text className="text-sm font-black text-slate-800 uppercase">{params.pay}</Text>
+             </View>
+          </View>
 
-        <TouchableOpacity 
-          onPress={() => {
-            router.replace('/(app)/reservations');
-          }} 
-          className="w-full h-14 rounded-2xl bg-[#0A1D37] items-center justify-center shadow-lg"
-        >
-          <Text className="font-bold text-white text-base">View Bookings</Text>
-        </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => {
+              if (newReservationId) {
+                router.replace(`/(app)/receipt/${newReservationId}`);
+              } else {
+                router.replace('/(app)/reservations');
+              }
+            }} 
+            className="w-full h-14 rounded-2xl bg-[#0A1D37] items-center justify-center shadow-lg mb-3"
+          >
+            <Text className="font-bold text-white text-base">View Receipt & QR Code</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onPress={() => router.replace('/(app)/reservations')} 
+            className="w-full h-12 rounded-2xl items-center justify-center"
+          >
+            <Text className="font-bold text-slate-500 text-sm">Go to Bookings</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }

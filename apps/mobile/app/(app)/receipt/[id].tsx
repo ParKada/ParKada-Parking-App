@@ -34,7 +34,7 @@ export default function DigitalReceiptPage() {
       try {
         const { data: resData, error: resError } = await supabase
           .from("reservations")
-          .select(`*, parking_lots (name, address), parking_slots (label)`)
+          .select(`*, parking_slots (label, parking_lots (name, address))`)
           .eq("id", id)
           .single();
 
@@ -64,7 +64,7 @@ export default function DigitalReceiptPage() {
   const handleShare = async () => {
     if (!res) return;
     try {
-      const shareMessage = `Parkada Ticket\n\nLocation: ${res.parking_lots?.name || 'N/A'}\nSlot: ${res.parking_slots?.label || 'N/A'}\nVehicle: ${res.plate_number}\nRef: ${receiptRef}`;
+      const shareMessage = `Parkada Ticket\n\nLocation: ${res.parking_slots?.parking_lots?.name || 'N/A'}\nSlot: ${res.parking_slots?.label || 'N/A'}\nVehicle: ${res.plate_number}\nRef: ${receiptRef}`;
       
       await Share.share({
         message: shareMessage,
@@ -169,7 +169,7 @@ export default function DigitalReceiptPage() {
                 <MapPin size={20} color="#0A1D37" />
                 <View className="flex-1">
                   <Text className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Location</Text>
-                  <Text className="text-xs font-bold text-slate-800" numberOfLines={1}>{res.parking_lots?.name || "N/A"}</Text>
+                  <Text className="text-xs font-bold text-slate-800" numberOfLines={1}>{res.parking_slots?.parking_lots?.name || "N/A"}</Text>
                 </View>
               </View>
 

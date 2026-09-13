@@ -213,17 +213,22 @@ export default function ReservationPage() {
   const isWalkInOnly = slot?.label === "C1" || slot?.is_reservable === false || String(slot?.is_reservable) === "false";
 
   // Reservation eligibility now depends only on: no conflicting active
-  // reservation, having at least one available (registered, not already
-  // in use) vehicle, the slot being reservable, and the lot being open.
+  // reservation, the slot being reservable, and the lot being open.
   // Verification is intentionally excluded from this check.
-  const isBlocked = activeReservation !== null || availableVehicles.length === 0 || isWalkInOnly || isParkingClosed || isBookingCutoff || isExceedingCloseTime();
+  const isBlocked = activeReservation !== null || isWalkInOnly || isParkingClosed || isBookingCutoff || isExceedingCloseTime();
   const isMyBooking = activeReservation?.profile_id === userId;
 
   const handleProceed = () => {
     if (isParkingClosed) return Alert.alert("Closed", "Parking lot is currently closed. Please check operating hours.");
     if (isBookingCutoff) return Alert.alert("Cutoff", "Hindi na tumatanggap ng reservations 1 hour bago mag-close.");
     if (isWalkInOnly) return Alert.alert("Walk-in Only", (slot?.slot_type === 'pwd') ? "Ang PWD slot ay para sa walk-in lamang." : "Ang slot na ito ay para sa mga walk-in customers lamang.");
-    if (hasNoRegisteredVehicles) return Alert.alert("Vehicle Required", "Please register a vehicle to your account before making a reservation.");
+    
+    // Redirect to vehicles page if no vehicles exist
+    if (hasNoRegisteredVehicles) {
+      router.push('/(app)/vehicles');
+      return;
+    }
+
     if (isBlocked) return Alert.alert("Blocked", "Hindi ka pwedeng mag-proceed dahil may active booking ka pa.");
     if (isExceedingCloseTime()) return Alert.alert("Exceeds Time", "Exceeds operating hours.");
     if (!plateNumber) return Alert.alert("Vehicle Required", "Please select a vehicle.");
@@ -328,7 +333,7 @@ export default function ReservationPage() {
           </View>
 
           {/* Select Vehicle */}
-          <View className={`mb-4 ${isBlocked ? "opacity-50" : ""}`}>
+          <View className={`mb-4 ${isBlocked ? "opacity-50" : ""}`} pointerEvents={isBlocked ? "none" : "auto"}>
             <View className="flex-row items-center gap-1.5 mb-2 px-1">
               <Car size={14} color="#64748b" />
               <Text className="text-[11px] font-black uppercase text-slate-500">Select Vehicle</Text>
@@ -337,7 +342,6 @@ export default function ReservationPage() {
               {availableVehicles.map(v => (
                 <TouchableOpacity
                   key={v.id}
-                  disabled={isBlocked}
                   onPress={() => setPlateNumber(v.plate_number)}
                   className={`mr-3 p-3 rounded-2xl border-2 w-32 ${plateNumber === v.plate_number ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}
                 >
@@ -348,11 +352,15 @@ export default function ReservationPage() {
                 </TouchableOpacity>
               ))}
               {availableVehicles.length === 0 && (
-                <View className="p-4 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 w-full">
-                  <Text className="text-slate-400 font-bold text-center text-xs">
-                    {hasNoRegisteredVehicles ? "No registered vehicles — add one in your profile to book" : "No available vehicles"}
+                <TouchableOpacity 
+                  onPress={() => router.push('/(app)/vehicles')}
+                  className="p-4 rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50 w-full flex-row items-center justify-center gap-2"
+                >
+                  <Car size={18} color="#2563eb" />
+                  <Text className="text-blue-600 font-bold text-center text-xs">
+                    {hasNoRegisteredVehicles ? "No registered vehicles — Tap to add one" : "No available vehicles"}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
             </ScrollView>
           </View>
@@ -446,14 +454,14 @@ export default function ReservationPage() {
           {/* Action Button — verification is no longer part of the gate */}
           <TouchableOpacity 
             onPress={handleProceed} 
-            disabled={isBlocked || !plateNumber || isExceedingCloseTime() || isParkingClosed || isBookingCutoff} 
+            disabled={isBlocked || (!hasNoRegisteredVehicles && !plateNumber) || isExceedingCloseTime() || isParkingClosed || isBookingCutoff} 
             className={`w-full h-16 rounded-2xl items-center justify-center shadow-lg mb-6 ${
-              isBlocked || !plateNumber || isExceedingCloseTime() || isParkingClosed || isBookingCutoff
+              isBlocked || (!hasNoRegisteredVehicles && !plateNumber) || isExceedingCloseTime() || isParkingClosed || isBookingCutoff
                 ? "bg-slate-300" 
                 : "bg-[#0A1D37]"
             }`}
           >
-            <Text className={`text-base font-black ${isBlocked || !plateNumber || isExceedingCloseTime() || isParkingClosed || isBookingCutoff ? "text-slate-500" : "text-white"}`}>
+            <Text className={`text-base font-black ${isBlocked || (!hasNoRegisteredVehicles && !plateNumber) || isExceedingCloseTime() || isParkingClosed || isBookingCutoff ? "text-slate-500" : "text-white"}`}>
               {isParkingClosed ? "Parking Currently Closed" : 
                isBookingCutoff ? "Booking Cutoff Reached" : 
                isWalkInOnly ? "Walk-in Only Slot" : 

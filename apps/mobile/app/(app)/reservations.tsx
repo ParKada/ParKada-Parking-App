@@ -1,5 +1,5 @@
 import { Modal } from '../../components/SafeModal';
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -23,24 +23,29 @@ const formatDate = (dateString: string) => {
 };
 
 function RatingStars({ value, onChange }: { value: number; onChange: (rating: number) => void }) {
+  const stars = [1, 2, 3, 4, 5];
   return (
     <View className="flex-row items-center justify-center gap-2">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.7} className="p-1">
-          <Star size={36} color={value >= star ? "#fbbf24" : "#cbd5e1"} fill={value >= star ? "#fbbf24" : "transparent"} />
-        </TouchableOpacity>
-      ))}
+      {stars.map((star) => {
+        const filled = value >= star;
+        return (
+          <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.7} style={{ padding: 4 }}>
+            <Star size={36} color={filled ? "#fbbf24" : "#cbd5e1"} fill={filled ? "#fbbf24" : "transparent"} />
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
 
-export default function MyReservationsPage() {
-  const [reservations, setReservations] = useState<any[]>([]);
+export default function ReservationsTabScreen() {
+  console.log("RESERVATIONS TAB RENDERED - NEW BUNDLE LOADED!");
+  const [reservations, setReservations] = useState([] as any[]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "completed">("all");
+  const [activeTab, setActiveTab] = useState("all" as "all" | "active" | "completed");
 
   const [showRatingModal, setShowRatingModal] = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState<any>(null);
+  const [selectedReservation, setSelectedReservation] = useState(null as any);
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -56,7 +61,7 @@ export default function MyReservationsPage() {
           .select(`
             *,
             parking_slots (
-              slot_number,
+              label,
               parking_lots (id, name, address)
             )
           `)
@@ -76,6 +81,7 @@ export default function MyReservationsPage() {
         setLoading(false);
       }
     };
+    
     fetchMyReservations();
   }, []);
 
@@ -167,13 +173,14 @@ export default function MyReservationsPage() {
           <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
             <View className="pb-20 space-y-4">
               {filteredReservations.map(res => {
+                if (!res) return null;
                 const isOngoing = res.status === "active";
                 const isReserved = res.status === "reserved" || res.status === "pending";
                 const isCancelled = res.status === "cancelled";
                 const isCompleted = res.status === "completed";
-                const startTimeFormatted = formatTimeFromISO(res.start_time);
-                const endTimeFormatted = formatTimeFromISO(res.end_time);
-                const bookingDate = formatDate(res.created_at);
+                const startTimeFormatted = res.start_time ? formatTimeFromISO(res.start_time) : "--:--";
+                const endTimeFormatted = res.end_time ? formatTimeFromISO(res.end_time) : "--:--";
+                const bookingDate = res.created_at ? formatDate(res.created_at) : "";
 
                 const badgeLabel = isOngoing ? "Active" : isReserved ? "Reserved" : isCancelled ? "Cancelled" : "Completed";
                 const badgeBg = isOngoing ? "bg-emerald-100" : isReserved ? "bg-blue-100" : isCancelled ? "bg-red-100" : "bg-slate-100";
@@ -200,7 +207,7 @@ export default function MyReservationsPage() {
                     </View>
 
                     <Text className="text-xs font-bold text-slate-500 mb-3">
-                      Slot {res.parking_slots?.slot_number || "--"} • {res.plate_number || "N/A"}
+                      Slot {res.parking_slots?.label || "--"} • {res.plate_number || "N/A"}
                     </Text>
 
                     <View className="flex-row justify-between items-center mb-3">
@@ -222,7 +229,7 @@ export default function MyReservationsPage() {
                       <Text className="text-lg font-black text-slate-800">₱{res.total_amount}</Text>
                       {isCompleted && !res.hasRated && (
                         <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); openRatingModal(res); }}
+                          onPress={() => openRatingModal(res)}
                           className="bg-amber-50 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
                         >
                           <Star size={14} color="#d97706" fill="#d97706" />
@@ -257,7 +264,7 @@ export default function MyReservationsPage() {
 
               <View className="items-center mb-6">
                 <Text className="text-base font-bold text-slate-800 mb-1 text-center">{selectedReservation?.parking_slots?.parking_lots?.name}</Text>
-                <Text className="text-xs font-medium text-slate-500">Slot {selectedReservation?.parking_slots?.slot_number} • {selectedReservation?.plate_number}</Text>
+                <Text className="text-xs font-medium text-slate-500">Slot {selectedReservation?.parking_slots?.label} • {selectedReservation?.plate_number}</Text>
               </View>
 
               <RatingStars value={rating} onChange={setRating} />
