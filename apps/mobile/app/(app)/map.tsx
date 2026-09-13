@@ -372,7 +372,7 @@ export default function ParkingMapPage() {
   }, [computedLots, search, filter, userCoords]);
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="px-4 py-3 bg-white border-b border-slate-200 z-20">
         <View className="relative mb-3">
           <View className="absolute left-3 top-1/2 -translate-y-1/2 z-10">

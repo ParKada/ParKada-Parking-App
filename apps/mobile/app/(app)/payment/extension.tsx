@@ -20,7 +20,7 @@ export default function ExtendPaymentPage() {
 
   if (!extendReservationId || !extendAmount || !extendHours) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
           <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
             <ChevronLeft size={24} color="#0A1D37" />
@@ -78,7 +78,7 @@ export default function ExtendPaymentPage() {
 
   if (success) {
     return (
-      <SafeAreaView className="flex-1 bg-white justify-center px-6">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <View className="items-center">
           <View className="w-24 h-24 bg-emerald-100 rounded-full items-center justify-center mb-6">
             <CheckCircle2 size={48} color="#059669" />
@@ -100,7 +100,7 @@ export default function ExtendPaymentPage() {
   const isGcash = paymentMethod === 'gcash';
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
           <ChevronLeft size={24} color="#0A1D37" />
@@ -131,7 +131,7 @@ export default function ExtendPaymentPage() {
                 <Text className="text-white font-black text-xs">G</Text>
               </View>
               <Text className={`font-bold ${isGcash ? "text-blue-600" : "text-slate-600"}`}>GCash</Text>
-              {isGcash && <CheckCircle2 size={16} color="#2563EB" className="absolute right-3" />}
+              {isGcash && <CheckCircle2 size={16} color="#2563EB" style={{ position: "absolute", right: 12 }} />}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -142,7 +142,7 @@ export default function ExtendPaymentPage() {
                 <Text className="text-white font-black text-xs">M</Text>
               </View>
               <Text className={`font-bold ${!isGcash ? "text-emerald-600" : "text-slate-600"}`}>Maya</Text>
-              {!isGcash && <CheckCircle2 size={16} color="#10B981" className="absolute right-3" />}
+              {!isGcash && <CheckCircle2 size={16} color="#10B981" style={{ position: "absolute", right: 12 }} />}
             </TouchableOpacity>
           </View>
         </View>

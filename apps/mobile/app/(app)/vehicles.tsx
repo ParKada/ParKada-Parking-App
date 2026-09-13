@@ -1,5 +1,6 @@
+import { Modal } from '../../components/SafeModal';
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, ActivityIndicator, Alert, Image, Linking } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert, Image, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Car, Trash2, Info, ChevronDown, X, CheckCircle2 } from "lucide-react-native";
@@ -233,7 +234,7 @@ export default function VehiclesPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-slate-500">Loading your vehicles...</Text>
       </SafeAreaView>
@@ -241,7 +242,7 @@ export default function VehiclesPage() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       {/* HEADER */}
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
         <TouchableOpacity onPress={() => router.back()} className="p-1 -ml-1">

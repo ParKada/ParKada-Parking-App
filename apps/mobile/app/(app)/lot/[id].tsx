@@ -1,8 +1,9 @@
+import { Modal } from '../../../components/SafeModal';
 import { useEffect, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, ActivityIndicator, Alert, Image, FlatList, Dimensions } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, FlatList, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { MapPin, Clock, Car, ChevronRight, Ban, Star, X, Layers } from "lucide-react-native";
+import { MapPin, Clock, Car, ChevronRight, ChevronLeft, Ban, Star, X, Layers } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
 import MapViewer, { Legend } from "../../../components/parking/MapViewer";
 
@@ -201,10 +202,21 @@ export default function ParkingLotPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
-        <ActivityIndicator size="large" color="#0A1D37" />
-        <Text className="mt-4 text-slate-500 font-bold">Fetching lot details...</Text>
-      </SafeAreaView>
+      <View className="flex-1 bg-slate-50 relative">
+        {/* Dynamic header para consistent kahit loading */}
+        <View className="absolute top-0 left-0 right-0 z-10 pt-12 px-4 pb-4">
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
+          >
+            <ChevronLeft size={24} color="#0A1D37" />
+          </TouchableOpacity>
+        </View>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#0A1D37" />
+          <Text className="mt-4 text-slate-500 font-bold">Fetching lot details...</Text>
+        </SafeAreaView>
+      </View>
     );
   }
 
@@ -221,8 +233,8 @@ export default function ParkingLotPage() {
   const isPublic = lot?.type === 'public';
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
-      {/* Top Header */}
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
+      {/* Header */}
       <View className="relative flex-row items-center justify-between px-4 py-3 bg-white border-b border-slate-200">
         <TouchableOpacity
           onPress={() => router.back()}
@@ -486,7 +498,7 @@ export default function ParkingLotPage() {
                     ? "Slot Reserved — Cannot Reserve"
                     : `Reserve Slot ${selectedSlot.label}`}
                 </Text>
-                {!isSuspended && !selectedIsWalkIn && selectedSlot?.status === 'available' && <ChevronRight size={20} color="white" className="ml-2" />}
+                {!isSuspended && !selectedIsWalkIn && selectedSlot?.status === 'available' && <ChevronRight size={20} color="white" style={{ marginLeft: 8 }} />}
               </TouchableOpacity>
             </View>
           )}

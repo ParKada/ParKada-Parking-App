@@ -8,5 +8,12 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
+  },
+  "pnpm": {
+    "overrides": {
+      "expo-router": "~57.0.20",
+      "@react-navigation/native": "*",
+      "@react-navigation/core": "*"
+    }
   }
 }

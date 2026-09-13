@@ -1,5 +1,6 @@
+import { Modal } from '../../components/SafeModal';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Modal, Animated, Easing, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated, Easing, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { Maximize2, X, Accessibility, RotateCcw } from 'lucide-react-native';

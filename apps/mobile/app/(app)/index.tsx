@@ -359,7 +359,7 @@ export default function DriverHome() {
 
   if (!isOnline && !loading && dbParkingLots.length === 0) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 items-center justify-center p-6">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <WifiOff size={48} color="#94a3b8" />
         <Text className="text-slate-600 font-bold mt-4">You're offline</Text>
         <Text className="text-xs text-slate-400 mt-1">Please check your internet connection</Text>
@@ -368,7 +368,7 @@ export default function DriverHome() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-slate-100">
         <View className="flex-row items-center gap-2">

@@ -1,7 +1,8 @@
+import { Modal } from '../../components/SafeModal';
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { router } from "expo-router";
 import { Clock, Car, Calendar, CheckCircle2, BookmarkCheck, Star, X } from "lucide-react-native";
 import { supabase } from "../../lib/supabase";
 
@@ -34,7 +35,6 @@ function RatingStars({ value, onChange }: { value: number; onChange: (rating: nu
 }
 
 export default function MyReservationsPage() {
-  const router = useRouter();
   const [reservations, setReservations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"all" | "active" | "completed">("all");
@@ -125,7 +125,7 @@ export default function MyReservationsPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-slate-500">Loading your history...</Text>
       </SafeAreaView>
@@ -133,7 +133,7 @@ export default function MyReservationsPage() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="px-4 py-4 bg-white border-b border-slate-200">
         <Text className="text-xl font-black text-[#0A1D37]">My Bookings</Text>
       </View>
@@ -244,43 +244,45 @@ export default function MyReservationsPage() {
         )}
       </View>
 
-      <Modal visible={showRatingModal} transparent animationType="slide">
-        <View className="flex-1 bg-black/60 justify-end">
-          <View className="bg-white rounded-t-3xl p-6">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-xl font-black text-slate-800">Rate Experience</Text>
-              <TouchableOpacity onPress={() => setShowRatingModal(false)} className="p-2 bg-slate-100 rounded-full">
-                <X size={20} color="#64748B" />
+      {showRatingModal && (
+        <Modal visible={true} transparent animationType="slide">
+          <View className="flex-1 bg-black/60 justify-end">
+            <View className="bg-white rounded-t-3xl p-6">
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-xl font-black text-slate-800">Rate Experience</Text>
+                <TouchableOpacity onPress={() => setShowRatingModal(false)} className="p-2 bg-slate-100 rounded-full">
+                  <X size={20} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <View className="items-center mb-6">
+                <Text className="text-base font-bold text-slate-800 mb-1 text-center">{selectedReservation?.parking_slots?.parking_lots?.name}</Text>
+                <Text className="text-xs font-medium text-slate-500">Slot {selectedReservation?.parking_slots?.slot_number} • {selectedReservation?.plate_number}</Text>
+              </View>
+
+              <RatingStars value={rating} onChange={setRating} />
+
+              <TextInput
+                placeholder="Share your experience (optional)"
+                placeholderTextColor="#94a3b8"
+                value={reviewText}
+                onChangeText={setReviewText}
+                multiline
+                textAlignVertical="top"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm mt-6 mb-6 h-28"
+              />
+
+              <TouchableOpacity 
+                onPress={submitRating}
+                disabled={submitting || rating === 0}
+                className={`w-full h-14 rounded-xl flex-row items-center justify-center shadow-md ${submitting || rating === 0 ? "bg-blue-300" : "bg-blue-600"}`}
+              >
+                {submitting ? <ActivityIndicator color="white" /> : <Text className="font-bold text-white text-base">Submit Rating</Text>}
               </TouchableOpacity>
             </View>
-
-            <View className="items-center mb-6">
-              <Text className="text-base font-bold text-slate-800 mb-1 text-center">{selectedReservation?.parking_slots?.parking_lots?.name}</Text>
-              <Text className="text-xs font-medium text-slate-500">Slot {selectedReservation?.parking_slots?.slot_number} • {selectedReservation?.plate_number}</Text>
-            </View>
-
-            <RatingStars value={rating} onChange={setRating} />
-
-            <TextInput
-              value={reviewText}
-              onChangeText={setReviewText}
-              placeholder="Share your experience (optional)"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm mt-6 mb-6 h-28"
-            />
-
-            <TouchableOpacity
-              onPress={submitRating}
-              disabled={submitting || rating === 0}
-              className={`w-full h-14 rounded-xl flex-row items-center justify-center shadow-md ${submitting || rating === 0 ? "bg-blue-300" : "bg-blue-600"}`}
-            >
-              {submitting ? <ActivityIndicator color="white" /> : <Text className="font-bold text-white text-base">Submit Rating</Text>}
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }

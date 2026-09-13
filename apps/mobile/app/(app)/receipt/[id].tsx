@@ -78,7 +78,7 @@ export default function DigitalReceiptPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-slate-500">Generating Receipt...</Text>
       </SafeAreaView>
@@ -87,7 +87,7 @@ export default function DigitalReceiptPage() {
 
   if (!res) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
           <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
             <ChevronLeft size={24} color="#0A1D37" />
@@ -117,7 +117,7 @@ export default function DigitalReceiptPage() {
   const endTimeFormatted = formatTimeFromISO(res.end_time);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
           <ChevronLeft size={24} color="#0A1D37" />

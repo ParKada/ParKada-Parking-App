@@ -220,11 +220,7 @@ function RootNavigation() {
   }
 
   // 3. Saka lamang lalabas ang buong app (kasama ang Tabs at Home) kapag tapos na ang lahat
-  return (
-    <View style={{ flex: 1 }}>
-      <Slot />
-    </View>
-  );
+  return <Slot />;
 }
 
 export default function RootLayout() {

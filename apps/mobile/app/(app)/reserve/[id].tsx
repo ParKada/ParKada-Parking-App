@@ -257,7 +257,7 @@ export default function ReservationPage() {
 
   if (loading || verificationLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 text-slate-500 font-bold">Loading details...</Text>
       </SafeAreaView>
@@ -267,7 +267,7 @@ export default function ReservationPage() {
   const durationOptions = [1, 2, 3, 4, 5, 6].filter(h => h <= maxDuration);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
           <ChevronLeft size={24} color="#0A1D37" />
@@ -295,7 +295,7 @@ export default function ReservationPage() {
                 <Text className="opacity-70 text-[10px] font-bold uppercase tracking-widest text-white">{lot?.name}</Text>
                 <View className="flex-row items-center gap-2 mt-1">
                   <Text className="text-3xl font-black text-white">Slot {slot?.label}</Text>
-                  {slot?.slot_type === 'pwd' && <Accessibility size={24} color="white" className="opacity-80" />}
+                  {slot?.slot_type === 'pwd' && <Accessibility size={24} color="white" style={{ opacity: 0.8 }} />}
                 </View>
                 <View className="flex-row items-center gap-1.5 mt-2 opacity-80">
                   <Clock size={12} color="white" />

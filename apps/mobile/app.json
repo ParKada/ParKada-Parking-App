@@ -45,11 +45,6 @@
       "expo-build-properties",
       "expo-web-browser",
       "expo-notifications"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "793af5a3-4b8c-4cb9-bcc7-a44964e20070"
-      }
-    }
+    ]
   }
 }

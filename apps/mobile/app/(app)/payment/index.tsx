@@ -144,7 +144,7 @@ export default function PaymentPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-[#0A1D37]">Verifying Payment Details...</Text>
       </SafeAreaView>
@@ -153,7 +153,7 @@ export default function PaymentPage() {
 
   if (isSuccess) {
     return (
-      <SafeAreaView className="flex-1 bg-white justify-center px-8">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <View className="items-center mb-8">
           <View className="w-24 h-24 bg-emerald-100 rounded-full items-center justify-center mb-6">
             <CheckCircle2 size={48} color="#059669" />
@@ -192,7 +192,7 @@ export default function PaymentPage() {
   const isGcash = params.pay === 'gcash';
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-100">
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
           <ChevronLeft size={24} color="#0A1D37" />
@@ -243,7 +243,7 @@ export default function PaymentPage() {
         </View>
 
         <View className="flex-row items-start gap-2 px-2 opacity-60 mb-8 mt-auto">
-           <Info size={16} color="#64748B" className="mt-0.5" />
+           <Info size={16} color="#64748B" style={{ marginTop: 2 }} />
            <Text className="flex-1 text-[10px] font-medium text-slate-500 leading-relaxed">
              By clicking "Pay Now", you authorize ParKada to deduct ₱{params.total} from your {params.pay} account. This transaction is encrypted and secured.
            </Text>
