@@ -108,7 +108,7 @@ export default function DriverHome() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  const activeStatuses = ["reserved", "active", "pending", "booked", "Reserved", "Active", "Pending", "Booked"];
+  const activeStatuses = ["reserved", "active", "pending"];
   const isOnline = netInfo.isConnected ?? true;
 
   useEffect(() => {
@@ -230,12 +230,17 @@ export default function DriverHome() {
       }
       if (slotsRes.data) setDbSlots(slotsRes.data);
 
+      // NOTE: `parking_slots` does not have a `slot_number` column — the
+      // actual label column used everywhere else in this app (MapViewer,
+      // lot/[id].tsx, reservation.tsx) is `label`. Selecting `slot_number`
+      // silently returned undefined, which is why the slot never showed up
+      // on the homepage's "My Current Booking" card.
       const { data: resData } = await supabase
         .from("reservations")
         .select(`
           *,
           parking_slots (
-            slot_number,
+            label,
             parking_lots (*)
           )
         `)
@@ -247,8 +252,12 @@ export default function DriverHome() {
       if (resData && resData.length > 0) {
         const plates = [...new Set(resData.map(r => r.plate_number).filter(Boolean))];
         if (plates.length > 0) {
-          const { data: vehicles } = await supabase.from("vehicles").select("plate, model").in("plate", plates);
-          if (vehicles) vehicles.forEach(v => vehicleMap.set(v.plate, v.model));
+          // NOTE: `vehicles` columns are `plate_number, vehicle_type, brand,
+          // color` — there is no `plate` or `model` column. Querying those
+          // silently returned undefined, so vehicleModel always fell back
+          // to just the plate number.
+          const { data: vehicles } = await supabase.from("vehicles").select("plate_number, brand, vehicle_type").in("plate_number", plates);
+          if (vehicles) vehicles.forEach(v => vehicleMap.set(v.plate_number, v.brand || v.vehicle_type || v.plate_number));
         }
       }
 
@@ -261,7 +270,7 @@ export default function DriverHome() {
             ...rawRes,
             lotName: lotData?.name || "Parking Lot",
             hourly_rate: lotData?.rate_per_hour || 30,
-            slotLabel: slotData?.slot_number || "-",
+            slotLabel: slotData?.label || "-",
             vehiclePlate: rawRes.plate_number || "N/A",
             vehicleModel,
             extension_fee_setting: lotData?.extension_fee || 10,
@@ -448,7 +457,10 @@ export default function DriverHome() {
                         </View>
                       </View>
 
-                      <ActiveReservationTimer reservation={selectedReservation} onUpdate={() => fetchAllData()} />
+                      <ActiveReservationTimer
+                        reservation={{ ...selectedReservation, slot_label: selectedReservation.slotLabel }}
+                        onUpdate={() => fetchAllData()}
+                      />
 
                       <View className="mt-4 items-end">
                         <Text className="text-[10px] text-white/50 font-bold uppercase">Ends at: {new Date(selectedReservation.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
