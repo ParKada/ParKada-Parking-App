@@ -35,12 +35,12 @@ const allNavItems = [
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const { t } = useLanguage();
   const [location, setLocation] = useLocation();
-  const [adminEmail, setAdminEmail] = useState<string>("Loading...");
-  const [initials, setInitials] = useState<string>("A");
+  const [adminEmail, setAdminEmail] = useState<string>(localStorage.getItem('admin_email_cache') || "Loading...");
+  const [initials, setInitials] = useState<string>(localStorage.getItem('admin_initials_cache') || "A");
   const [userId, setUserId] = useState<string | null>(null);
   const [lotType, setLotType] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [fullName, setFullName] = useState<string>("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(localStorage.getItem('admin_avatar_cache'));
+  const [fullName, setFullName] = useState<string>(localStorage.getItem('admin_fullname_cache') || "");
   const avatarRef = useRef<HTMLInputElement>(null);
   
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -77,6 +77,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.email) {
         setAdminEmail(user.email);
+        localStorage.setItem('admin_email_cache', user.email);
         setInitials(user.email.charAt(0).toUpperCase());
         setUserId(user.id);
 
@@ -87,10 +88,16 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           .single();
         
         if (profile) {
-          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+          if (profile.avatar_url) {
+            setAvatarUrl(profile.avatar_url);
+            localStorage.setItem('admin_avatar_cache', profile.avatar_url);
+          }
           if (profile.full_name) {
             setFullName(profile.full_name);
             setEditNameValue(profile.full_name);
+            localStorage.setItem('admin_fullname_cache', profile.full_name);
+            localStorage.setItem('admin_initials_cache', profile.full_name.charAt(0).toUpperCase());
+            setInitials(profile.full_name.charAt(0).toUpperCase());
           }
         }
       }
@@ -185,6 +192,10 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             await supabase.auth.signOut();
             localStorage.removeItem('admin_role');
             localStorage.removeItem('admin_lot_id');
+            localStorage.removeItem('admin_avatar_cache');
+            localStorage.removeItem('admin_fullname_cache');
+            localStorage.removeItem('admin_initials_cache');
+            localStorage.removeItem('admin_email_cache');
             setTimeout(() => { setLocation("/admin"); }, 2000);
           }
         }
@@ -197,6 +208,10 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       await supabase.auth.signOut();
       localStorage.removeItem('admin_role');
       localStorage.removeItem('admin_lot_id');
+      localStorage.removeItem('admin_avatar_cache');
+      localStorage.removeItem('admin_fullname_cache');
+      localStorage.removeItem('admin_initials_cache');
+      localStorage.removeItem('admin_email_cache');
       toast.success(t("Successfully logged out", "Successfully logged out"));
       setLocation("/admin");
     } catch (error) {

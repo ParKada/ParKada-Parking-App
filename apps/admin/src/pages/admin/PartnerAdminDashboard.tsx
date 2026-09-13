@@ -7,7 +7,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@parkada/shared";
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { ParkingSquare, Users, BookOpen, Activity, Loader2, RefreshCw, Map as MapIcon } from "lucide-react";
+import { ParkingSquare, Users, BookOpen, Activity, Loader2, RefreshCw, Map as MapIcon, DollarSign } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -61,6 +61,9 @@ interface Stats {
   occupiedSlots: number;
   reservedSlots: number;
   todayReservations: number;
+  todayRevenue: number;
+  walkInRevenue: number;
+  reservationRevenue: number;
   activeUsers: number;
 }
 
@@ -93,6 +96,9 @@ export default function PartnerAdminDashboard() {
     occupiedSlots: 0,
     reservedSlots: 0,
     todayReservations: 0,
+    todayRevenue: 0,
+    walkInRevenue: 0,
+    reservationRevenue: 0,
     activeUsers: 0,
   });
   const [lotsOverview, setLotsOverview] = useState<ParkingLot[]>([]);
@@ -240,6 +246,27 @@ export default function PartnerAdminDashboard() {
         activeCount = count || 0;
       }
 
+      // 6. Today's Revenue
+      let walkInRevQuery = supabase
+        .from("walk_in_records")
+        .select("amount_paid")
+        .gte("entry_time", todayStart.toISOString())
+        .lt("entry_time", tomorrowStart.toISOString());
+      if (currentRole !== "superadmin" && managerLotId) walkInRevQuery = walkInRevQuery.eq("lot_id", managerLotId);
+      
+      let resRevQuery = supabase
+        .from("reservations")
+        .select("total_amount")
+        .gte("created_at", todayStart.toISOString())
+        .lt("created_at", tomorrowStart.toISOString());
+      if (currentRole !== "superadmin" && managerLotId) resRevQuery = resRevQuery.eq("lot_id", managerLotId);
+
+      const [{ data: walkInData }, { data: resData }] = await Promise.all([walkInRevQuery, resRevQuery]);
+      
+      const walkInRev = (walkInData || []).reduce((sum, r) => sum + (r.amount_paid || 0), 0);
+      const resRev = (resData || []).reduce((sum, r) => sum + (r.total_amount || 0), 0);
+      const todayRevenue = walkInRev + resRev;
+
       // 6. Dynamic weekly occupancy (unchanged)
       const totalSlotsCount = total;
       const now = new Date();
@@ -287,6 +314,9 @@ export default function PartnerAdminDashboard() {
         occupiedSlots: occupied,
         reservedSlots: reserved,
         todayReservations: todayCount || 0,
+        todayRevenue,
+        walkInRevenue: walkInRev,
+        reservationRevenue: resRev,
         activeUsers: activeCount,
       });
       setLotsOverview(formattedLots);
@@ -358,39 +388,40 @@ export default function PartnerAdminDashboard() {
               onClick={() => setLocation(path)}
               className="bg-white rounded-2xl p-4 card-elevated text-left w-full hover:shadow-lg transition-all cursor-pointer"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", color)}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", color)}>
                   <Icon size={20} />
                 </div>
+                <p className="text-sm font-bold text-muted-foreground">{label}</p>
               </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-foreground">{value}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-foreground">{value}</p>
             </button>
           ))}
         </div>
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Weekly Bar Chart */}
+          {/* Today's Revenue */}
           <div
-            className="bg-white rounded-2xl p-4 sm:p-5 card-elevated cursor-pointer hover:shadow-md transition lg:col-span-2"
+            className="bg-white rounded-2xl p-4 sm:p-5 card-elevated flex flex-col justify-center items-center lg:col-span-2 cursor-pointer hover:shadow-md transition"
             onClick={() => setLocation("/admin/reports")}
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-sm font-bold text-foreground">Weekly Occupancy Rate (%)</h3>
-              <button onClick={refreshData} disabled={isRefreshing} className="p-1 rounded-full hover:bg-muted transition-colors">
-                <RefreshCw size={16} className={cn("text-muted-foreground", isRefreshing && "animate-spin")} />
-              </button>
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+              <DollarSign size={32} className="text-emerald-600" />
             </div>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={weeklyData} barSize={28}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }} formatter={(v) => [`${v}%`, "Occupancy"]} />
-                <Bar dataKey="occupancy" fill="#0f172a" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Today's Revenue</h3>
+            <p className="text-4xl sm:text-5xl font-black text-slate-900 mb-6">₱{stats.todayRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            
+            <div className="w-full grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+              <div className="text-center">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Walk-ins</p>
+                <p className="text-lg font-bold text-slate-700">₱{stats.walkInRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+              <div className="text-center border-l border-slate-100">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Reservations</p>
+                <p className="text-lg font-bold text-slate-700">₱{stats.reservationRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            </div>
           </div>
 
           {/* Pie Chart (manager only) */}
@@ -418,9 +449,27 @@ export default function PartnerAdminDashboard() {
           </div>
         </div>
 
-
-
-        {/* Recent Reservations Table */}
+        {/* Weekly Occupancy Rate */}
+        <div
+          className="bg-white rounded-2xl p-4 sm:p-5 card-elevated cursor-pointer hover:shadow-md transition w-full"
+          onClick={() => setLocation("/admin/reports")}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="text-sm font-bold text-foreground">Weekly Occupancy Rate (%)</h3>
+            <button onClick={refreshData} disabled={isRefreshing} className="p-1 rounded-full hover:bg-muted transition-colors">
+              <RefreshCw size={16} className={cn("text-muted-foreground", isRefreshing && "animate-spin")} />
+            </button>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={weeklyData} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="day" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+              <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }} formatter={(v) => [`${v}%`, "Occupancy"]} />
+              <Bar dataKey="occupancy" fill="#0f172a" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>        {/* Recent Reservations Table */}
         {!isPublicLot && (
         <div className="bg-white rounded-2xl p-4 sm:p-5 card-elevated">
           <h3 className="text-sm font-bold text-foreground mb-4">Recent Reservations</h3>

@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
-import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer, List } from "lucide-react";
+import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer, List, Edit3, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -45,11 +45,14 @@ export default function AdminWalkInRecords() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [guardId, setGuardId] = useState<string | null>(null);
-  const [recordType, setRecordType] = useState<"active" | "archived" | "all">("active");
+  const [recordType, setRecordType] = useState<"active" | "archived" | "all">("all");
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "custom">("today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [checkoutConfirm, setCheckoutConfirm] = useState<WalkInRecord | null>(null);
+  const [editingNoteRecord, setEditingNoteRecord] = useState<WalkInRecord | null>(null);
+  const [newNote, setNewNote] = useState("");
+  const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
   const [overtimeInput, setOvertimeInput] = useState("");
 
   const userRole = localStorage.getItem("admin_role");
@@ -100,12 +103,7 @@ export default function AdminWalkInRecords() {
         query = query.eq("lot_id", userLotId);
       }
 
-      // Record Type Filter
-      if (recordType === "active") {
-        query = query.is("exit_time", null);
-      } else if (recordType === "archived") {
-        query = query.not("exit_time", "is", null);
-      }
+      // Record Type Filter (Now handled client-side so summary stats show 'All Records' for the date range)
 
       // Date Filter
       const now = new Date();
@@ -323,8 +321,10 @@ export default function AdminWalkInRecords() {
     }
     setSubmitting(true);
     const now = new Date().toISOString();
+    const validLotId = userLotId === "null" || !userLotId ? null : userLotId;
+    
     const { error } = await supabase.from("walk_in_records").insert({
-      lot_id: userLotId,
+      lot_id: validLotId,
       slot_id: null,
       guard_id: guardId,
       plate_number: form.plate_number.toUpperCase(),
@@ -367,6 +367,36 @@ export default function AdminWalkInRecords() {
       fetchRecords();
     }
     setCheckoutConfirm(null);
+  };
+
+  const handleSaveNote = async () => {
+    if (!editingNoteRecord) return;
+    const { error } = await supabase
+      .from("walk_in_records")
+      .update({ notes: newNote })
+      .eq("id", editingNoteRecord.id);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Note saved");
+      fetchRecords();
+    }
+    setEditingNoteRecord(null);
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!deletingRecordId) return;
+    const { error } = await supabase
+      .from("walk_in_records")
+      .delete()
+      .eq("id", deletingRecordId);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Record deleted");
+      fetchRecords();
+    }
+    setDeletingRecordId(null);
   };
 
   // ================= COMPUTED VALUES =================
@@ -440,15 +470,36 @@ export default function AdminWalkInRecords() {
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right flex items-center justify-end gap-1 border-b-0 h-full">
                   {!completed && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleCheckoutClick(rec)}
                       className="text-blue-600 hover:bg-blue-50"
+                      title="Checkout"
                     >
-                      <TrendingUp size={14} /> Checkout
+                      <TrendingUp size={14} className="mr-1" /> Checkout
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => { setEditingNoteRecord(rec); setNewNote(rec.notes || ""); }}
+                    className="text-slate-500 hover:text-blue-600 h-8 w-8"
+                    title="Add/Edit Note"
+                  >
+                    <Edit3 size={16} />
+                  </Button>
+                  {userRole !== "staff" && userRole !== "guard" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeletingRecordId(rec.id)}
+                      className="text-slate-500 hover:text-rose-600 h-8 w-8"
+                      title="Delete Record"
+                    >
+                      <Trash2 size={16} />
                     </Button>
                   )}
                 </TableCell>
@@ -470,7 +521,7 @@ export default function AdminWalkInRecords() {
 
   useEffect(() => {
     fetchRecords();
-  }, [dateFilter, customStart, customEnd, recordType]);
+  }, [dateFilter, customStart, customEnd]);
 
   // ================= RENDER =================
   return (
@@ -539,7 +590,7 @@ export default function AdminWalkInRecords() {
                     recordType === "archived" ? "bg-emerald-600 text-white shadow-md" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                   )}
                 >
-                  Archived
+                  Completed
                 </button>
                 
                 {/* Date Filters (Admins/Superadmins only) */}
@@ -636,14 +687,21 @@ export default function AdminWalkInRecords() {
           {recordType === "active" ? (
             <><Clock className="text-amber-600" size={20} /> Active Walk-ins ({getDateRangeText()})</>
           ) : recordType === "archived" ? (
-            <><CheckCircle className="text-emerald-600" size={20} /> Archived Records ({getDateRangeText()})</>
+            <><CheckCircle className="text-emerald-600" size={20} /> Completed Records ({getDateRangeText()})</>
           ) : (
             <><List className="text-blue-600" size={20} /> All Records ({getDateRangeText()})</>
           )}
         </h3>
         <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            {renderTable(records, "No records found for the selected period.")}
+            {renderTable(
+              records.filter(r => 
+                recordType === "active" ? !r.exit_time : 
+                recordType === "archived" ? !!r.exit_time : 
+                true
+              ), 
+              "No records found for the selected period."
+            )}
           </div>
         </div>
       </div>
@@ -684,6 +742,38 @@ export default function AdminWalkInRecords() {
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setCheckoutConfirm(null)} className="rounded-xl">Cancel</Button>
               <Button onClick={() => performCheckout(checkoutConfirm, new Date().toISOString(), parseFloat(overtimeInput) || 0)} className="rounded-xl">Confirm Checkout</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Note Modal */}
+      {editingNoteRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-lg font-bold mb-4">Add / Edit Note</h3>
+            <Textarea
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Enter note..."
+              className="min-h-[100px] mb-4 bg-white"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setEditingNoteRecord(null)}>Cancel</Button>
+              <Button onClick={handleSaveNote}>Save Note</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingRecordId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-rose-600 mb-2">Delete Record</h3>
+            <p className="text-sm text-slate-600 mb-4">Are you sure you want to delete this record? This action cannot be undone.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setDeletingRecordId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleDeleteRecord}>Delete</Button>
             </div>
           </div>
         </div>

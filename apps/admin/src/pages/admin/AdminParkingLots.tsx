@@ -11,6 +11,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
 import { RefreshCw, Building2, Plus, Trash2, MapPin, Tag, Ban, CheckCircle2, Award, XCircle, Smartphone, Upload } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -32,15 +33,6 @@ interface ParkingLot {
 
 export default function AdminParkingLots() {
   const { t } = useLanguage();
-
-  const getAdminSupabase = async () => {
-    const { createClient } = await import('@supabase/supabase-js');
-    return createClient(
-      import.meta.env.VITE_SUPABASE_URL,
-      import.meta.env.VITE_SUPABASE_SERVICE_KEY,
-      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-    );
-  };
 
   const [, setLocation] = useLocation();
   const [lots, setLots] = useState<ParkingLot[]>([]);
@@ -100,7 +92,7 @@ export default function AdminParkingLots() {
   const handleToggleStatus = async (id: string, currentStatus: string, name: string) => {
     const newStatus = currentStatus === "active" ? "suspended" : "active";
     try {
-      const { data, error } = await (await getAdminSupabase()).from("parking_lots").update({ status: newStatus })
+      const { data, error } = await supabase.from("parking_lots").update({ status: newStatus })
         .eq("id", id)
         .select();
 
@@ -210,7 +202,7 @@ export default function AdminParkingLots() {
     if (!window.confirm(`Are you sure you want to ${action} ${name}? ${newMaintenanceMode ? "It will be hidden from the user mobile app." : "It will now appear in the user mobile app."}`)) return;
 
     try {
-      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ maintenance_mode: newMaintenanceMode })
+      const { error } = await supabase.from("parking_lots").update({ maintenance_mode: newMaintenanceMode })
         .eq('id', id);
         
       if (error) throw error;
@@ -230,7 +222,7 @@ export default function AdminParkingLots() {
     if (!window.confirm(`Are you sure you want to ${action} ${name}?`)) return;
 
     try {
-      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ is_accredited: newStatus })
+      const { error } = await supabase.from("parking_lots").update({ is_accredited: newStatus })
         .eq('id', id);
         
       if (error) throw error;
