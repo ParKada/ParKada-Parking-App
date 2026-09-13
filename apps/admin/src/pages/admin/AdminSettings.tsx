@@ -75,6 +75,9 @@ export default function AdminSettings() {
       setMaxConcurrentReservations(data.max_concurrent_reservations?.toString() || "1");
       setMaxVehiclesPerUser(data.max_vehicles_per_user?.toString() || "3");
       setGlobalMaintenanceMode(data.maintenance_mode || false);
+      if (data.slot_cleanup_minutes !== undefined) {
+        setSlotCleanupMinutes(data.slot_cleanup_minutes?.toString() || "10");
+      }
     }
   };
 
@@ -167,6 +170,7 @@ export default function AdminSettings() {
           max_concurrent_reservations: parseInt(maxConcurrentReservations),
           max_vehicles_per_user: parseInt(maxVehiclesPerUser),
           maintenance_mode: globalMaintenanceMode,
+          slot_cleanup_minutes: parseInt(slotCleanupMinutes),
           updated_at: new Date().toISOString()
         });
         if (error) throw error;
@@ -199,7 +203,6 @@ export default function AdminSettings() {
         max_reservation_hours: parseInt(maxReservationHours),
         min_reservation_hours: parseInt(minReservationHours),
         overtime_fee_per_hour: parseFloat(overtimeFeePerHour),
-        slot_cleanup_minutes: parseInt(slotCleanupMinutes),
         maintenance_mode: maintenanceMode,
         online_payments_enabled: onlinePaymentsEnabled,
         operating_hours: operatingHoursStr,
@@ -249,6 +252,10 @@ export default function AdminSettings() {
                   <div className="flex items-center justify-between">
                     <div><p className="text-sm font-bold">Global Maintenance Mode</p><p className="text-[10px] text-muted-foreground">Pause all new reservations across the ENTIRE platform</p></div>
                     <Switch checked={globalMaintenanceMode} onCheckedChange={setGlobalMaintenanceMode} />
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex items-center gap-3"><Timer size={16} className="text-muted-foreground"/><div><p className="text-sm font-bold">Global Slot Cleanup Time</p><p className="text-[10px] text-muted-foreground">Minutes after end before available (Applies to all)</p></div></div>
+                    <div className="w-24"><Input type="number" className="h-12 rounded-xl text-center" value={slotCleanupMinutes} onChange={(e) => setSlotCleanupMinutes(e.target.value)} required /></div>
                   </div>
                 </div>
               </div>
@@ -340,6 +347,32 @@ export default function AdminSettings() {
                 </div>
                 <p className="text-[10px] text-muted-foreground flex items-center gap-1"><AlertCircle size={10} /> Reservations outside these hours are not allowed.</p>
               </div>
+
+              {/* Language Preferences */}
+              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6">
+                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
+                    <div className="flex bg-slate-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("en")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("tl")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        Tagalog
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* ========== RIGHT COLUMN ========== */}
@@ -363,13 +396,6 @@ export default function AdminSettings() {
                   <div className="flex items-center justify-between pt-2">
                     <div><p className="text-sm font-bold">Overtime Fee (per hour)</p><p className="text-[10px] text-muted-foreground">After booked duration</p></div>
                     <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" className="h-12 rounded-xl text-center pl-6" value={overtimeFeePerHour} onChange={(e) => setOvertimeFeePerHour(e.target.value)} required /></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3"><Timer size={16} className="text-muted-foreground"/><div><p className="text-sm font-bold">Slot Cleanup Time</p><p className="text-[10px] text-muted-foreground">Minutes after end before available</p></div></div>
-                    <div className="w-24"><Input type="number" className="h-12 rounded-xl text-center" value={slotCleanupMinutes} onChange={(e) => setSlotCleanupMinutes(e.target.value)} required /></div>
-                  </div>
-                  <div className="flex items-center justify-between">                  
-                    
                   </div>
 
                   <div className="bg-slate-50 p-3 rounded-xl text-xs text-slate-600">
@@ -405,34 +431,6 @@ export default function AdminSettings() {
                   </div>
                 </div>
               </div>
-
-              {/* Language Preferences */}
-              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6">
-                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
-                    <div className="flex bg-slate-100 rounded-lg p-1">
-                      <button
-                        type="button"
-                        onClick={() => setLocalLanguage("en")}
-                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
-                      >
-                        English
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLocalLanguage("tl")}
-                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
-                      >
-                        Tagalog
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-
 
               </div>
             </div>

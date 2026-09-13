@@ -596,31 +596,40 @@ export default function AdminWalkInRecords() {
                 {/* Date Filters (Admins/Superadmins only) */}
                 {(userRole === "admin" || userRole === "superadmin" || userRole === "super_admin") && (
                   <>
-                    <div className="w-px bg-slate-200 mx-2 self-stretch" />
-                    <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
-                      {["today", "week", "month", "custom"].map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => setDateFilter(f as any)}
-                          className={cn(
-                            "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
-                            dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
-                          )}
-                        >
-                          {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
-                        </button>
-                      ))}
+                    <div className="w-px bg-slate-200 mx-2 self-stretch hidden md:block" />
+                    <div className="relative flex items-center">
+                      <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
+                        {["today", "week", "month", "custom"].map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setDateFilter(f as any)}
+                            className={cn(
+                              "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
+                              dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
+                            )}
+                          >
+                            {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      {dateFilter === "custom" && (
+                        <div className="absolute top-[120%] right-0 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl p-4 flex flex-row items-center gap-4 z-[60] animate-in fade-in slide-in-from-top-2 w-max">
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase px-1">Start Date</span>
+                            <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-[140px] h-9 text-sm" />
+                          </div>
+                          <div className="text-slate-300 mt-5">–</div>
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase px-1">End Date</span>
+                            <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-[140px] h-9 text-sm" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
               </div>
-              {(userRole === "admin" || userRole === "superadmin" || userRole === "super_admin") && dateFilter === "custom" && (
-                <div className="flex gap-2">
-                  <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-36 h-9" />
-                  <span>–</span>
-                  <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-36 h-9" />
-                </div>
-              )}
             </div>
             <div className="flex gap-2">
               <Button onClick={handlePrint} variant="outline" className="rounded-xl gap-2">

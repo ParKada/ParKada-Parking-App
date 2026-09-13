@@ -47,9 +47,10 @@ interface Reservation {
 
 interface FormattedReservation {
   id: string;
-  lotName: string;
+  lotName?: string;
   slotLabel: string;
-  date: string;
+  date: Date | string;
+  dateStr?: string;
   amount: number;
   status: string;
 }
@@ -210,23 +211,47 @@ export default function SuperAdminDashboard() {
       if (currentRole === "admin" && managerLotId) todayResQuery = todayResQuery.eq("lot_id", managerLotId);
       const { count: todayCount } = await todayResQuery;
 
-      // 4. Recent reservations
+      // 4. Recent Records (Reservations & Walk-ins)
       let recentResQuery = supabase
         .from("reservations")
-        .select("id, start_time, end_time, created_at, total_amount, status, parking_lots(name), parking_slots(label)")
+        .select("id, start_time, end_time, created_at, total_amount, status, parking_slots(label)")
         .order("created_at", { ascending: false })
         .limit(5);
-      if (currentRole === "admin" && managerLotId) recentResQuery = recentResQuery.eq("lot_id", managerLotId);
-      const { data: reservationsData } = await recentResQuery;
+      
+      let recentWalkInQuery = supabase
+        .from("walk_in_records")
+        .select("id, entry_time, exit_time, amount_paid, status, parking_slots(label)")
+        .order("entry_time", { ascending: false })
+        .limit(5);
 
-      const formattedReservations: FormattedReservation[] = (reservationsData || []).map((res: any) => ({
+      if (currentRole === "admin" && managerLotId) {
+        recentResQuery = recentResQuery.eq("lot_id", managerLotId);
+        recentWalkInQuery = recentWalkInQuery.eq("lot_id", managerLotId);
+      }
+
+      const [recentResData, recentWalkInData] = await Promise.all([recentResQuery, recentWalkInQuery]);
+
+      const formattedRes = (recentResData.data || []).map((res: any) => ({
         id: res.id.substring(0, 8),
-        lotName: res.parking_lots?.name || "Unknown",
         slotLabel: res.parking_slots?.label || "N/A",
-        date: res.created_at ? new Date(res.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
+        date: new Date(res.created_at),
+        dateStr: res.created_at ? new Date(res.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
         amount: res.total_amount || 0,
         status: res.status,
       }));
+
+      const formattedWalkIns = (recentWalkInData.data || []).map((w: any) => ({
+        id: w.id.substring(0, 8),
+        slotLabel: "Walk In",
+        date: new Date(w.entry_time),
+        dateStr: w.entry_time ? new Date(w.entry_time).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
+        amount: w.amount_paid || 0,
+        status: w.status || (w.exit_time ? 'completed' : 'active'),
+      }));
+
+      const formattedReservations = [...formattedRes, ...formattedWalkIns]
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
+        .slice(0, 5);
 
       // 5. Active admins (superadmin only)
       let activeCount = 0;
@@ -443,49 +468,45 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Reservations Table */}
+        {/* Recent Records Table */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 card-elevated">
-          <h3 className="text-sm font-bold text-foreground mb-4">Recent Reservations</h3>
+          <h3 className="text-sm font-bold text-foreground mb-4">Recent Records</h3>
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             <table className="w-full text-sm min-w-125">
               <thead>
                 <tr className="text-xs text-muted-foreground border-b border-border">
-                  <th className="text-left pb-2 font-semibold">ID</th>
-                  <th className="text-left pb-2 font-semibold">Location</th>
                   <th className="text-left pb-2 font-semibold">Slot</th>
                   <th className="text-left pb-2 font-semibold">Date</th>
                   <th className="text-left pb-2 font-semibold">Amount</th>
                   <th className="text-left pb-2 font-semibold">Status</th>
                 </tr>
               </thead>
-<tbody className="divide-y divide-border">
-  {recentReservations.length === 0 ? (
-    <tr>
-      <td colSpan={6} className="text-center py-4 text-muted-foreground text-xs">
-        No recent reservations found.
-      </td>
-    </tr>
-  ) : (
-    recentReservations.map((res) => (
-      <tr 
-        key={res.id} 
-        onClick={() => setLocation("/admin/reservations")} 
-        className="hover:bg-muted/30 transition-colors cursor-pointer"
-      >
-        <td className="py-2.5 font-mono text-xs text-muted-foreground">{res.id}</td>
-        <td className="py-2.5 font-medium truncate max-w-35">{res.lotName}</td>
-        <td className="py-2.5 font-bold">{res.slotLabel}</td>
-        <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.date}</td>
-        <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
-        <td className="py-2.5">
-          <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
-            {res.status}
-          </span>
-        </td>
-      </tr>
-    ))
-  )}
-</tbody>
+              <tbody className="divide-y divide-border">
+                {recentReservations.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-4 text-muted-foreground text-xs">
+                      No recent records found.
+                    </td>
+                  </tr>
+                ) : (
+                  recentReservations.map((res: any) => (
+                    <tr 
+                      key={res.id} 
+                      onClick={() => setLocation("/admin/reservations")} 
+                      className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    >
+                      <td className="py-2.5 font-bold">{res.slotLabel}</td>
+                      <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.dateStr}</td>
+                      <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
+                      <td className="py-2.5">
+                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
+                          {res.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
             </table>
           </div>
         </div>
