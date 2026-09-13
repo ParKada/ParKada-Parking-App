@@ -1,5 +1,6 @@
+import { Modal } from '../../components/SafeModal';
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, ActivityIndicator, Alert, Image, Linking } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert, Image, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Car, Trash2, Info, ChevronDown, X, CheckCircle2 } from "lucide-react-native";
@@ -112,6 +113,29 @@ export default function VehiclesPage() {
 
       const fullBrandName = `${form.brand} ${form.model.trim()}`;
 
+      // Check if profile exists, if not try to create one (for admin accounts)
+      const { data: profileCheck } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!profileCheck) {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert([{ 
+            id: user.id, 
+            email: user.email,
+            first_name: "User",
+            last_name: "Profile"
+          }]);
+          
+        if (profileError) {
+          console.warn("Could not auto-create profile:", profileError);
+          // We don't throw here, we'll let the vehicle insert fail and catch it below
+        }
+      }
+
       const { error: insertError } = await supabase
         .from("vehicles")
         .insert([{
@@ -124,6 +148,13 @@ export default function VehiclesPage() {
 
       if (insertError?.code === '23505') { 
         Alert.alert("Already Registered", `Plate number ${sanitizedPlate} is already registered in the system.`);
+        setAdding(false);
+        return;
+      } else if (insertError?.code === '23503') { // Foreign key violation
+        Alert.alert(
+          "Account Restriction", 
+          "Your current account role (Admin/Staff) is missing a standard customer profile. Please use a regular customer account to register vehicles, or contact support."
+        );
         setAdding(false);
         return;
       } else if (insertError) {
@@ -233,7 +264,7 @@ export default function VehiclesPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-slate-500">Loading your vehicles...</Text>
       </SafeAreaView>
@@ -241,7 +272,7 @@ export default function VehiclesPage() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       {/* HEADER */}
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
         <TouchableOpacity onPress={() => router.back()} className="p-1 -ml-1">
@@ -346,100 +377,95 @@ export default function VehiclesPage() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-              <View className="space-y-5 pb-10">
-                
-                <View className="mb-4">
-                  <Text className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5">Plate Number</Text>
-                  <TextInput 
-                    value={form.plate} 
-                    onChangeText={(text) => setForm((f) => ({ ...f, plate: text.toUpperCase() }))} 
-                    placeholder="ABC 1234" 
-                    placeholderTextColor="#94a3b8"
-                    className="h-14 rounded-xl bg-slate-50 px-4 font-black uppercase text-lg text-slate-800" 
-                  />
-                  <Text className="text-[10px] text-slate-400 ml-1 mt-1 font-medium">Standard LTO format: 3 letters + 3 to 4 numbers (e.g., ABC 123)</Text>
+              {showBrandPicker ? (
+                <View className="pb-10">
+                  <View className="flex-row justify-between items-center mb-4 bg-slate-50 p-4 rounded-xl">
+                    <Text className="font-black text-lg text-slate-800">Select Brand</Text>
+                    <TouchableOpacity onPress={() => setShowBrandPicker(false)}>
+                      <Text className="text-blue-600 font-bold">Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {ALLOWED_CAR_BRANDS.map(brand => (
+                    <TouchableOpacity 
+                      key={brand}
+                      onPress={() => {
+                        setForm(f => ({ ...f, brand }));
+                        setShowBrandPicker(false);
+                      }}
+                      className="p-4 border-b border-slate-100 active:bg-blue-50"
+                    >
+                      <Text className={`text-base font-bold ${form.brand === brand ? 'text-blue-600' : 'text-slate-700'}`}>{brand}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
+              ) : (
+                <View className="space-y-5 pb-10">
+                  
+                  <View className="mb-4">
+                    <Text className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5">Plate Number</Text>
+                    <TextInput 
+                      value={form.plate} 
+                      onChangeText={(text) => setForm((f) => ({ ...f, plate: text.toUpperCase() }))} 
+                      placeholder="ABC 1234" 
+                      placeholderTextColor="#94a3b8"
+                      className="h-14 rounded-xl bg-slate-50 px-4 font-black uppercase text-lg text-slate-800" 
+                    />
+                    <Text className="text-[10px] text-slate-400 ml-1 mt-1 font-medium">Standard LTO format: 3 letters + 3 to 4 numbers (e.g., ABC 123)</Text>
+                  </View>
 
-                <View className="mb-4">
-                  <Text className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5">Car Brand</Text>
+                  <View className="mb-4">
+                    <Text className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5">Car Brand</Text>
+                    <TouchableOpacity 
+                      onPress={() => setShowBrandPicker(true)}
+                      className="h-14 rounded-xl bg-slate-50 px-4 flex-row items-center justify-between"
+                    >
+                      <Text className={`font-bold text-base ${form.brand ? 'text-slate-800' : 'text-slate-400'}`}>
+                        {form.brand || "Select vehicle brand"}
+                      </Text>
+                      <ChevronDown size={20} color="#94a3b8" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View className="mb-4">
+                    <Text className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5">Model</Text>
+                    <TextInput 
+                      value={form.model} 
+                      onChangeText={(text) => setForm((f) => ({ ...f, model: text }))} 
+                      placeholder="e.g., Vios" 
+                      placeholderTextColor="#94a3b8"
+                      editable={!!form.brand}
+                      className={`h-14 rounded-xl bg-slate-50 px-4 font-bold text-base text-slate-800 ${!form.brand ? 'opacity-50' : ''}`} 
+                    />
+                  </View>
+
+                  <View className="mb-6">
+                    <Text className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5">Color</Text>
+                    <TextInput 
+                      value={form.color} 
+                      onChangeText={(text) => setForm((f) => ({ ...f, color: text }))} 
+                      placeholder="e.g., Pearl White" 
+                      placeholderTextColor="#94a3b8"
+                      className="h-14 rounded-xl bg-slate-50 px-4 font-bold text-base text-slate-800" 
+                    />
+                  </View>
+
                   <TouchableOpacity 
-                    onPress={() => setShowBrandPicker(true)}
-                    className="h-14 rounded-xl bg-slate-50 px-4 flex-row items-center justify-between"
+                    onPress={addVehicle} 
+                    disabled={adding || !form.brand || !form.model || !form.color || !validateLTOPlate(form.plate)}
+                    className={`w-full h-16 rounded-2xl flex-row items-center justify-center shadow-lg ${
+                      adding || !form.brand || !form.model || !form.color || !validateLTOPlate(form.plate)
+                        ? "bg-blue-300" 
+                        : "bg-[#0A1D37]"
+                    }`}
                   >
-                    <Text className={`font-bold text-base ${form.brand ? 'text-slate-800' : 'text-slate-400'}`}>
-                      {form.brand || "Select vehicle brand"}
-                    </Text>
-                    <ChevronDown size={20} color="#94a3b8" />
+                    {adding ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text className="font-black text-white text-base tracking-widest uppercase">Save Vehicle</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
-
-                <View className="mb-4">
-                  <Text className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5">Model</Text>
-                  <TextInput 
-                    value={form.model} 
-                    onChangeText={(text) => setForm((f) => ({ ...f, model: text }))} 
-                    placeholder="e.g., Vios" 
-                    placeholderTextColor="#94a3b8"
-                    editable={!!form.brand}
-                    className={`h-14 rounded-xl bg-slate-50 px-4 font-bold text-base text-slate-800 ${!form.brand ? 'opacity-50' : ''}`} 
-                  />
-                </View>
-
-                <View className="mb-6">
-                  <Text className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5">Color</Text>
-                  <TextInput 
-                    value={form.color} 
-                    onChangeText={(text) => setForm((f) => ({ ...f, color: text }))} 
-                    placeholder="e.g., Pearl White" 
-                    placeholderTextColor="#94a3b8"
-                    className="h-14 rounded-xl bg-slate-50 px-4 font-bold text-base text-slate-800" 
-                  />
-                </View>
-
-                <TouchableOpacity 
-                  onPress={addVehicle} 
-                  disabled={adding || !form.brand || !form.model || !form.color || !validateLTOPlate(form.plate)}
-                  className={`w-full h-16 rounded-2xl flex-row items-center justify-center shadow-lg ${
-                    adding || !form.brand || !form.model || !form.color || !validateLTOPlate(form.plate)
-                      ? "bg-blue-300" 
-                      : "bg-[#0A1D37]"
-                  }`}
-                >
-                  {adding ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text className="font-black text-white text-base tracking-widest uppercase">Save Vehicle</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* BRAND PICKER MODAL */}
-      <Modal visible={showBrandPicker} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-center items-center p-6">
-          <View className="bg-white w-full rounded-3xl overflow-hidden max-h-[70%]">
-            <View className="p-4 border-b border-slate-100 flex-row justify-between items-center bg-slate-50">
-              <Text className="font-black text-lg text-slate-800">Select Brand</Text>
-              <TouchableOpacity onPress={() => setShowBrandPicker(false)}>
-                <X size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={true}>
-              {ALLOWED_CAR_BRANDS.map(brand => (
-                <TouchableOpacity 
-                  key={brand}
-                  onPress={() => {
-                    setForm(f => ({ ...f, brand }));
-                    setShowBrandPicker(false);
-                  }}
-                  className="p-4 border-b border-slate-50 active:bg-blue-50"
-                >
-                  <Text className={`text-base font-bold ${form.brand === brand ? 'text-blue-600' : 'text-slate-700'}`}>{brand}</Text>
-                </TouchableOpacity>
-              ))}
+              )}
             </ScrollView>
           </View>
         </View>

@@ -1,7 +1,8 @@
+import { Modal } from '../components/SafeModal';
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Clock, X, ChevronRight } from 'lucide-react-native';
+import { Clock, X, ChevronRight, Car } from 'lucide-react-native';
 import { supabase } from "../lib/supabase";
 
 interface ActiveReservationTimerProps {
@@ -24,6 +25,7 @@ interface ActiveReservationTimerProps {
     grace_period_minutes: number;
     allow_extensions: boolean;
     total_amount: number;
+    slot_label?: string;
   };
   onUpdate: () => void;
 }
@@ -165,7 +167,13 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
               {isOvertime ? "OVERTIME" : isExpiringSoon ? "ENDING SOON" : "TIME REMAINING"}
             </Text>
           </View>
-          {!isOvertime && !isExpiringSoon && (
+          {reservation.slot_label && (
+            <View className="flex-row items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-full">
+              <Car size={12} color="#e2e8f0" />
+              <Text className="text-[10px] font-black text-slate-200">Slot {reservation.slot_label}</Text>
+            </View>
+          )}
+          {!reservation.slot_label && !isOvertime && !isExpiringSoon && (
             <Text className="text-[10px] font-bold text-slate-500">{Math.floor(progress)}%</Text>
           )}
         </View>
@@ -209,54 +217,54 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
           </View>
         )}
       </View>
-
-      <Modal visible={showExtendModal} transparent animationType="slide">
-        <View className="flex-1 bg-black/60 items-center justify-center px-4">
-          <View className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
-            <View className="flex-row justify-between items-center px-5 py-4 border-b border-slate-100">
-              <Text className="font-black text-lg text-slate-900">Extend Parking</Text>
-              <TouchableOpacity onPress={() => setShowExtendModal(false)} className="p-2 bg-slate-100 rounded-full">
-                <X size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <View className="p-6">
-              <View className="bg-blue-50 rounded-2xl p-4 items-center mb-6">
-                <Text className="text-[10px] font-bold uppercase text-blue-600 tracking-widest mb-1">Extension Rate</Text>
-                <Text className="text-2xl font-black text-blue-700">₱{extensionRate}<Text className="text-sm font-normal">/hour</Text></Text>
-                {settings.extension_fee > 0 && (
-                  <Text className="text-xs font-semibold text-blue-500 mt-1">+ ₱{settings.extension_fee} fixed fee</Text>
-                )}
+      {showExtendModal && (
+        <Modal visible={true} transparent animationType="slide">
+          <View className="flex-1 bg-black/60 items-center justify-center px-4">
+            <View className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+              <View className="flex-row justify-between items-center px-5 py-4 border-b border-slate-100">
+                <Text className="font-black text-lg text-slate-900">Extend Parking</Text>
+                <TouchableOpacity onPress={() => setShowExtendModal(false)} className="p-2 bg-slate-100 rounded-full">
+                  <X size={20} color="#64748B" />
+                </TouchableOpacity>
               </View>
 
-              <View className="space-y-3 flex-col gap-3">
-                {[1, 2, 3].map(h => {
-                  const total = (extensionRate * h) + settings.extension_fee;
-                  return (
-                    <TouchableOpacity
-                      key={h}
-                      onPress={() => handleExtendClick(h)}
-                      disabled={extending}
-                      className="w-full flex-row items-center justify-between p-4 rounded-2xl border border-slate-200 bg-white"
-                    >
-                      <View className="flex-row items-center gap-3">
-                        <View className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center">
-                          <Text className="text-blue-600 font-bold text-base">{h}</Text>
+              <View className="p-6">
+                <View className="bg-blue-50 rounded-2xl p-4 items-center mb-6">
+                  <Text className="text-[10px] font-bold uppercase text-blue-600 tracking-widest mb-1">Extension Rate</Text>
+                  <Text className="text-2xl font-black text-blue-700">₱{extensionRate}<Text className="text-sm font-normal">/hour</Text></Text>
+                  {settings.extension_fee > 0 && (
+                    <Text className="text-xs font-semibold text-blue-500 mt-1">+ ₱{settings.extension_fee} fixed fee</Text>
+                  )}
+                </View>
+
+                <View className="space-y-3 flex-col gap-3">
+                  {[1, 2, 3].map((h) => {
+                    const total = extensionRate * h + (settings.extension_fee || 0);
+                    return (
+                      <TouchableOpacity
+                        key={h}
+                        onPress={() => handleExtendClick(h)}
+                        className="w-full flex-row items-center justify-between p-4 rounded-2xl border border-slate-200 bg-white"
+                      >
+                        <View className="flex-row items-center gap-3">
+                          <View className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center">
+                            <Text className="text-blue-600 font-bold text-base">{h}</Text>
+                          </View>
+                          <Text className="font-bold text-slate-800 text-base">{h} hour{h !== 1 ? 's' : ''}</Text>
                         </View>
-                        <Text className="font-bold text-slate-800 text-base">{h} hour{h !== 1 ? 's' : ''}</Text>
-                      </View>
-                      <View className="flex-row items-center gap-2">
-                        <Text className="text-lg font-black text-blue-600">+₱{total}</Text>
-                        <ChevronRight size={20} color="#CBD5E1" />
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
+                        <View className="flex-row items-center gap-2">
+                          <Text className="text-lg font-black text-blue-600">+₱{total}</Text>
+                          <ChevronRight size={14} color="#3b82f6" style={{ marginLeft: 2 }} />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </View>
   );
 }

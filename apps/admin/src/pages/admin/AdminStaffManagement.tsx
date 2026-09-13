@@ -76,11 +76,11 @@ export default function ManageGuards() {
         const lotName = Array.isArray(lotData) ? lotData[0]?.name : lotData?.name;
         setAdminLotName(lotName || "Assigned Lot");
 
-        // 2. Fetch guards na kabilang lang sa Lot ng Admin
+        // 2. Fetch guards and staff na kabilang lang sa Lot ng Admin
         const { data: guardsData, error } = await supabase
           .from('admin_profiles')
           .select('id, full_name, role, status') 
-          .eq('role', 'guard')
+          .in('role', ['guard', 'staff'])
           .eq('assigned_lot_id', profile.assigned_lot_id)
           .order('status', { ascending: true }); 
           

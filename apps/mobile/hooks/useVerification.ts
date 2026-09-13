@@ -21,7 +21,7 @@ export function useVerification() {
           .from('profiles')
           .select('verification_status')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
 

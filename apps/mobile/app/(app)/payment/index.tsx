@@ -29,6 +29,7 @@ export default function PaymentPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [newReservationId, setNewReservationId] = useState<string | null>(null);
+  const [invoiceNo, setInvoiceNo] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -90,12 +91,28 @@ export default function PaymentPage() {
         }
       });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        let detailedMessage = error.message;
+        try {
+          if (error.context && typeof error.context.json === "function") {
+            const errBody = await error.context.json();
+            if (errBody?.error) detailedMessage = errBody.error;
+          }
+        } catch (parseErr) {
+          console.error("Could not parse edge function error body:", parseErr);
+        }
+        console.error("reserve-slot failed:", detailedMessage);
+        throw new Error(detailedMessage);
+      }
+
+      if (!data?.reservation) {
+        throw new Error("Reservation was not created. Please try again.");
+      }
 
       const newRes = data.reservation;
 
       const randomChars = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const refNo = `EZP-${randomChars}`;
+      const refNo = `PK-${randomChars}`;
       const { error: receiptError } = await supabase
         .from("receipts")
         .insert({
@@ -115,19 +132,19 @@ export default function PaymentPage() {
       await triggerNotification(user.id, slot?.label || "");
 
       setNewReservationId(newRes.id);
+      setInvoiceNo(refNo);
       setIsSuccess(true);
 
     } catch (err: any) {
       console.error("Reservation error:", err);
       Alert.alert("Error", err.message || "Slot may have been taken. Please try again.");
       setIsProcessing(false);
-      router.back();
     }
   };
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-[#0A1D37]">Verifying Payment Details...</Text>
       </SafeAreaView>
@@ -136,8 +153,8 @@ export default function PaymentPage() {
 
   if (isSuccess) {
     return (
-      <SafeAreaView className="flex-1 bg-white justify-center px-8">
-        <View className="items-center mb-8">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
+        <View className="items-center px-6">
           <View className="w-24 h-24 bg-emerald-100 rounded-full items-center justify-center mb-6">
             <CheckCircle2 size={48} color="#059669" />
           </View>
@@ -145,30 +162,40 @@ export default function PaymentPage() {
           <Text className="text-sm text-slate-500 mt-2 text-center">
             Your reservation for <Text className="font-bold text-slate-800">{params.plate}</Text> is now active.
           </Text>
-        </View>
 
-        <View className="w-full bg-slate-50 rounded-3xl p-6 border border-slate-100 mb-8">
-           <View className="flex-row justify-between items-center mb-4">
-             <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reference No.</Text>
-             <Text className="text-sm font-black text-slate-800 uppercase tracking-tight">
-               {newReservationId?.slice(0, 8) || "PROCESSING"}
-             </Text>
-           </View>
-           <View className="flex-row justify-between items-center">
-             <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Method</Text>
-             <Text className="text-sm font-black text-slate-800 uppercase">{params.pay}</Text>
-           </View>
-        </View>
+          <View className="w-full bg-slate-50 rounded-3xl p-6 border border-slate-100 mt-8 mb-8">
+             <View className="flex-row justify-between items-center mb-4">
+               <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sales Invoice No.</Text>
+               <Text className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                 {invoiceNo || "GENERATING..."}
+               </Text>
+             </View>
+             <View className="flex-row justify-between items-center">
+               <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Method</Text>
+               <Text className="text-sm font-black text-slate-800 uppercase">{params.pay}</Text>
+             </View>
+          </View>
 
-        <TouchableOpacity 
-          onPress={() => {
-            // Need to create digital receipt view later. For now, go to reservations.
-            router.replace('/(app)/reservations');
-          }} 
-          className="w-full h-14 rounded-2xl bg-[#0A1D37] items-center justify-center shadow-lg"
-        >
-          <Text className="font-bold text-white text-base">View Bookings</Text>
-        </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => {
+              if (newReservationId) {
+                router.replace(`/(app)/receipt/${newReservationId}`);
+              } else {
+                router.replace('/(app)/reservations');
+              }
+            }} 
+            className="w-full h-14 rounded-2xl bg-[#0A1D37] items-center justify-center shadow-lg mb-3"
+          >
+            <Text className="font-bold text-white text-base">View Receipt & QR Code</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onPress={() => router.replace('/(app)/reservations')} 
+            className="w-full h-12 rounded-2xl items-center justify-center"
+          >
+            <Text className="font-bold text-slate-500 text-sm">Go to Bookings</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -176,7 +203,7 @@ export default function PaymentPage() {
   const isGcash = params.pay === 'gcash';
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-100">
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
           <ChevronLeft size={24} color="#0A1D37" />
@@ -227,7 +254,7 @@ export default function PaymentPage() {
         </View>
 
         <View className="flex-row items-start gap-2 px-2 opacity-60 mb-8 mt-auto">
-           <Info size={16} color="#64748B" className="mt-0.5" />
+           <Info size={16} color="#64748B" style={{ marginTop: 2 }} />
            <Text className="flex-1 text-[10px] font-medium text-slate-500 leading-relaxed">
              By clicking "Pay Now", you authorize ParKada to deduct ₱{params.total} from your {params.pay} account. This transaction is encrypted and secured.
            </Text>

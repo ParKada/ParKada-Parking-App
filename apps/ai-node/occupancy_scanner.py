@@ -148,6 +148,19 @@ def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, displ
                             print(f"[OCR] Plate Detected: {clean_text} ({prob*100:.1f}%) in slot {slot_id[:8]}")
                             
                             if is_reservable:
+                                slot_label = slot_id[:8]
+                                try:
+                                    l_url = f"{VITE_SUPABASE_URL}/rest/v1/parking_slots?id=eq.{slot_id}&select=label"
+                                    l_req = urllib.request.Request(l_url)
+                                    l_req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
+                                    l_req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
+                                    with urllib.request.urlopen(l_req, timeout=5) as l_res:
+                                        l_data = json.loads(l_res.read().decode())
+                                        if len(l_data) > 0 and l_data[0].get('label'):
+                                            slot_label = l_data[0]['label']
+                                except Exception:
+                                    pass
+
                                 url = f"{VITE_SUPABASE_URL}/rest/v1/reservations?slot_id=eq.{slot_id}&status=eq.active&select=*,vehicles(plate_number)"
                                 req = urllib.request.Request(url)
                                 req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
@@ -161,16 +174,16 @@ def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, displ
                                             vehicle = res.get('vehicles', {})
                                             res_plate = ''.join(e for e in vehicle.get('plate_number', '') if e.isalnum()).upper() if vehicle else ''
                                             if clean_text == res_plate:
-                                                msg = f"Plate {clean_text} correctly parked in reserved slot."
+                                                msg = f"Reservation Record: {clean_text} have arrived at reserved slot {slot_label}"
                                                 print(f"[OCR] ✅ SUCCESS: {msg}")
                                                 send_admin_notifications(TARGET_LOT_ID, "Reservation Validated", msg)
                                             else:
-                                                msg = f"Vehicle with plate {clean_text} parked in a reserved slot, but reservation is for {res_plate}!"
-                                                print(f"[OCR] ❌ MISMATCH: {msg}")
+                                                msg = f"{clean_text} have incorrectly parked at a reserved/reservable slot {slot_label}"
+                                                print(f"[OCR] ❌ MISMATCH: {msg} (Expected {res_plate})")
                                                 send_admin_notifications(TARGET_LOT_ID, "Reservation Mismatch", msg)
                                         else:
-                                            msg = f"Vehicle {clean_text} parked in a reserved slot, but NO active reservation found!"
-                                            print(f"[OCR] ⚠️ {msg}")
+                                            msg = f"{clean_text} have incorrectly parked at a reserved/reservable slot {slot_label}"
+                                            print(f"[OCR] ⚠️ {msg} (No active reservation)")
                                             send_admin_notifications(TARGET_LOT_ID, "Unauthorized Parking", msg)
                                 except Exception as e:
                                     print(f"[OCR] DB Error checking reservation: {e}")
@@ -471,10 +484,16 @@ class CameraWorker:
                                 # Convert AI status to DB string for easy comparison
                                 ai_physical = "occupied" if current_status == "FULL" else "empty"
                                 
-                                # We ONLY trigger a DB update if the PHYSICAL state changed according to the AI.
-                                # This allows the Admin to change `db_status` at any time, and the AI won't 
-                                # override it until the physical car leaves or arrives.
+                                # Check if physical state OR main status is out of sync with reality
+                                needs_update = False
                                 if db_physical != ai_physical:
+                                    needs_update = True
+                                elif ai_physical == "occupied" and db_status not in ["occupied", "reserved"]:
+                                    needs_update = True
+                                elif ai_physical == "empty" and db_status not in ["available", "reserved", "unmapped", "maintenance"]:
+                                    needs_update = True
+
+                                if needs_update:
                                     if ai_physical == "occupied":
                                         if db_status != "reserved":
                                             update_supabase_bg(db_id, "occupied", "occupied")

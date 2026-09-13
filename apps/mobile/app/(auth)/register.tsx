@@ -1,5 +1,6 @@
+import { Modal } from '../../components/SafeModal';
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Modal, FlatList } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, FlatList } from "react-native";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff, ArrowLeft, CheckCircle2, ChevronDown, X, Search } from "lucide-react-native";
 import Checkbox from 'expo-checkbox';

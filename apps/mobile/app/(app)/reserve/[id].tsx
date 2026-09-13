@@ -2,9 +2,14 @@ import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronRight, Check, Clock, Ticket, AlertCircle, Accessibility, Shield, Play, Timer, Car, Calendar, CreditCard, ChevronLeft } from "lucide-react-native";
+import { ChevronRight, Check, Clock, Ticket, AlertCircle, Accessibility, Play, Timer, Car, Calendar, CreditCard, ChevronLeft } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
 import { useVerification } from "../../../hooks/useVerification";
+
+// PWD/Senior discount applied to verified accounts. Verification no longer
+// gates access to reservations at all — it now exclusively controls
+// discount eligibility on the final fee.
+const VERIFIED_DISCOUNT_RATE = 0.20;
 
 const getLotClosingTime24 = (openHours: string) => {
   if (!openHours || openHours.toLowerCase().includes("24 hours")) return "23:59";
@@ -98,6 +103,8 @@ export default function ReservationPage() {
   const [userVehicles, setUserVehicles] = useState<any[]>([]);
   const [activePlates, setActivePlates] = useState<string[]>([]);
   
+  // `isVerified` is now used ONLY to decide PWD/Senior discount eligibility.
+  // It no longer gates whether a user can make a reservation at all.
   const { isVerified, verificationStatus, isLoading: verificationLoading, userId } = useVerification();
 
   const getCurrentTime24 = () => {
@@ -127,6 +134,9 @@ export default function ReservationPage() {
 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          // Columns on `vehicles` are: plate_number, vehicle_type, brand, color
+          // (there is no `plate` or `model` column — using those silently
+          // returned undefined, which is why vehicles rendered blank/unreadable).
           const { data: vehiclesData } = await supabase.from("vehicles").select("*").eq("profile_id", user.id).eq("is_active", true);
           setUserVehicles(vehiclesData || []);
 
@@ -165,21 +175,26 @@ export default function ReservationPage() {
   const startTimeFormatted = format12Hour(startTime);
   const endTimeFormatted = format12Hour(endTime24);
 
-  let totalCost = 0;
+  let subtotal = 0;
   let baseRateDisplay = 0;
   let extendedFee = 0;
 
   if (lot) {
     if (lot.pricing_scheme === 'fixed') {
-      totalCost = Number(lot.fixed_rate) || 150;
+      subtotal = Number(lot.fixed_rate) || 150;
       baseRateDisplay = Number(lot.fixed_rate) || 150;
     } else {
       baseRateDisplay = Number(lot.base_rate) || 50;
       const hourlyRate = Number(lot.rate_per_hour) || 20;
       extendedFee = duration > 3 ? (duration - 3) * hourlyRate : 0;
-      totalCost = baseRateDisplay + extendedFee;
+      subtotal = baseRateDisplay + extendedFee;
     }
   }
+
+  // Discount is derived strictly from verification status now — it has no
+  // bearing on whether the reservation itself is allowed.
+  const discountAmount = isVerified ? Math.round(subtotal * VERIFIED_DISCOUNT_RATE) : 0;
+  const totalCost = subtotal - discountAmount;
   
   const isExceedingCloseTime = () => {
     if (!lot?.open_hours || lot.open_hours.toLowerCase().includes("24 hours")) return false;
@@ -187,20 +202,33 @@ export default function ReservationPage() {
     return remaining < duration * 60;
   };
 
-  const availableVehicles = userVehicles.filter(v => !activePlates.includes(v.plate));
+  const availableVehicles = userVehicles.filter(v => !activePlates.includes(v.plate_number));
+  const hasNoRegisteredVehicles = userVehicles.length === 0;
   const isParkingClosed = remainingMins <= 0;
   const isBookingCutoff = remainingMins > 0 && remainingMins <= 60;
 
-  const isWalkInOnly = slot?.label === "C1" || slot?.is_reservable === false || String(slot?.is_reservable) === "false" || !isVerified;
+  // Walk-in-only is a property of the SLOT itself (PWD bays, the fixed
+  // "C1" walk-in slot, or slots explicitly marked non-reservable) — it is
+  // unrelated to the booking user's verification status.
+  const isWalkInOnly = slot?.label === "C1" || slot?.is_reservable === false || String(slot?.is_reservable) === "false";
 
-  const isBlocked = activeReservation !== null || availableVehicles.length === 0 || isWalkInOnly || !isVerified || isParkingClosed || isBookingCutoff || isExceedingCloseTime();
+  // Reservation eligibility now depends only on: no conflicting active
+  // reservation, the slot being reservable, and the lot being open.
+  // Verification is intentionally excluded from this check.
+  const isBlocked = activeReservation !== null || isWalkInOnly || isParkingClosed || isBookingCutoff || isExceedingCloseTime();
   const isMyBooking = activeReservation?.profile_id === userId;
 
   const handleProceed = () => {
-    if (!isVerified) return Alert.alert("Coming Soon", "Verification feature will be available soon.");
     if (isParkingClosed) return Alert.alert("Closed", "Parking lot is currently closed. Please check operating hours.");
     if (isBookingCutoff) return Alert.alert("Cutoff", "Hindi na tumatanggap ng reservations 1 hour bago mag-close.");
     if (isWalkInOnly) return Alert.alert("Walk-in Only", (slot?.slot_type === 'pwd') ? "Ang PWD slot ay para sa walk-in lamang." : "Ang slot na ito ay para sa mga walk-in customers lamang.");
+    
+    // Redirect to vehicles page if no vehicles exist
+    if (hasNoRegisteredVehicles) {
+      router.push('/(app)/vehicles');
+      return;
+    }
+
     if (isBlocked) return Alert.alert("Blocked", "Hindi ka pwedeng mag-proceed dahil may active booking ka pa.");
     if (isExceedingCloseTime()) return Alert.alert("Exceeds Time", "Exceeds operating hours.");
     if (!plateNumber) return Alert.alert("Vehicle Required", "Please select a vehicle.");
@@ -221,7 +249,10 @@ export default function ReservationPage() {
         dur: duration,
         plate: plateNumber,
         pay: paymentMethod,
+        subtotal: subtotal,
+        discount: discountAmount,
         total: totalCost,
+        verifiedDiscountApplied: isVerified ? "true" : "false",
         nextDay: isNextDay,
         start24: startTime,
         end24: endTime24
@@ -231,7 +262,7 @@ export default function ReservationPage() {
 
   if (loading || verificationLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 text-slate-500 font-bold">Loading details...</Text>
       </SafeAreaView>
@@ -241,7 +272,7 @@ export default function ReservationPage() {
   const durationOptions = [1, 2, 3, 4, 5, 6].filter(h => h <= maxDuration);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
           <ChevronLeft size={24} color="#0A1D37" />
@@ -252,43 +283,24 @@ export default function ReservationPage() {
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="p-4 pb-10 space-y-4">
           
-          {/* Unverified Notice */}
-          {!isVerified && (
-            <View className="bg-blue-50 border border-blue-200 rounded-2xl p-4 shadow-sm mb-4">
-              <View className="flex-row items-start gap-3 mb-3">
-                <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
-                  <Shield size={20} color="#2563EB" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-black text-blue-900 text-base">Unverified Account</Text>
-                  <Text className="text-xs text-blue-700">Walk-in access only • Verify to unlock features</Text>
-                </View>
-              </View>
-              <TouchableOpacity onPress={() => Alert.alert("Coming Soon", "Verification feature will be available soon.")} className="h-12 bg-blue-600 rounded-xl items-center justify-center flex-row shadow-sm">
-                <Shield size={16} color="white" className="mr-2" />
-                <Text className="text-sm font-bold text-white ml-2">Verify Now (Coming Soon)</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Verified Badge */}
+          {/* Verified Badge — now communicates discount, not unlocked access */}
           {isVerified && (
             <View className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex-row items-center gap-2 mb-4 shadow-sm">
               <View className="w-6 h-6 bg-emerald-500 rounded-full items-center justify-center">
                 <Check size={14} color="white" strokeWidth={3} />
               </View>
-              <Text className="text-xs font-bold text-emerald-800">Verified Account • Full Access</Text>
+              <Text className="text-xs font-bold text-emerald-800">Verified • {Math.round(VERIFIED_DISCOUNT_RATE * 100)}% PWD/Senior Discount Applied</Text>
             </View>
           )}
 
           {/* Slot Info Card */}
-          <View className={`rounded-3xl p-5 shadow-lg ${isBlocked && isVerified ? "bg-slate-400" : "bg-[#0A1D37]"} mb-4`}>
+          <View className={`rounded-3xl p-5 shadow-lg ${isBlocked ? "bg-slate-400" : "bg-[#0A1D37]"} mb-4`}>
             <View className="flex-row justify-between items-start">
               <View>
                 <Text className="opacity-70 text-[10px] font-bold uppercase tracking-widest text-white">{lot?.name}</Text>
                 <View className="flex-row items-center gap-2 mt-1">
                   <Text className="text-3xl font-black text-white">Slot {slot?.label}</Text>
-                  {slot?.slot_type === 'pwd' && <Accessibility size={24} color="white" className="opacity-80" />}
+                  {slot?.slot_type === 'pwd' && <Accessibility size={24} color="white" style={{ opacity: 0.8 }} />}
                 </View>
                 <View className="flex-row items-center gap-1.5 mt-2 opacity-80">
                   <Clock size={12} color="white" />
@@ -306,6 +318,12 @@ export default function ReservationPage() {
                     <Text className="text-sm font-bold text-amber-200">+₱{extendedFee}</Text>
                   </View>
                 )}
+                {isVerified && discountAmount > 0 && (
+                  <View className="items-end mt-1">
+                    <Text className="text-[10px] font-bold text-emerald-300 uppercase">PWD/Senior Discount</Text>
+                    <Text className="text-sm font-bold text-emerald-300">-₱{discountAmount}</Text>
+                  </View>
+                )}
                 <View className="mt-2 border-t border-white/20 pt-2 items-end">
                   <Text className="text-[10px] font-bold opacity-70 uppercase text-white">Total</Text>
                   <Text className="text-2xl font-black text-white">₱{isParkingClosed || isWalkInOnly || isBookingCutoff ? "--" : totalCost}</Text>
@@ -315,7 +333,7 @@ export default function ReservationPage() {
           </View>
 
           {/* Select Vehicle */}
-          <View className={`mb-4 ${(isBlocked || !isVerified) ? "opacity-50" : ""}`}>
+          <View className={`mb-4 ${isBlocked ? "opacity-50" : ""}`} pointerEvents={isBlocked ? "none" : "auto"}>
             <View className="flex-row items-center gap-1.5 mb-2 px-1">
               <Car size={14} color="#64748b" />
               <Text className="text-[11px] font-black uppercase text-slate-500">Select Vehicle</Text>
@@ -324,24 +342,31 @@ export default function ReservationPage() {
               {availableVehicles.map(v => (
                 <TouchableOpacity
                   key={v.id}
-                  disabled={isBlocked || !isVerified}
-                  onPress={() => setPlateNumber(v.plate)}
-                  className={`mr-3 p-3 rounded-2xl border-2 w-32 ${plateNumber === v.plate ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                  onPress={() => setPlateNumber(v.plate_number)}
+                  className={`mr-3 p-3 rounded-2xl border-2 w-32 ${plateNumber === v.plate_number ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}
                 >
-                  <Text className={`font-black text-base ${plateNumber === v.plate ? 'text-blue-700' : 'text-slate-700'}`}>{v.plate}</Text>
-                  <Text className={`text-[10px] mt-1 ${plateNumber === v.plate ? 'text-blue-600' : 'text-slate-400'}`} numberOfLines={1}>{v.model}</Text>
+                  <Text className={`font-black text-base ${plateNumber === v.plate_number ? 'text-blue-700' : 'text-slate-700'}`}>{v.plate_number}</Text>
+                  <Text className={`text-[10px] mt-1 ${plateNumber === v.plate_number ? 'text-blue-600' : 'text-slate-400'}`} numberOfLines={1}>
+                    {[v.brand, v.color].filter(Boolean).join(" · ") || v.vehicle_type || ""}
+                  </Text>
                 </TouchableOpacity>
               ))}
               {availableVehicles.length === 0 && (
-                <View className="p-4 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 w-full">
-                  <Text className="text-slate-400 font-bold text-center text-xs">No available vehicles</Text>
-                </View>
+                <TouchableOpacity 
+                  onPress={() => router.push('/(app)/vehicles')}
+                  className="p-4 rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50 w-full flex-row items-center justify-center gap-2"
+                >
+                  <Car size={18} color="#2563eb" />
+                  <Text className="text-blue-600 font-bold text-center text-xs">
+                    {hasNoRegisteredVehicles ? "No registered vehicles — Tap to add one" : "No available vehicles"}
+                  </Text>
+                </TouchableOpacity>
               )}
             </ScrollView>
           </View>
 
           {/* Select Duration */}
-          <View className={`mb-4 ${(isBlocked || !isVerified) ? "opacity-50" : ""}`}>
+          <View className={`mb-4 ${isBlocked ? "opacity-50" : ""}`}>
             <View className="flex-row items-center gap-1.5 mb-2 px-1">
               <Timer size={14} color="#64748b" />
               <Text className="text-[11px] font-black uppercase text-slate-500">Duration</Text>
@@ -350,7 +375,7 @@ export default function ReservationPage() {
               {durationOptions.map(h => (
                 <TouchableOpacity
                   key={h}
-                  disabled={isBlocked || !isVerified}
+                  disabled={isBlocked}
                   onPress={() => setDuration(h)}
                   className={`mr-3 p-3 items-center justify-center rounded-2xl border-2 w-20 ${duration === h ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}
                 >
@@ -362,7 +387,7 @@ export default function ReservationPage() {
           </View>
 
           {/* Time Range */}
-          <View className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-4 ${(isBlocked || !isVerified) ? "opacity-50" : ""}`}>
+          <View className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-4 ${isBlocked ? "opacity-50" : ""}`}>
             <View className="flex-row items-center justify-between bg-slate-50 rounded-xl p-4 border border-slate-100">
               <View className="items-center flex-1">
                 <Text className="text-[10px] font-bold uppercase text-slate-400 mb-1">Start</Text>
@@ -383,41 +408,64 @@ export default function ReservationPage() {
             </View>
           </View>
 
-          {/* Payment Method */}
-          {isVerified && (
-            <View className={`mb-6 ${isBlocked ? "opacity-50" : ""}`}>
-              <View className="flex-row items-center gap-1.5 mb-2 px-1">
-                <CreditCard size={14} color="#64748b" />
-                <Text className="text-[11px] font-black uppercase text-slate-500">Payment Method</Text>
+          {/* Price Breakdown */}
+          <View className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-4 ${isBlocked ? "opacity-50" : ""}`}>
+            <View className="flex-row items-center gap-1.5 mb-3 px-1">
+              <Ticket size={14} color="#64748b" />
+              <Text className="text-[11px] font-black uppercase text-slate-500">Price Breakdown</Text>
+            </View>
+            <View className="space-y-2">
+              <View className="flex-row justify-between items-center">
+                <Text className="text-sm font-medium text-slate-500">Subtotal</Text>
+                <Text className="text-sm font-bold text-slate-700">₱{subtotal}</Text>
               </View>
-              <View className="flex-row gap-3">
-                <TouchableOpacity onPress={() => setPaymentMethod("gcash")} className={`flex-1 h-14 rounded-2xl border-2 flex-row items-center justify-center gap-2 ${paymentMethod === "gcash" ? "border-blue-600 bg-blue-50" : "border-slate-200 bg-white"}`}>
-                  <View className="w-6 h-6 bg-blue-600 rounded-lg items-center justify-center"><Text className="text-white font-black text-xs">G</Text></View>
-                  <Text className="font-bold text-blue-600">GCash</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setPaymentMethod("maya")} className={`flex-1 h-14 rounded-2xl border-2 flex-row items-center justify-center gap-2 ${paymentMethod === "maya" ? "border-emerald-500 bg-emerald-50" : "border-slate-200 bg-white"}`}>
-                  <View className="w-6 h-6 bg-emerald-500 rounded-lg items-center justify-center"><Text className="text-white font-black text-xs">M</Text></View>
-                  <Text className="font-bold text-emerald-600">Maya</Text>
-                </TouchableOpacity>
+              {isVerified && discountAmount > 0 && (
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-sm font-medium text-emerald-600">PWD/Senior Discount ({Math.round(VERIFIED_DISCOUNT_RATE * 100)}%)</Text>
+                  <Text className="text-sm font-bold text-emerald-600">-₱{discountAmount}</Text>
+                </View>
+              )}
+              <View className="h-px bg-slate-100 w-full my-1" />
+              <View className="flex-row justify-between items-center">
+                <Text className="text-base font-black text-slate-800">Total</Text>
+                <Text className="text-base font-black text-slate-800">₱{totalCost}</Text>
               </View>
             </View>
-          )}
+          </View>
 
-          {/* Action Button */}
+          {/* Payment Method — available to all users, not just verified ones */}
+          <View className={`mb-6 ${isBlocked ? "opacity-50" : ""}`}>
+            <View className="flex-row items-center gap-1.5 mb-2 px-1">
+              <CreditCard size={14} color="#64748b" />
+              <Text className="text-[11px] font-black uppercase text-slate-500">Payment Method</Text>
+            </View>
+            <View className="flex-row gap-3">
+              <TouchableOpacity disabled={isBlocked} onPress={() => setPaymentMethod("gcash")} className={`flex-1 h-14 rounded-2xl border-2 flex-row items-center justify-center gap-2 ${paymentMethod === "gcash" ? "border-blue-600 bg-blue-50" : "border-slate-200 bg-white"}`}>
+                <View className="w-6 h-6 bg-blue-600 rounded-lg items-center justify-center"><Text className="text-white font-black text-xs">G</Text></View>
+                <Text className="font-bold text-blue-600">GCash</Text>
+              </TouchableOpacity>
+              <TouchableOpacity disabled={isBlocked} onPress={() => setPaymentMethod("maya")} className={`flex-1 h-14 rounded-2xl border-2 flex-row items-center justify-center gap-2 ${paymentMethod === "maya" ? "border-emerald-500 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+                <View className="w-6 h-6 bg-emerald-500 rounded-lg items-center justify-center"><Text className="text-white font-black text-xs">M</Text></View>
+                <Text className="font-bold text-emerald-600">Maya</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Action Button — verification is no longer part of the gate */}
           <TouchableOpacity 
             onPress={handleProceed} 
-            disabled={!isVerified || isBlocked || !plateNumber || isExceedingCloseTime() || isParkingClosed || isBookingCutoff} 
+            disabled={isBlocked || (!hasNoRegisteredVehicles && !plateNumber) || isExceedingCloseTime() || isParkingClosed || isBookingCutoff} 
             className={`w-full h-16 rounded-2xl items-center justify-center shadow-lg mb-6 ${
-              !isVerified || isBlocked || !plateNumber || isExceedingCloseTime() || isParkingClosed || isBookingCutoff
+              isBlocked || (!hasNoRegisteredVehicles && !plateNumber) || isExceedingCloseTime() || isParkingClosed || isBookingCutoff
                 ? "bg-slate-300" 
                 : "bg-[#0A1D37]"
             }`}
           >
-            <Text className={`text-base font-black ${!isVerified || isBlocked || !plateNumber || isExceedingCloseTime() || isParkingClosed || isBookingCutoff ? "text-slate-500" : "text-white"}`}>
-              {!isVerified ? "Verify Account to Park" : 
-               isParkingClosed ? "Parking Currently Closed" : 
+            <Text className={`text-base font-black ${isBlocked || (!hasNoRegisteredVehicles && !plateNumber) || isExceedingCloseTime() || isParkingClosed || isBookingCutoff ? "text-slate-500" : "text-white"}`}>
+              {isParkingClosed ? "Parking Currently Closed" : 
                isBookingCutoff ? "Booking Cutoff Reached" : 
                isWalkInOnly ? "Walk-in Only Slot" : 
+               hasNoRegisteredVehicles ? "Register a Vehicle to Book" :
                isBlocked ? "Action Not Allowed" : 
                isExceedingCloseTime() ? "Exceeds Closing Time" : 
                !plateNumber ? "Select a Vehicle" : 

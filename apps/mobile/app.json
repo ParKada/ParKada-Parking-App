@@ -44,13 +44,7 @@
       "expo-router",
       "expo-build-properties",
       "expo-web-browser",
-      "expo-notifications",
-      "@react-native-google-signin/google-signin"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "793af5a3-4b8c-4cb9-bcc7-a44964e20070"
-      }
-    }
+      "expo-notifications"
+    ]
   }
 }

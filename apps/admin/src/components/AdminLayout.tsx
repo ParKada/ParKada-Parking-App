@@ -25,8 +25,8 @@ const allNavItems = [
   { path: "/admin/applications", icon: FileText, label: "Partner Applications", allowedRoles: ["super_admin", "superadmin"] },
   { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["super_admin", "superadmin"] }, 
   { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin", "superadmin"] }, 
-  { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["admin", "admin", "guard", "staff"] },
-  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] },
+  { path: "/admin/walkin", icon: DollarSign, label: "Walk-ins", allowedRoles: ["admin", "admin", "guard", "staff"] },
+  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "superadmin", "admin", "admin", "staff"] },
   { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] },
   { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["admin", "admin"] },
   { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] }, 
@@ -321,19 +321,21 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {filteredNavItems.map(({ path, icon: Icon, label }) => {
               const isActive = location === path;
+              const isSuperAdmin = adminRole === "superadmin" || adminRole === "super_admin";
+              const displayLabel = path === "/admin/reservations" ? (isSuperAdmin ? "Records" : "Reservations") : label;
               return (
-                <button
-                  key={path}
-                  onClick={() => setLocation(path)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-                    isActive
-                      ? "bg-white text-slate-900 shadow-md font-bold" 
-                      : "text-white/70 hover:bg-white/10 hover:text-white"
-                  )}
-                >
+                  <button
+                    key={path}
+                    onClick={() => setLocation(path)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                      isActive
+                        ? "bg-white text-slate-900 shadow-md font-bold" 
+                        : "text-white/70 hover:bg-white/10 hover:text-white"
+                    )}
+                  >
                   <Icon size={18} />
-                  {label}
+                  {displayLabel}
                 </button>
               );
             })}

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, ActivityIndicator, Alert } from "react-native";
+import { Modal } from '../../components/SafeModal';
+import { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { router } from "expo-router";
 import { Clock, Car, Calendar, CheckCircle2, BookmarkCheck, Star, X } from "lucide-react-native";
 import { supabase } from "../../lib/supabase";
 
@@ -22,25 +23,29 @@ const formatDate = (dateString: string) => {
 };
 
 function RatingStars({ value, onChange }: { value: number; onChange: (rating: number) => void }) {
+  const stars = [1, 2, 3, 4, 5];
   return (
     <View className="flex-row items-center justify-center gap-2">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.7} className="p-1">
-          <Star size={36} color={value >= star ? "#fbbf24" : "#cbd5e1"} fill={value >= star ? "#fbbf24" : "transparent"} />
-        </TouchableOpacity>
-      ))}
+      {stars.map((star) => {
+        const filled = value >= star;
+        return (
+          <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.7} style={{ padding: 4 }}>
+            <Star size={36} color={filled ? "#fbbf24" : "#cbd5e1"} fill={filled ? "#fbbf24" : "transparent"} />
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
 
-export default function MyReservationsPage() {
-  const router = useRouter();
-  const [reservations, setReservations] = useState<any[]>([]);
+export default function ReservationsTabScreen() {
+  console.log("RESERVATIONS TAB RENDERED - NEW BUNDLE LOADED!");
+  const [reservations, setReservations] = useState([] as any[]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "completed">("all");
+  const [activeTab, setActiveTab] = useState("all" as "all" | "active" | "completed");
 
   const [showRatingModal, setShowRatingModal] = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState<any>(null);
+  const [selectedReservation, setSelectedReservation] = useState(null as any);
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -56,7 +61,7 @@ export default function MyReservationsPage() {
           .select(`
             *,
             parking_slots (
-              slot_number,
+              label,
               parking_lots (id, name, address)
             )
           `)
@@ -76,13 +81,15 @@ export default function MyReservationsPage() {
         setLoading(false);
       }
     };
+    
     fetchMyReservations();
   }, []);
 
+  // Status vocabulary in the DB: pending | reserved | active | completed | cancelled
   const filteredReservations = reservations.filter((res) => {
     if (activeTab === "all") return true;
-    if (activeTab === "active") return res.status === "active" || res.status === "booked";
-    if (activeTab === "completed") return res.status !== "active" && res.status !== "booked";
+    if (activeTab === "active") return res.status === "active" || res.status === "reserved" || res.status === "pending";
+    if (activeTab === "completed") return res.status === "completed" || res.status === "cancelled";
     return true;
   });
 
@@ -124,7 +131,7 @@ export default function MyReservationsPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-slate-500">Loading your history...</Text>
       </SafeAreaView>
@@ -132,7 +139,7 @@ export default function MyReservationsPage() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="px-4 py-4 bg-white border-b border-slate-200">
         <Text className="text-xl font-black text-[#0A1D37]">My Bookings</Text>
       </View>
@@ -166,12 +173,19 @@ export default function MyReservationsPage() {
           <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
             <View className="pb-20 space-y-4">
               {filteredReservations.map(res => {
+                if (!res) return null;
                 const isOngoing = res.status === "active";
-                const isBooked = res.status === "booked";
-                const isCompleted = !isOngoing && !isBooked;
-                const startTimeFormatted = formatTimeFromISO(res.start_time);
-                const endTimeFormatted = formatTimeFromISO(res.end_time);
-                const bookingDate = formatDate(res.created_at);
+                const isReserved = res.status === "reserved" || res.status === "pending";
+                const isCancelled = res.status === "cancelled";
+                const isCompleted = res.status === "completed";
+                const startTimeFormatted = res.start_time ? formatTimeFromISO(res.start_time) : "--:--";
+                const endTimeFormatted = res.end_time ? formatTimeFromISO(res.end_time) : "--:--";
+                const bookingDate = res.created_at ? formatDate(res.created_at) : "";
+
+                const badgeLabel = isOngoing ? "Active" : isReserved ? "Reserved" : isCancelled ? "Cancelled" : "Completed";
+                const badgeBg = isOngoing ? "bg-emerald-100" : isReserved ? "bg-blue-100" : isCancelled ? "bg-red-100" : "bg-slate-100";
+                const badgeText = isOngoing ? "text-emerald-700" : isReserved ? "text-blue-700" : isCancelled ? "text-red-700" : "text-slate-500";
+                const badgeIconColor = isOngoing ? "#059669" : isReserved ? "#2563EB" : isCancelled ? "#DC2626" : "#64748B";
 
                 return (
                   <TouchableOpacity
@@ -184,16 +198,16 @@ export default function MyReservationsPage() {
                       <Text className="text-base font-black text-slate-800 flex-1 mr-2" numberOfLines={1}>
                         {res.parking_slots?.parking_lots?.name || "Parking Lot"}
                       </Text>
-                      <View className={`px-2 py-1 rounded-full flex-row items-center gap-1 ${isOngoing ? "bg-emerald-100" : isBooked ? "bg-blue-100" : "bg-slate-100"}`}>
-                        {isBooked ? <BookmarkCheck size={12} color="#2563EB" /> : <CheckCircle2 size={12} color={isOngoing ? "#059669" : "#64748B"} />}
-                        <Text className={`text-[10px] font-bold ${isOngoing ? "text-emerald-700" : isBooked ? "text-blue-700" : "text-slate-500"}`}>
-                          {isOngoing ? "Active" : isBooked ? "Booked" : "Completed"}
+                      <View className={`px-2 py-1 rounded-full flex-row items-center gap-1 ${badgeBg}`}>
+                        {isReserved ? <BookmarkCheck size={12} color={badgeIconColor} /> : <CheckCircle2 size={12} color={badgeIconColor} />}
+                        <Text className={`text-[10px] font-bold ${badgeText}`}>
+                          {badgeLabel}
                         </Text>
                       </View>
                     </View>
 
                     <Text className="text-xs font-bold text-slate-500 mb-3">
-                      Slot {res.parking_slots?.slot_number || "--"} • {res.plate_number || "N/A"}
+                      Slot {res.parking_slots?.label || "--"} • {res.plate_number || "N/A"}
                     </Text>
 
                     <View className="flex-row justify-between items-center mb-3">
@@ -215,7 +229,7 @@ export default function MyReservationsPage() {
                       <Text className="text-lg font-black text-slate-800">₱{res.total_amount}</Text>
                       {isCompleted && !res.hasRated && (
                         <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); openRatingModal(res); }}
+                          onPress={() => openRatingModal(res)}
                           className="bg-amber-50 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
                         >
                           <Star size={14} color="#d97706" fill="#d97706" />
@@ -237,43 +251,45 @@ export default function MyReservationsPage() {
         )}
       </View>
 
-      <Modal visible={showRatingModal} transparent animationType="slide">
-        <View className="flex-1 bg-black/60 justify-end">
-          <View className="bg-white rounded-t-3xl p-6">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-xl font-black text-slate-800">Rate Experience</Text>
-              <TouchableOpacity onPress={() => setShowRatingModal(false)} className="p-2 bg-slate-100 rounded-full">
-                <X size={20} color="#64748B" />
+      {showRatingModal && (
+        <Modal visible={true} transparent animationType="slide">
+          <View className="flex-1 bg-black/60 justify-end">
+            <View className="bg-white rounded-t-3xl p-6">
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-xl font-black text-slate-800">Rate Experience</Text>
+                <TouchableOpacity onPress={() => setShowRatingModal(false)} className="p-2 bg-slate-100 rounded-full">
+                  <X size={20} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <View className="items-center mb-6">
+                <Text className="text-base font-bold text-slate-800 mb-1 text-center">{selectedReservation?.parking_slots?.parking_lots?.name}</Text>
+                <Text className="text-xs font-medium text-slate-500">Slot {selectedReservation?.parking_slots?.label} • {selectedReservation?.plate_number}</Text>
+              </View>
+
+              <RatingStars value={rating} onChange={setRating} />
+
+              <TextInput
+                placeholder="Share your experience (optional)"
+                placeholderTextColor="#94a3b8"
+                value={reviewText}
+                onChangeText={setReviewText}
+                multiline
+                textAlignVertical="top"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm mt-6 mb-6 h-28"
+              />
+
+              <TouchableOpacity 
+                onPress={submitRating}
+                disabled={submitting || rating === 0}
+                className={`w-full h-14 rounded-xl flex-row items-center justify-center shadow-md ${submitting || rating === 0 ? "bg-blue-300" : "bg-blue-600"}`}
+              >
+                {submitting ? <ActivityIndicator color="white" /> : <Text className="font-bold text-white text-base">Submit Rating</Text>}
               </TouchableOpacity>
             </View>
-
-            <View className="items-center mb-6">
-              <Text className="text-base font-bold text-slate-800 mb-1 text-center">{selectedReservation?.parking_slots?.parking_lots?.name}</Text>
-              <Text className="text-xs font-medium text-slate-500">Slot {selectedReservation?.parking_slots?.slot_number} • {selectedReservation?.plate_number}</Text>
-            </View>
-
-            <RatingStars value={rating} onChange={setRating} />
-
-            <TextInput
-              value={reviewText}
-              onChangeText={setReviewText}
-              placeholder="Share your experience (optional)"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm mt-6 mb-6 h-28"
-            />
-
-            <TouchableOpacity
-              onPress={submitRating}
-              disabled={submitting || rating === 0}
-              className={`w-full h-14 rounded-xl flex-row items-center justify-center shadow-md ${submitting || rating === 0 ? "bg-blue-300" : "bg-blue-600"}`}
-            >
-              {submitting ? <ActivityIndicator color="white" /> : <Text className="font-bold text-white text-base">Submit Rating</Text>}
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
