@@ -9,7 +9,7 @@ import { Picker } from "@react-native-picker/picker";
 import { supabase } from "../../lib/supabase";
 import ActiveReservationTimer from "../../components/ActiveReservationTimer";
 
-const MAP_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/ParKada-lipa-map-bf9Bjp7jKhLR43sJchAZUD.webp";
+const MAP_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-lipa-map-bf9Bjp7jKhLR43sJchAZUD.webp";
 
 const parseOpenHoursToMins = (timeStr: string) => {
   if (!timeStr) return 0;
@@ -216,18 +216,31 @@ export default function DriverHome() {
       setHasUnreadNotifs(!!(unreadNotif && unreadNotif.length > 0));
 
       const [lotsRes, slotsRes] = await Promise.all([
-        supabase.from("parking_lots").select("*"),
+        supabase.from("parking_lots").select(`
+          *,
+          parking_reviews ( rating )
+        `),
         supabase.from("parking_slots").select("*"),
       ]);
 
       if (lotsRes.data) {
-        const mappedLots = lotsRes.data.map(lot => ({
-          ...lot,
-          open_hours: lot.operating_hours || lot.open_hours || "24 Hours",
-          overtime_rate: lot.overtime_fee_per_hour || lot.overtime_rate || 30
-        }));
+        const mappedLots = lotsRes.data.map(lot => {
+          const reviews = lot.parking_reviews || [];
+          const validReviews = reviews.filter((r: any) => r && typeof r.rating === 'number');
+          const totalRating = validReviews.reduce((sum: number, r: any) => sum + r.rating, 0);
+          const computedAvg = validReviews.length > 0 ? totalRating / validReviews.length : 0;
+
+          return {
+            ...lot,
+            average_rating: lot.average_rating || computedAvg,
+            total_reviews: lot.total_reviews || validReviews.length,
+            open_hours: lot.operating_hours || lot.open_hours || "24 Hours",
+            overtime_rate: lot.overtime_fee_per_hour || lot.overtime_rate || 30
+          };
+        });
         setDbParkingLots(mappedLots);
       }
+
       if (slotsRes.data) setDbSlots(slotsRes.data);
 
       // NOTE: `parking_slots` does not have a `slot_number` column — the
@@ -368,7 +381,7 @@ export default function DriverHome() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['top']} className="flex-1 bg-slate-50">
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-slate-100">
         <View className="flex-row items-center gap-2">
@@ -383,11 +396,12 @@ export default function DriverHome() {
 
       <ScrollView 
         className="flex-1" 
+        contentContainerStyle={{ paddingBottom: 12 }}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => fetchAllData(false)} />}
         showsVerticalScrollIndicator={false}
       >
         {loading ? <LoadingSkeleton /> : (
-          <View className="pb-10">
+          <View>
             {!isOnline && <OfflineIndicator />}
 
             {/* Banner */}
@@ -396,7 +410,7 @@ export default function DriverHome() {
               <View className="absolute inset-0 bg-[#0A1D37]/80 p-5 justify-between">
                 <View>
                   <Text className="text-white/80 text-xs font-bold">{greeting}, {userName} 👋</Text>
-                  <Text className="text-white text-lg font-black mt-1">Lipa City Downtown</Text>
+                  <Text className="text-white text-lg font-black mt-1">Lipa City Downtown Parking</Text>
                 </View>
 
                 {/* Fixed Search Now Button */}
@@ -543,7 +557,7 @@ export default function DriverHome() {
                                 </View>
                               )}
                             </View>
-                            {isAccredited && lot.average_rating > 0 && renderStars(lot.average_rating)}
+                            {isAccredited && (lot.average_rating || 0) > 0 && renderStars(lot.average_rating || 0)}
                             <View className="flex-row items-center gap-1.5 mt-2">
                               <MapPin size={12} color="#94a3b8" />
                               <Text className="text-[11px] text-slate-500 font-medium" numberOfLines={1}>{lot.address}</Text>

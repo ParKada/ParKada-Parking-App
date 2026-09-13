@@ -29,8 +29,7 @@ export default function AppLayout() {
         tabBarInactiveTintColor: '#94a3b8',
         tabBarLabelStyle: {
           fontSize: 10,
-          fontFamily: 'System',
-          fontWeight: 'bold',
+          fontFamily: 'Manrope_700Bold',
         },
       }}
     >

@@ -51,12 +51,13 @@ export default function MyReservationsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        // 1. Fetch user's reservations (Added !inner to force explicit join resolving ambiguous FKs)
         const { data, error } = await supabase
           .from("reservations")
           .select(`
             *,
-            parking_slots (
-              slot_number,
+            parking_slots!inner (
+              label,
               parking_lots (id, name, address)
             )
           `)
@@ -65,10 +66,19 @@ export default function MyReservationsPage() {
 
         if (error) throw error;
 
+        // 2. Fetch user's existing reviews
+        const { data: reviews } = await supabase
+          .from("parking_reviews")
+          .select("reservation_id")
+          .eq("profile_id", user.id);
+
+        const ratedReservationIds = new Set(reviews?.map(r => r.reservation_id) || []);
+
         const enriched = (data || []).map((res: any) => ({
           ...res,
-          hasRated: false
+          hasRated: ratedReservationIds.has(res.id)
         }));
+        
         setReservations(enriched);
       } catch (error) {
         console.error("Error fetching reservations:", error);
@@ -79,7 +89,6 @@ export default function MyReservationsPage() {
     fetchMyReservations();
   }, []);
 
-  // Status vocabulary in the DB: pending | reserved | active | completed | cancelled
   const filteredReservations = reservations.filter((res) => {
     if (activeTab === "all") return true;
     if (activeTab === "active") return res.status === "active" || res.status === "reserved" || res.status === "pending";
@@ -101,15 +110,18 @@ export default function MyReservationsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not logged in");
 
+      const lotId = selectedReservation?.parking_slots?.parking_lots?.id;
+
       const { error } = await supabase
         .from("parking_reviews")
         .insert({
-          lot_id: selectedReservation.lot_id,
+          lot_id: lotId,
           profile_id: user.id,
           reservation_id: selectedReservation.id,
           rating,
-          review: reviewText.trim() || null
+          comment: reviewText.trim() || null
         });
+        
       if (error) throw error;
 
       Alert.alert("Success", "Thank you for your review!");
@@ -200,7 +212,7 @@ export default function MyReservationsPage() {
                     </View>
 
                     <Text className="text-xs font-bold text-slate-500 mb-3">
-                      Slot {res.parking_slots?.slot_number || "--"} • {res.plate_number || "N/A"}
+                      Slot {res.parking_slots?.label || "--"} • {res.plate_number || "N/A"}
                     </Text>
 
                     <View className="flex-row justify-between items-center mb-3">
@@ -256,7 +268,7 @@ export default function MyReservationsPage() {
 
             <View className="items-center mb-6">
               <Text className="text-base font-bold text-slate-800 mb-1 text-center">{selectedReservation?.parking_slots?.parking_lots?.name}</Text>
-              <Text className="text-xs font-medium text-slate-500">Slot {selectedReservation?.parking_slots?.slot_number} • {selectedReservation?.plate_number}</Text>
+              <Text className="text-xs font-medium text-slate-500">Slot {selectedReservation?.parking_slots?.label} • {selectedReservation?.plate_number}</Text>
             </View>
 
             <RatingStars value={rating} onChange={setRating} />
