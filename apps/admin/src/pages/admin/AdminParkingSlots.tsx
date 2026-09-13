@@ -343,14 +343,7 @@ export default function AdminParkingSlots() {
     try {
       let STREAM_W = 1024;
       let STREAM_H = 576;
-      const img = document.getElementById(
-        "expanded-camera-feed"
-      ) as HTMLImageElement;
-      if (img && img.naturalWidth && img.naturalHeight) {
-        STREAM_W = img.naturalWidth;
-        STREAM_H = img.naturalHeight;
-      }
-
+      
       const pixelCoords = points.map(p => [
         Math.round((p.x / 100) * STREAM_W),
         Math.round((p.y / 100) * STREAM_H),
