@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Linking, ScrollView, Platform, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Linking, ScrollView, Platform, StyleSheet, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -7,6 +7,8 @@ import { Map, List, Search, Navigation, Route as RouteIcon, Crosshair, Star, Hea
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabase";
+
+const logoImage = require("../../assets/ParKadav2.png");
 
 const lipaCenter = { latitude: 13.9430, longitude: 121.1625, latitudeDelta: 0.015, longitudeDelta: 0.015 };
 
@@ -237,7 +239,15 @@ export default function ParkingMapPage() {
   }, [computedLots, search, filter, userCoords]);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['top']} className="flex-1 bg-slate-50">
+      {/* Header — logo (acts as back button) + title, replacing a plain back arrow */}
+<View className="flex-row items-center gap-2 px-4 py-4 bg-white border-b border-slate-200 z-20">
+  <TouchableOpacity onPress={() => router.back()} className="active:opacity-70">
+    <Image source={logoImage} className="w-10 h-10 rounded-md" resizeMode="contain" />
+  </TouchableOpacity>
+  <Text className="text-xl font-black text-[#0A1D37]">Find Parking</Text>
+</View>
+
       <View className="px-4 py-3 bg-white border-b border-slate-200 z-20">
         <View className="relative mb-3">
           <View className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
@@ -287,10 +297,9 @@ export default function ParkingMapPage() {
         </View>
       ) : view === "map" ? (
         <View style={{ flex: 1 }}>
-          {/* MapView gamit ang native Marker properties (walang custom JSX children) */}
           <MapView
             ref={mapRef}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             initialRegion={lipaCenter}
             showsUserLocation
             showsMyLocationButton={false}
@@ -302,26 +311,79 @@ export default function ParkingMapPage() {
               const isClosed = lot.open_hours ? !isParkingOpen(lot.open_hours, currentTime) : lot.status === 'closed';
               const isAccredited = lot.is_accredited === true;
               
-              // Pin color logic
+              // Pin color logic — closed/non-accredited lots still get a
+              // marker (gray), so they remain visible on the map even
+              // though they can't be tapped through to a reservation.
               let pinColor = '#10b981'; // Green
               if (isClosed) pinColor = '#64748b'; // Gray
               else if (isAccredited) {
                 if (lot.available_slots === 0) pinColor = '#f43f5e'; // Red
                 else if (lot.available_slots <= 5) pinColor = '#f59e0b'; // Amber
+              } else {
+                pinColor = '#64748b'; // Gray for walk-in-only, non-accredited lots
               }
 
-              // Marker status text
-              const statusText = isClosed ? "Closed" : isAccredited ? `${lot.available_slots} slots available` : "Walk-in Only";
+              const statusText = isClosed ? "Closed" : isAccredited ? `${lot.available_slots} slots` : "Walk-in Only";
 
               return (
                 <Marker
                   key={`marker-${lot.id}`}
                   coordinate={{ latitude: Number(lot.latitude), longitude: Number(lot.longitude) }}
-                  title={lot.name}
-                  description={statusText}
-                  pinColor={pinColor}
-                  onCalloutPress={() => isAccredited ? router.push(`/(app)/lot/${lot.id}`) : null}
-                />
+                  anchor={{ x: 0.5, y: 1 }}
+                  onPress={() => { if (isAccredited) router.push(`/(app)/lot/${lot.id}`); }}
+                >
+                  <View style={{ alignItems: 'center', width: 150 }}>
+                    <View
+                      style={{
+                        backgroundColor: pinColor,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 10,
+                        marginBottom: 3,
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>{statusText}</Text>
+                    </View>
+                    <View
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        backgroundColor: 'white',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: pinColor,
+                        elevation: 4,
+                        shadowColor: '#000',
+                        shadowOpacity: 0.2,
+                        shadowRadius: 3,
+                        shadowOffset: { width: 0, height: 1 },
+                      }}
+                    >
+                      <MapPin size={15} color={pinColor} />
+                    </View>
+                    <View
+                      style={{
+                        backgroundColor: 'white',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 8,
+                        marginTop: 3,
+                        maxWidth: 150,
+                        elevation: 3,
+                        shadowColor: '#000',
+                        shadowOpacity: 0.15,
+                        shadowRadius: 2,
+                        shadowOffset: { width: 0, height: 1 },
+                      }}
+                    >
+                      <Text numberOfLines={1} style={{ fontSize: 10, fontWeight: '700', color: '#0A1D37' }}>
+                        {lot.name}
+                      </Text>
+                    </View>
+                  </View>
+                </Marker>
               );
             })}
           </MapView>
@@ -339,7 +401,7 @@ export default function ParkingMapPage() {
             pointerEvents="box-none" 
             className="absolute bottom-0 left-0 right-0 z-20"
           >
-            <View className="bg-white/95 rounded-t-3xl pt-2 pb-6 px-4 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
+            <View className="bg-white/95 rounded-t-3xl pt-2 pb-3 px-4 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
               <View className="w-12 h-1 bg-slate-300 rounded-full mx-auto mb-3" />
               <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{filteredAndSorted.length} Results</Text>
               
@@ -380,7 +442,7 @@ export default function ParkingMapPage() {
                         )}
                       </View>
 
-                      <View className="flex-row gap-2 mt-auto">
+                      <View className="flex-row gap-1.5 mt-auto">
                         <TouchableOpacity 
                           onPress={(e) => {
                             e.stopPropagation();
@@ -389,7 +451,7 @@ export default function ParkingMapPage() {
                           className="flex-1 bg-blue-50 py-2 rounded-lg items-center flex-row justify-center gap-1"
                         >
                           {isFetchingRoute ? <ActivityIndicator size="small" color="#2563EB" /> : <RouteIcon size={12} color="#2563EB" />}
-                          <Text className="text-[10px] font-black text-blue-600">ROUTE</Text>
+                          <Text className="text-[9px] font-black text-blue-600">ROUTE</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           onPress={(e) => {
@@ -399,7 +461,17 @@ export default function ParkingMapPage() {
                           className="flex-1 bg-emerald-500 py-2 rounded-lg items-center flex-row justify-center gap-1"
                         >
                           <Map size={12} color="white" />
-                          <Text className="text-[10px] font-black text-white">GMAPS</Text>
+                          <Text className="text-[9px] font-black text-white">GMAPS</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openMaps(Number(lot.latitude), Number(lot.longitude), "waze");
+                          }} 
+                          className="flex-1 bg-[#33CCFF] py-2 rounded-lg items-center flex-row justify-center gap-1"
+                        >
+                          <Navigation size={12} color="white" />
+                          <Text className="text-[9px] font-black text-white">WAZE</Text>
                         </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
@@ -410,7 +482,7 @@ export default function ParkingMapPage() {
           </View>
         </View>
       ) : (
-        <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
           {filteredAndSorted.map(lot => {
             const isClosed = lot.open_hours ? !isParkingOpen(lot.open_hours, currentTime) : lot.status === 'closed';
             const isFavorite = favorites.includes(lot.id);

@@ -356,6 +356,7 @@ export default function DriverHome() {
         const isOpen = isLotOpen(lot.open_hours);
         return { ...lot, lotSlots, availableCount, distance, isOpen };
       })
+      .filter((lot) => lot.isOpen)
       .slice(0, 5);
   }, [dbParkingLots, dbSlots, userLocation]);
 
@@ -385,14 +386,17 @@ export default function DriverHome() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-slate-100">
         <View className="flex-row items-center gap-2">
-          <Image source={require("../../assets/ParKadav2.png")} className="w-8 h-8 rounded-md" resizeMode="contain" />
-          <Text className="font-black text-lg text-[#0A1D37]">ParKada</Text>
+          <Image source={require("../../assets/ParKadav2.png")} className="w-10 h-10 rounded-md" resizeMode="contain" />
+          <Text className="font-black text-xl">
+            <Text className="text-[#0A1D37]">Par</Text>
+            <Text className="text-amber-400">Kada</Text>
+          </Text>
         </View>
         <TouchableOpacity onPress={() => router.push("/notifications")} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center relative">
           <Bell size={20} color="#0A1D37" />
           {hasUnreadNotifs && <View className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />}
         </TouchableOpacity>
-      </View>
+      </View> 
 
       <ScrollView 
         className="flex-1" 
@@ -564,13 +568,9 @@ export default function DriverHome() {
                             </View>
                             <Text className="text-[10px] font-bold text-amber-600 mt-1">🕒 {lot.open_hours}</Text>
                             {isAccredited ? (
-                              !lot.isOpen ? (
-                                <Text className="text-[11px] font-black mt-1 text-slate-500">Currently Closed</Text>
-                              ) : (
-                                <Text className={`text-[11px] font-black mt-1 ${slotsColor}`}>
-                                  {available} {available === 1 ? "slot" : "slots"} available
-                                </Text>
-                              )
+                              <Text className={`text-[11px] font-black mt-1 ${slotsColor}`}>
+                                {available} {available === 1 ? "slot" : "slots"} available
+                              </Text>
                             ) : (
                               <Text className="text-[10px] text-slate-400 font-medium italic mt-1">ℹ️ Walk-In Only</Text>
                             )}
