@@ -15,7 +15,7 @@ const renderStaticStars = (rating: number) => {
   return (
     <View className="flex-row items-center gap-0.5">
       {[...Array(fullStars)].map((_, i) => <Star key={`f-${i}`} size={14} color="#fbbf24" fill="#fbbf24" />)}
-      {hasHalf && <Star size={14} color="#fbbf24" fill="#fbbf24" style={{ opacity: 0.5 }} />}
+      {hasHalf && <Star key="half" size={14} color="#fbbf24" fill="#fbbf24" style={{ opacity: 0.5 }} />}
       {[...Array(emptyStars)].map((_, i) => <Star key={`e-${i}`} size={14} color="#cbd5e1" />)}
     </View>
   );
@@ -52,6 +52,17 @@ const isParkingOpen = (openHoursStr: string | null | undefined, currentDate: Dat
   }
 };
 
+// A slot is walk-in-only (never reservable online) if it's the fixed "C1"
+// slot, explicitly flagged is_reservable: false, or marked as a PWD slot.
+// This mirrors the same check used inside MapViewer's SlotItem, so the
+// info-card label and the Reserve button agree with what was tapped.
+const isSlotWalkInOnly = (slot: any) => {
+  if (!slot) return false;
+  const isWalkIn = slot.label === "C1" || slot.is_reservable === false || String(slot.is_reservable) === "false";
+  const isPwd = slot.is_pwd === true || String(slot.is_pwd) === "true" || slot.slot_type === 'pwd';
+  return isWalkIn || isPwd;
+};
+
 export default function ParkingLotPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -60,7 +71,7 @@ export default function ParkingLotPage() {
   const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
@@ -87,7 +98,15 @@ export default function ParkingLotPage() {
         return numA - numB;
       });
 
-      const updatedSlots = sortedSlots.map(slot => {
+      // Hide a slot from the customer app only when its status is literally
+      // "unmapped" (i.e. created but not yet activated by an admin/manager).
+      // "coordinates" is a separate field used only for the AI camera zone
+      // detection — it has nothing to do with whether the slot should show
+      // up on the customer-facing floor map (that uses ui_x/ui_y instead),
+      // so it must not gate visibility here.
+      const visibleSlots = sortedSlots.filter(slot => slot.status !== "unmapped");
+
+      const updatedSlots = visibleSlots.map(slot => {
         if (slot.label === "C1") return { ...slot, is_reservable: false };
         return slot;
       });
@@ -159,6 +178,19 @@ export default function ParkingLotPage() {
       Alert.alert("Selection Required", "Please select an available slot first");
       return;
     }
+    if (isSlotWalkInOnly(selectedSlot)) {
+      Alert.alert("Walk-in Only", "Available only for walk-in. You can't reserve this slot.");
+      return;
+    }
+    if (selectedSlot.status !== 'available') {
+      Alert.alert(
+        selectedSlot.status === 'reserved' ? "Slot Reserved" : "Slot Occupied",
+        selectedSlot.status === 'reserved'
+          ? "This slot is already reserved by another user."
+          : "This slot is currently occupied and cannot be booked."
+      );
+      return;
+    }
     router.push(`/(app)/reserve/${selectedSlot.id}?lot=${lot.id}`);
   };
 
@@ -180,18 +212,20 @@ export default function ParkingLotPage() {
   const averageRating = lot.average_rating || 0;
   const totalReviews = lot.total_reviews || 0;
 
+  const selectedIsWalkIn = isSlotWalkInOnly(selectedSlot);
+
   return (
     <SafeAreaView className="flex-1 bg-slate-50">
       {/* Top Header */}
       <View className="relative flex-row items-center justify-between px-4 py-3 bg-white border-b border-slate-200">
-        <TouchableOpacity 
-          onPress={() => router.back()} 
+        <TouchableOpacity
+          onPress={() => router.back()}
           className="p-1 rounded-xl active:opacity-70 z-10"
         >
-          <Image 
-            source={logoImage} 
-            className="w-9 h-9 rounded-md" 
-            resizeMode="contain" 
+          <Image
+            source={logoImage}
+            className="w-9 h-9 rounded-md"
+            resizeMode="contain"
           />
         </TouchableOpacity>
 
@@ -206,10 +240,10 @@ export default function ParkingLotPage() {
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {lot?.front_view_url && (
-          <Image 
-            source={{ uri: lot.front_view_url }} 
-            className="w-full h-56" 
-            resizeMode="cover" 
+          <Image
+            source={{ uri: lot.front_view_url }}
+            className="w-full h-56"
+            resizeMode="cover"
           />
         )}
         <View className="pb-10">
@@ -267,9 +301,9 @@ export default function ParkingLotPage() {
 
           {/* Slot Grid */}
           <View className={`mx-4 mt-4 bg-white rounded-2xl p-5 shadow-sm border border-slate-100 ${isSuspended ? 'opacity-40 pointer-events-none' : ''}`}>
-            {/* Tinanggal ang Rate display sa gilid ng Select a Slot */}
-            <View className="mb-5">
-              <Text className="text-base font-black text-slate-800">Available Slots</Text>
+            <View className="mb-3">
+              <Text className="text-base font-black text-slate-800">Select a Slot</Text>
+              <Text className="text-[11px] font-medium text-slate-400 mt-0.5">Tap a green slot to select</Text>
             </View>
 
             {/* Floor Tabs */}
@@ -319,10 +353,10 @@ export default function ParkingLotPage() {
                 }}
                 renderItem={({ item, index }) => (
                   <View style={{ width: Dimensions.get('window').width - 72, marginRight: 16 }}>
-                    <MapViewer 
-                      slots={slots.filter(s => (s.floor_index || 0) === index)} 
-                      onSelectSlot={setSelectedSlot} 
-                      selectedSlotId={selectedSlot?.id} 
+                    <MapViewer
+                      slots={slots.filter(s => (s.floor_index || 0) === index)}
+                      onSelectSlot={setSelectedSlot}
+                      selectedSlotId={selectedSlot?.id}
                       isClosed={isClosed}
                     />
                   </View>
@@ -332,10 +366,10 @@ export default function ParkingLotPage() {
                 )}
               />
             ) : (
-              <MapViewer 
-                slots={slots} 
-                onSelectSlot={setSelectedSlot} 
-                selectedSlotId={selectedSlot?.id} 
+              <MapViewer
+                slots={slots}
+                onSelectSlot={setSelectedSlot}
+                selectedSlotId={selectedSlot?.id}
                 isClosed={isClosed}
               />
             )}
@@ -343,43 +377,50 @@ export default function ParkingLotPage() {
 
           {selectedSlot && !isSuspended && (
             <View className={`mx-4 mt-4 p-4 rounded-2xl border flex-row items-center gap-3 ${
+              selectedIsWalkIn ? 'bg-slate-50 border-slate-200' :
               isClosed ? 'bg-slate-50 border-slate-200' :
               lot.type === 'public' ? (selectedSlot.status === 'available' ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200') :
               'bg-blue-50 border-blue-200'
             }`}>
               <View className="w-12 h-12 rounded-xl bg-white items-center justify-center shadow-sm">
                 <Car size={20} color={
-                  isClosed ? '#64748b' : 
-                  lot.type === 'public' ? (selectedSlot.status === 'available' ? '#10b981' : '#f43f5e') : 
+                  selectedIsWalkIn ? '#64748b' :
+                  isClosed ? '#64748b' :
+                  lot.type === 'public' ? (selectedSlot.status === 'available' ? '#10b981' : '#f43f5e') :
                   '#1d4ed8'
                 } />
               </View>
               <View className="flex-1">
                 <Text className={`text-base font-black ${
-                  isClosed ? 'text-slate-700' : 
-                  lot.type === 'public' ? (selectedSlot.status === 'available' ? 'text-emerald-800' : 'text-rose-800') : 
+                  selectedIsWalkIn ? 'text-slate-700' :
+                  isClosed ? 'text-slate-700' :
+                  lot.type === 'public' ? (selectedSlot.status === 'available' ? 'text-emerald-800' : 'text-rose-800') :
                   'text-blue-900'
                 }`}>
-                  {isClosed ? `${selectedSlot.label} is currently unavailable` : 
-                   lot.type === 'public' ? `${selectedSlot.label} is ${selectedSlot.status === 'available' ? 'Vacant' : 'Occupied'}` : 
+                  {selectedIsWalkIn ? "Walk-In Slots Only" :
+                   isClosed ? `${selectedSlot.label} is currently unavailable` :
+                   lot.type === 'public' ? `${selectedSlot.label} is ${selectedSlot.status === 'available' ? 'Vacant' : 'Occupied'}` :
                    `Slot ${selectedSlot.label} Selected`}
                 </Text>
                 <Text className={`text-xs font-bold mt-0.5 ${
-                  isClosed ? 'text-slate-500' : 
-                  lot.type === 'public' ? (selectedSlot.status === 'available' ? 'text-emerald-600' : 'text-rose-600') : 
+                  selectedIsWalkIn ? 'text-slate-500' :
+                  isClosed ? 'text-slate-500' :
+                  lot.type === 'public' ? (selectedSlot.status === 'available' ? 'text-emerald-600' : 'text-rose-600') :
                   'text-blue-600'
                 }`}>
-                  ₱{lot.rate_per_hour}/hr · {lot.name}
+                  {selectedIsWalkIn ? `Slot ${selectedSlot.label} · Not available for online reservation` : `₱${lot.rate_per_hour}/hr · ${lot.name}`}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setSelectedSlot(null)} className={`p-2 rounded-full ${
-                isClosed ? 'bg-slate-200' : 
-                lot.type === 'public' ? (selectedSlot.status === 'available' ? 'bg-emerald-100' : 'bg-rose-100') : 
+                selectedIsWalkIn ? 'bg-slate-200' :
+                isClosed ? 'bg-slate-200' :
+                lot.type === 'public' ? (selectedSlot.status === 'available' ? 'bg-emerald-100' : 'bg-rose-100') :
                 'bg-blue-100'
               }`}>
                 <X size={16} color={
-                  isClosed ? '#475569' : 
-                  lot.type === 'public' ? (selectedSlot.status === 'available' ? '#059669' : '#e11d48') : 
+                  selectedIsWalkIn ? '#475569' :
+                  isClosed ? '#475569' :
+                  lot.type === 'public' ? (selectedSlot.status === 'available' ? '#059669' : '#e11d48') :
                   '#1d4ed8'
                 } />
               </TouchableOpacity>
@@ -390,13 +431,31 @@ export default function ParkingLotPage() {
             <View className="mx-4 mt-6 mb-8">
               <TouchableOpacity
                 onPress={handleReserve}
-                disabled={isSuspended || !selectedSlot}
-                className={`w-full h-14 rounded-xl flex-row items-center justify-center shadow-lg ${isSuspended ? 'bg-slate-300' : selectedSlot ? 'bg-blue-600' : 'bg-slate-200'}`}
+                disabled={isSuspended || !selectedSlot || selectedIsWalkIn || selectedSlot.status !== 'available'}
+                className={`w-full h-14 rounded-xl flex-row items-center justify-center shadow-lg ${
+                  isSuspended || !selectedSlot || selectedIsWalkIn || selectedSlot.status !== 'available'
+                    ? 'bg-slate-300'
+                    : 'bg-blue-600'
+                }`}
               >
-                <Text className={`text-base font-bold ${isSuspended ? 'text-slate-500' : selectedSlot ? 'text-white' : 'text-slate-400'}`}>
-                  {isSuspended ? "Location Suspended" : selectedSlot ? `Reserve Slot ${selectedSlot.label}` : "Select a Slot to Reserve"}
+                <Text className={`text-base font-bold ${
+                  isSuspended || !selectedSlot || selectedIsWalkIn || selectedSlot.status !== 'available'
+                    ? 'text-slate-500'
+                    : 'text-white'
+                }`}>
+                  {isSuspended
+                    ? "Location Suspended"
+                    : !selectedSlot
+                    ? "Select a Slot to Reserve"
+                    : selectedIsWalkIn
+                    ? "Walk-In Slots Only"
+                    : selectedSlot.status === 'occupied'
+                    ? "Slot Occupied — Cannot Reserve"
+                    : selectedSlot.status === 'reserved'
+                    ? "Slot Reserved — Cannot Reserve"
+                    : `Reserve Slot ${selectedSlot.label}`}
                 </Text>
-                {!isSuspended && selectedSlot && <ChevronRight size={20} color="white" className="ml-2" />}
+                {!isSuspended && !selectedIsWalkIn && selectedSlot?.status === 'available' && <ChevronRight size={20} color="white" className="ml-2" />}
               </TouchableOpacity>
             </View>
           )}
@@ -413,7 +472,7 @@ export default function ParkingLotPage() {
                 <X size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView className="p-5" showsVerticalScrollIndicator={false}>
               {loadingReviews ? (
                 <View className="py-10 items-center">

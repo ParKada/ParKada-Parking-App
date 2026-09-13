@@ -29,6 +29,7 @@ export default function PaymentPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [newReservationId, setNewReservationId] = useState<string | null>(null);
+  const [invoiceNo, setInvoiceNo] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -90,12 +91,28 @@ export default function PaymentPage() {
         }
       });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        let detailedMessage = error.message;
+        try {
+          if (error.context && typeof error.context.json === "function") {
+            const errBody = await error.context.json();
+            if (errBody?.error) detailedMessage = errBody.error;
+          }
+        } catch (parseErr) {
+          console.error("Could not parse edge function error body:", parseErr);
+        }
+        console.error("reserve-slot failed:", detailedMessage);
+        throw new Error(detailedMessage);
+      }
+
+      if (!data?.reservation) {
+        throw new Error("Reservation was not created. Please try again.");
+      }
 
       const newRes = data.reservation;
 
       const randomChars = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const refNo = `EZP-${randomChars}`;
+      const refNo = `PK-${randomChars}`;
       const { error: receiptError } = await supabase
         .from("receipts")
         .insert({
@@ -115,13 +132,13 @@ export default function PaymentPage() {
       await triggerNotification(user.id, slot?.label || "");
 
       setNewReservationId(newRes.id);
+      setInvoiceNo(refNo);
       setIsSuccess(true);
 
     } catch (err: any) {
       console.error("Reservation error:", err);
       Alert.alert("Error", err.message || "Slot may have been taken. Please try again.");
       setIsProcessing(false);
-      router.back();
     }
   };
 
@@ -149,9 +166,9 @@ export default function PaymentPage() {
 
         <View className="w-full bg-slate-50 rounded-3xl p-6 border border-slate-100 mb-8">
            <View className="flex-row justify-between items-center mb-4">
-             <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reference No.</Text>
+             <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sales Invoice No.</Text>
              <Text className="text-sm font-black text-slate-800 uppercase tracking-tight">
-               {newReservationId?.slice(0, 8) || "PROCESSING"}
+               {invoiceNo || "GENERATING..."}
              </Text>
            </View>
            <View className="flex-row justify-between items-center">
@@ -162,7 +179,6 @@ export default function PaymentPage() {
 
         <TouchableOpacity 
           onPress={() => {
-            // Need to create digital receipt view later. For now, go to reservations.
             router.replace('/(app)/reservations');
           }} 
           className="w-full h-14 rounded-2xl bg-[#0A1D37] items-center justify-center shadow-lg"
