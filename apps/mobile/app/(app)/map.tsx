@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Linking, ScrollView, Platform, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Linking, ScrollView, Platform, Image, Animated, PanResponder } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MapView, { Marker, Polyline } from "react-native-maps";
-import { Map, List, Search, Navigation, Route as RouteIcon, Crosshair, Star, Heart, MapPin } from "lucide-react-native";
+import { Map, List, Search, Navigation, Route as RouteIcon, Crosshair, Star, Heart, MapPin, Clock, X, MessageSquare, Check } from "lucide-react-native";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabase";
@@ -88,6 +88,90 @@ export default function ParkingMapPage() {
   const [isFetchingRoute, setIsFetchingRoute] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [selectedLot, setSelectedLot] = useState<any | null>(null);
+  const [activeLot, setActiveLot] = useState<any | null>(null);
+  const [lotReviews, setLotReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const translateY = useRef(new Animated.Value(800)).current;
+
+  const listOffset = useRef(0);
+  const translateYList = useRef(new Animated.Value(0)).current;
+
+  const toggleList = (show: boolean) => {
+    const toValue = show ? 0 : 160;
+    listOffset.current = toValue;
+    Animated.spring(translateYList, {
+      toValue,
+      useNativeDriver: true,
+      bounciness: 4,
+    }).start();
+  };
+
+  const panResponderList = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        let newY = listOffset.current + gestureState.dy;
+        if (newY < 0) newY = 0;
+        if (newY > 160) newY = 160;
+        translateYList.setValue(newY);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (listOffset.current === 0) {
+          if (gestureState.dy > 50 || gestureState.vy > 0.5) {
+            toggleList(false);
+          } else {
+            toggleList(true);
+          }
+        } else {
+          if (gestureState.dy < -50 || gestureState.vy < -0.5) {
+            toggleList(true);
+          } else {
+            toggleList(false);
+          }
+        }
+      },
+    })
+  ).current;
+
+  const closeSheet = () => {
+    Animated.timing(translateY, {
+      toValue: 800,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setSelectedLot(null);
+      setActiveLot(null);
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          closeSheet();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 4,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     AsyncStorage.getItem("favoriteParkingLots").then(saved => {
@@ -193,15 +277,66 @@ export default function ParkingMapPage() {
     }
   };
 
-  const openMaps = (lat: number, lng: number, provider: "google" | "waze") => {
+  const openMaps = async (lat: number, lng: number, provider: "google" | "waze") => {
+    const origin = userCoords ? `${userCoords.lat},${userCoords.lng}` : undefined;
     if (provider === "google") {
-      const url = Platform.select({
-        ios: `maps:0,0?q=${lat},${lng}`,
-        android: `google.navigation:q=${lat},${lng}`
-      });
-      if (url) Linking.openURL(url);
+      if (Platform.OS === "android") {
+        Linking.openURL(`google.navigation:q=${lat},${lng}`);
+      } else {
+        const destUrl = `comgooglemaps://?daddr=${lat},${lng}${origin ? `&saddr=${origin}` : ""}&directionsmode=driving`;
+        try {
+          await Linking.openURL(destUrl);
+        } catch {
+          Linking.openURL(`https://maps.google.com/?daddr=${lat},${lng}`);
+        }
+      }
     } else {
-      Linking.openURL(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`);
+      Linking.openURL(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes${origin ? `&from=${origin}` : ""}`);
+    }
+  };
+
+  const handleSelectLot = async (lot: any) => {
+    setSelectedLot(lot);
+    setActiveLot(lot);
+    Animated.spring(translateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      bounciness: 4,
+    }).start();
+    
+    setRouteCoords(null);
+    if (lot.latitude && lot.longitude && mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: Number(lot.latitude),
+        longitude: Number(lot.longitude),
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005
+      });
+    }
+    
+    setLoadingReviews(true);
+    try {
+      const { data, error } = await supabase
+        .from('parking_reviews')
+        .select(`
+          rating,
+          review,
+          created_at,
+          profiles (full_name)
+        `)
+        .eq('lot_id', lot.id)
+        .order('created_at', { ascending: false });
+        
+      if (!error && data) {
+        setLotReviews(data);
+      } else {
+        setLotReviews([]);
+      }
+    } catch (err) {
+      console.error(err);
+      setLotReviews([]);
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -237,7 +372,7 @@ export default function ParkingMapPage() {
   }, [computedLots, search, filter, userCoords]);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['top']} className="flex-1 bg-slate-50">
       <View className="px-4 py-3 bg-white border-b border-slate-200 z-20">
         <View className="relative mb-3">
           <View className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
@@ -290,7 +425,7 @@ export default function ParkingMapPage() {
           {/* MapView gamit ang native Marker properties (walang custom JSX children) */}
           <MapView
             ref={mapRef}
-            style={StyleSheet.absoluteFillObject}
+            style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
             initialRegion={lipaCenter}
             showsUserLocation
             showsMyLocationButton={false}
@@ -317,10 +452,8 @@ export default function ParkingMapPage() {
                 <Marker
                   key={`marker-${lot.id}`}
                   coordinate={{ latitude: Number(lot.latitude), longitude: Number(lot.longitude) }}
-                  title={lot.name}
-                  description={statusText}
                   pinColor={pinColor}
-                  onCalloutPress={() => isAccredited ? router.push(`/(app)/lot/${lot.id}`) : null}
+                  onPress={() => handleSelectLot(lot)}
                 />
               );
             })}
@@ -335,15 +468,21 @@ export default function ParkingMapPage() {
           </TouchableOpacity>
 
           {/* Bottom Sheet Cards Overlay */}
-          <View 
-            pointerEvents="box-none" 
+          <Animated.View 
+            pointerEvents={selectedLot ? "none" : "box-none"} 
+            style={{ opacity: selectedLot ? 0 : 1, transform: [{ translateY: translateYList }] }}
             className="absolute bottom-0 left-0 right-0 z-20"
           >
-            <View className="bg-white/95 rounded-t-3xl pt-2 pb-6 px-4 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
-              <View className="w-12 h-1 bg-slate-300 rounded-full mx-auto mb-3" />
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{filteredAndSorted.length} Results</Text>
+            <View className="bg-white/95 rounded-t-3xl pt-0 pb-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
+              <View 
+                {...panResponderList.panHandlers} 
+                className="w-full py-4 px-4 items-center"
+              >
+                <View className="w-12 h-1.5 bg-slate-300 rounded-full" />
+              </View>
+              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-4">{filteredAndSorted.length} Results</Text>
               
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible pb-2 flex-row">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible pb-2 flex-row px-4">
                 {filteredAndSorted.map(lot => {
                   const isClosed = lot.open_hours ? !isParkingOpen(lot.open_hours, currentTime) : lot.status === 'closed';
                   const isFavorite = favorites.includes(lot.id);
@@ -353,7 +492,7 @@ export default function ParkingMapPage() {
                     <TouchableOpacity
                       key={`card-${lot.id}`}
                       disabled={!isAccredited}
-                      onPress={() => router.push(`/(app)/lot/${lot.id}`)}
+                      onPress={() => handleSelectLot(lot)}
                       className={`w-72 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mr-4 ${(!isAccredited || isClosed) ? "opacity-80" : ""}`}
                     >
                       <View className="flex-row justify-between items-start mb-1">
@@ -401,13 +540,191 @@ export default function ParkingMapPage() {
                           <Map size={12} color="white" />
                           <Text className="text-[10px] font-black text-white">GMAPS</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openMaps(Number(lot.latitude), Number(lot.longitude), "waze");
+                          }} 
+                          className="flex-1 bg-[#33CCFF] py-2 rounded-lg items-center flex-row justify-center gap-1"
+                        >
+                          <Navigation size={12} color="white" />
+                          <Text className="text-[10px] font-black text-white">WAZE</Text>
+                        </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
                   );
                 })}
               </ScrollView>
             </View>
-          </View>
+          </Animated.View>
+
+          {/* Animated Place Details Bottom Sheet */}
+          <Animated.View 
+            style={{ transform: [{ translateY }] }}
+            className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-3xl pt-0 pb-6 shadow-[0_-10px_40px_rgba(0,0,0,0.2)]"
+          >
+            {activeLot && (
+              <>
+                <View 
+                  {...panResponder.panHandlers} 
+                  className="w-full py-4 px-4 items-center"
+                >
+                  <View className="w-12 h-1.5 bg-slate-300 rounded-full" />
+                </View>
+
+                <View className="px-4">
+                  {/* Header / Photo */}
+                  <View className="relative h-40 rounded-2xl overflow-hidden mb-4 bg-slate-200">
+                    {activeLot.front_view_url ? (
+                      <Image source={{ uri: activeLot.front_view_url }} className="w-full h-full" resizeMode="cover" />
+                    ) : (
+                      <View className="flex-1 items-center justify-center bg-slate-100">
+                        <MapPin size={32} color="#94a3b8" />
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Title & Meta */}
+                  <View className="flex-row justify-between items-start mb-3">
+                    <View className="flex-1 pr-4">
+                      <Text className="text-xl font-black text-slate-900">{activeLot.name}</Text>
+                      <View className="flex-row items-center mt-1">
+                        <View className="bg-slate-100 px-2 py-0.5 rounded-md mr-2">
+                          <Text className="text-[10px] font-bold text-slate-600 uppercase">{activeLot.type}</Text>
+                        </View>
+                        {(() => {
+                          const avgRating = lotReviews.length ? (lotReviews.reduce((sum, r) => sum + r.rating, 0) / lotReviews.length) : 0;
+                          return avgRating > 0 ? (
+                            <View className="flex-row items-center">
+                              {renderStars(avgRating)}
+                              <Text className="text-[10px] font-bold text-slate-500 ml-1">({lotReviews.length})</Text>
+                            </View>
+                          ) : (
+                            <Text className="text-[10px] font-bold text-slate-400">No reviews yet</Text>
+                          );
+                        })()}
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={() => toggleFavorite(activeLot.id)} className="p-2 bg-slate-50 rounded-full">
+                      <Heart size={22} color={favorites.includes(activeLot.id) ? "#f43f5e" : "#cbd5e1"} fill={favorites.includes(activeLot.id) ? "#f43f5e" : "transparent"} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Address & Rates */}
+                  <View className="flex-row items-center gap-2 mb-4">
+                    <MapPin size={16} color="#64748b" />
+                    <Text className="text-xs text-slate-600 flex-1" numberOfLines={1}>{activeLot.address}</Text>
+                  </View>
+                  
+                  {/* Details Grid */}
+                  <View className="flex-row flex-wrap gap-y-4 mt-1 mb-5 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <View className="w-1/2 flex-row items-center gap-3">
+                      <View className="bg-white p-2 rounded-lg shadow-sm border border-slate-100">
+                        <Star size={16} color="#10b981" />
+                      </View>
+                      <View>
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Rate</Text>
+                        <Text className="text-sm font-black text-slate-700">{activeLot.rate_per_hour ? `₱${activeLot.rate_per_hour}/hr` : "Free"}</Text>
+                      </View>
+                    </View>
+                    
+                    <View className="w-1/2 flex-row items-center gap-3">
+                      <View className="bg-white p-2 rounded-lg shadow-sm border border-slate-100">
+                        <Clock size={16} color="#3b82f6" />
+                      </View>
+                      <View>
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Status</Text>
+                        <Text className={`text-sm font-black ${!isParkingOpen(activeLot.open_hours, currentTime) ? "text-rose-500" : "text-emerald-500"}`}>
+                          {!isParkingOpen(activeLot.open_hours, currentTime) ? "Closed Now" : "Open Now"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="w-1/2 flex-row items-center gap-3">
+                      <View className="bg-white p-2 rounded-lg shadow-sm border border-slate-100">
+                        <List size={16} color="#f59e0b" />
+                      </View>
+                      <View>
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Capacity</Text>
+                        <Text className="text-sm font-black text-slate-700">{activeLot.available_slots} / {activeLot.total_slots} left</Text>
+                      </View>
+                    </View>
+
+                    {activeLot.type === 'private' && (
+                      <View className="w-1/2 flex-row items-center gap-3">
+                        <View className="bg-white p-2 rounded-lg shadow-sm border border-slate-100">
+                          <Check size={16} color="#8b5cf6" /> 
+                        </View>
+                        <View>
+                          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Reservable</Text>
+                          {(() => {
+                            const resSlots = slots.filter(s => s.lot_id === activeLot.id && s.status === 'available' && s.is_reservable !== false && s.type !== 'C1' && s.type !== 'PWD');
+                            return <Text className="text-sm font-black text-slate-700">{resSlots.length} slots</Text>;
+                          })()}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Comments/Feedback (Top 3) */}
+                  {loadingReviews ? (
+                    <ActivityIndicator size="small" color="#cbd5e1" className="mb-5" />
+                  ) : lotReviews.length > 0 ? (
+                    <View className="mb-5">
+                      <Text className="text-sm font-bold text-slate-800 mb-3">Recent Reviews</Text>
+                      {lotReviews.slice(0, 3).map((review, idx) => (
+                        <View key={idx} className="flex-row gap-2 mb-2 bg-slate-50 p-2 rounded-lg">
+                          <View className="w-6 h-6 rounded-full bg-[#0A1D37] items-center justify-center">
+                            <Text className="text-white text-[10px] font-bold">{(review.profiles?.full_name || "A").charAt(0)}</Text>
+                          </View>
+                          <View className="flex-1">
+                            <View className="flex-row items-center justify-between mb-0.5">
+                              <Text className="text-[10px] font-bold text-slate-700">{review.profiles?.full_name || "Anonymous"}</Text>
+                              <View className="flex-row">
+                                {[...Array(review.rating)].map((_, i) => <Star key={i} size={8} color="#fbbf24" fill="#fbbf24" />)}
+                              </View>
+                            </View>
+                            <Text className="text-[10px] text-slate-600" numberOfLines={2}>{review.review}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {/* Actions */}
+                  <View className="flex-row gap-2 mb-6">
+                    <TouchableOpacity 
+                      onPress={() => handleShowRoute(Number(activeLot.latitude), Number(activeLot.longitude))} 
+                      className="flex-1 bg-blue-50 py-3 rounded-xl items-center flex-row justify-center gap-1.5"
+                    >
+                      {isFetchingRoute ? <ActivityIndicator size="small" color="#2563EB" /> : <RouteIcon size={14} color="#2563EB" />}
+                      <Text className="text-[11px] font-black text-blue-600">ROUTE</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={() => openMaps(Number(activeLot.latitude), Number(activeLot.longitude), "google")} 
+                      className="flex-1 bg-emerald-500 py-3 rounded-xl items-center flex-row justify-center gap-1.5"
+                    >
+                      <Map size={14} color="white" />
+                      <Text className="text-[11px] font-black text-white">GMAPS</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={() => openMaps(Number(activeLot.latitude), Number(activeLot.longitude), "waze")} 
+                      className="flex-1 bg-[#33CCFF] py-3 rounded-xl items-center flex-row justify-center gap-1.5"
+                    >
+                      <Navigation size={14} color="white" />
+                      <Text className="text-[11px] font-black text-white">WAZE</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => router.push(`/(app)/lot/${activeLot.id}`)}
+                    className="w-full bg-[#0A1D37] py-3.5 rounded-xl items-center flex-row justify-center gap-2"
+                  >
+                    <Text className="text-white font-black text-sm">See Details & Book</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </Animated.View>
         </View>
       ) : (
         <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
@@ -420,7 +737,10 @@ export default function ParkingMapPage() {
               <TouchableOpacity
                 key={`list-${lot.id}`}
                 disabled={!isAccredited}
-                onPress={() => router.push(`/(app)/lot/${lot.id}`)}
+                onPress={() => {
+                  setView("map");
+                  handleSelectLot(lot);
+                }}
                 className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-4 ${(!isAccredited || isClosed) ? "opacity-80" : ""}`}
               >
                 <View className="flex-row justify-between items-start mb-2">

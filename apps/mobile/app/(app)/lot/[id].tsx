@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MapPin, Clock, Car, ChevronRight, Ban, Star, X, Layers } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
-import MapViewer from "../../../components/parking/MapViewer";
+import MapViewer, { Legend } from "../../../components/parking/MapViewer";
 
 const logoImage = require("../../../assets/ParKadav2.png");
 
@@ -70,6 +70,11 @@ export default function ParkingLotPage() {
   const [lot, setLot] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
+
+  // Tapping the currently-selected slot again deselects it.
+  const handleSelectSlot = (slot: any) => {
+    setSelectedSlot((prev: any) => (prev && prev.id === slot.id ? null : slot));
+  };
   const [loading, setLoading] = useState(true);
 
   const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
@@ -213,6 +218,7 @@ export default function ParkingLotPage() {
   const totalReviews = lot.total_reviews || 0;
 
   const selectedIsWalkIn = isSlotWalkInOnly(selectedSlot);
+  const isPublic = lot?.type === 'public';
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50">
@@ -301,10 +307,33 @@ export default function ParkingLotPage() {
 
           {/* Slot Grid */}
           <View className={`mx-4 mt-4 bg-white rounded-2xl p-5 shadow-sm border border-slate-100 ${isSuspended ? 'opacity-40 pointer-events-none' : ''}`}>
-            <View className="mb-3">
+            <View className="mb-2">
               <Text className="text-base font-black text-slate-800">Select a Slot</Text>
-              <Text className="text-[11px] font-medium text-slate-400 mt-0.5">Tap a green slot to select</Text>
             </View>
+
+            {/* Legend — shared by all floor maps below */}
+            <Legend hideReserved={isPublic} />
+
+            {/* How to pick — notes placed below the legend */}
+            {isPublic ? (
+              <View className="px-1 mb-3">
+                <Text className="text-[11px] font-medium text-slate-400">
+                  This is a Public Parking Establishment.
+                </Text>
+                <Text className="text-[11px] font-medium text-slate-400 mt-1">
+                  Reservations of slots are not allowed.
+                </Text>
+              </View>
+            ) : (
+              <View className="px-1 mb-3">
+                <Text className="text-[11px] font-medium text-slate-400">
+                  Tap a green slot with the yellow edge to reserve.
+                </Text>
+                <Text className="text-[11px] font-medium text-slate-400 mt-1">
+                  Slots marked with an X are for walk-in only.
+                </Text>
+              </View>
+            )}
 
             {/* Floor Tabs */}
             {lot?.floors && lot.floors.length > 1 && (
@@ -355,9 +384,10 @@ export default function ParkingLotPage() {
                   <View style={{ width: Dimensions.get('window').width - 72, marginRight: 16 }}>
                     <MapViewer
                       slots={slots.filter(s => (s.floor_index || 0) === index)}
-                      onSelectSlot={setSelectedSlot}
+                      onSelectSlot={handleSelectSlot}
                       selectedSlotId={selectedSlot?.id}
                       isClosed={isClosed}
+                      isPublic={isPublic}
                     />
                   </View>
                 )}
@@ -368,9 +398,10 @@ export default function ParkingLotPage() {
             ) : (
               <MapViewer
                 slots={slots}
-                onSelectSlot={setSelectedSlot}
+                onSelectSlot={handleSelectSlot}
                 selectedSlotId={selectedSlot?.id}
                 isClosed={isClosed}
+                isPublic={isPublic}
               />
             )}
           </View>

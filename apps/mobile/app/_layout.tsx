@@ -5,6 +5,7 @@ import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { supabase } from '../lib/supabase';
 import { AuthProvider, useAuth } from '../lib/AuthProvider';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '../global.css';
 
 LogBox.ignoreLogs([
@@ -228,8 +229,10 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigation />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <RootNavigation />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
