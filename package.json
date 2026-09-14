@@ -11,9 +11,12 @@
   },
   "pnpm": {
     "overrides": {
-      "expo-router": "~57.0.20",
-      "@react-navigation/native": "*",
-      "@react-navigation/core": "*"
+      "react": "19.2.3",
+      "react-native": "0.86.3",
+      "react-native-safe-area-context": "5.7.0",
+      "react-native-screens": "4.26.2",
+      "@react-navigation/core": "7.3.2",
+      "@react-navigation/native": "7.1.9"
     }
   }
 }
