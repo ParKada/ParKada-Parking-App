@@ -1,1 +1,1 @@
-{"installCommand":"cd ../.. && pnpm install","buildCommand":"cd ../.. && pnpm --filter portal run build","outputDirectory":"dist"}
+{"installCommand":"cd ../.. && pnpm install","buildCommand":"cd ../.. && pnpm --filter portal run build","outputDirectory":"apps/portal/dist"}
