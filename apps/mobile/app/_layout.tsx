@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { View, Text, Image, ActivityIndicator, Platform, LogBox, StyleSheet } from 'react-native';
+import { View, Text, Image, ActivityIndicator, Platform, LogBox } from 'react-native';
 import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { supabase } from '../lib/supabase';

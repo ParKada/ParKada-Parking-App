@@ -1,5 +1,5 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "../../node_modules/expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
     "moduleResolution": "bundler"
@@ -8,6 +8,7 @@
     "**/*.ts",
     "**/*.tsx",
     "nativewind-env.d.ts",
-    "global.d.ts"
+    "global.d.ts",
+    "C:\\Users\\iamga\\Desktop\\ParKada_Thesis\\apps\\mobile\\nativewind-env.d.ts"
   ]
 }

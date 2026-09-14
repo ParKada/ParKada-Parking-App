@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ShieldCheck, Wallet, CheckCircle2, ChevronLeft, Info } from "lucide-react-native";
+import { ShieldCheck, Wallet, CheckCircle2, ChevronLeft, Info, QrCode } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
 
 export default function PaymentPage() {
@@ -56,8 +56,7 @@ export default function PaymentPage() {
         user_id: userId,
         title: "Congratulations! 🎉",
         message: `Reservation confirmed for Slot ${slotLabel}.`,
-        type: "reservation",
-        read: false
+        type: "reservation"
       }
     ]);
     if (error) console.error("Notification trigger failed:", error.message);
@@ -153,26 +152,29 @@ export default function PaymentPage() {
 
   if (isSuccess) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
-        <View className="items-center px-6">
-          <View className="w-24 h-24 bg-emerald-100 rounded-full items-center justify-center mb-6">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center" }}>
+        <View className="items-center px-6 w-full">
+          <View className="w-24 h-24 bg-emerald-100 rounded-full items-center justify-center mb-6 shadow-sm shadow-emerald-200">
             <CheckCircle2 size={48} color="#059669" />
           </View>
-          <Text className="text-2xl font-black text-slate-800 text-center">Payment Received</Text>
-          <Text className="text-sm text-slate-500 mt-2 text-center">
-            Your reservation for <Text className="font-bold text-slate-800">{params.plate}</Text> is now active.
+          <Text className="text-3xl font-black text-slate-800 text-center tracking-tight">Payment Sent!</Text>
+          <Text className="text-sm text-slate-500 mt-3 text-center leading-relaxed px-4">
+            Your reservation for vehicle <Text className="font-bold text-slate-800">{params.plate}</Text> is now successfully active.
           </Text>
 
-          <View className="w-full bg-slate-50 rounded-3xl p-6 border border-slate-100 mt-8 mb-8">
-             <View className="flex-row justify-between items-center mb-4">
-               <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sales Invoice No.</Text>
+          <View className="w-full bg-white rounded-3xl p-6 border border-slate-100 shadow-sm mt-8 mb-10">
+             <View className="flex-row justify-between items-center mb-5">
+               <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest">Transaction ID</Text>
                <Text className="text-sm font-black text-slate-800 uppercase tracking-tight">
                  {invoiceNo || "GENERATING..."}
                </Text>
              </View>
+             
+             <View className="h-px bg-slate-50 w-full mb-5" />
+             
              <View className="flex-row justify-between items-center">
-               <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Method</Text>
-               <Text className="text-sm font-black text-slate-800 uppercase">{params.pay}</Text>
+               <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest">Amount Paid</Text>
+               <Text className="text-lg font-black text-emerald-600">₱{params.total}.00</Text>
              </View>
           </View>
 
@@ -184,16 +186,19 @@ export default function PaymentPage() {
                 router.replace('/(app)/reservations');
               }
             }} 
-            className="w-full h-14 rounded-2xl bg-[#0A1D37] items-center justify-center shadow-lg mb-3"
+            activeOpacity={0.8}
+            className="w-full h-14 rounded-2xl bg-blue-600 flex-row items-center justify-center shadow-lg shadow-blue-500/30 mb-4"
           >
-            <Text className="font-bold text-white text-base">View Receipt & QR Code</Text>
+            <QrCode size={20} color="white" />
+            <Text className="font-black text-white text-base ml-2">View Receipt & QR Code</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             onPress={() => router.replace('/(app)/reservations')} 
-            className="w-full h-12 rounded-2xl items-center justify-center"
+            activeOpacity={0.7}
+            className="w-full h-14 rounded-2xl bg-slate-100 items-center justify-center"
           >
-            <Text className="font-bold text-slate-500 text-sm">Go to Bookings</Text>
+            <Text className="font-bold text-slate-600 text-sm">Back to Bookings</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
