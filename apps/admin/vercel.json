@@ -1,1 +1,1 @@
-{"installCommand":"cd ../.. && pnpm install","buildCommand":"pnpm run build","outputDirectory":"dist"}
+{"installCommand":"cd ../.. && pnpm install","buildCommand":"cd ../.. && pnpm --filter parkada run build","outputDirectory":"dist"}
