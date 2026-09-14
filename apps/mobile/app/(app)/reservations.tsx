@@ -53,12 +53,20 @@ export default function MyReservationsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 1. Fetch user's reservations (Added !inner to force explicit join resolving ambiguous FKs)
+        // 1. Fetch user's reservations.
+        // NOTE: previously used `parking_slots!inner (...)`, which performs
+        // an INNER join — any reservation whose slot join didn't resolve
+        // (null slot_id, deleted slot, orphaned FK, etc.) was silently
+        // dropped from the results entirely, with no error. That's why
+        // reserved/active/pending bookings were invisible on this screen.
+        // Switched to a normal (left) join so every reservation the user
+        // owns always shows up, even if its slot data is missing — the UI
+        // already falls back to "--" for a missing label.
         const { data, error } = await supabase
           .from("reservations")
           .select(`
             *,
-            parking_slots!inner (
+            parking_slots (
               label,
               parking_lots (id, name, address)
             )
