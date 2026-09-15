@@ -1,0 +1,26 @@
+diff --git a/dist/runtime/native/render-component.js b/dist/runtime/native/render-component.js
+index eba25ece1cf3fe3170cd55134df6b70c7aabd70e..05f61ac8432a317d2eca4d83f5da8947a59e5447 100644
+--- a/dist/runtime/native/render-component.js
++++ b/dist/runtime/native/render-component.js
+@@ -118,7 +118,7 @@ function createAnimatedComponent(Component) {
+     return AnimatedComponent;
+ }
+ function printUpgradeWarning(warning, originalProps) {
+-    console.log(`CssInterop upgrade warning.\n\n${warning}.\n\nThis warning was caused by a component with the props:\n${stringify(originalProps)}\n\nIf adding or removing sibling components caused this warning you should add a unique "key" prop to your components. https://react.dev/learn/rendering-lists#keeping-list-items-in-order-with-key\n`);
++    console.log(`CssInterop upgrade warning.\n\n${warning}.\n\nThis warning was caused by a component. [Props stringification bypassed to avoid React Navigation crash]\n\nIf adding or removing sibling components caused this warning you should add a unique "key" prop to your components. https://react.dev/learn/rendering-lists#keeping-list-items-in-order-with-key\n`);
+ }
+ function stringify(object) {
+     const seen = new WeakSet();
+diff --git a/src/runtime/native/render-component.tsx b/src/runtime/native/render-component.tsx
+index cfb9a9e1b5fa4b2cbdcfe0a96257ae900fdfd72a..367fe7396849ab67bbc267ea068578614f7ec593 100644
+--- a/src/runtime/native/render-component.tsx
++++ b/src/runtime/native/render-component.tsx
+@@ -230,7 +230,7 @@ function printUpgradeWarning(
+   originalProps: Record<string, any> | null | undefined,
+ ) {
+   console.log(
+-    `CssInterop upgrade warning.\n\n${warning}.\n\nThis warning was caused by a component with the props:\n${stringify(originalProps)}\n\nIf adding or removing sibling components caused this warning you should add a unique "key" prop to your components. https://react.dev/learn/rendering-lists#keeping-list-items-in-order-with-key\n`,
++    `CssInterop upgrade warning.\n\n${warning}.\n\nThis warning was caused by a component. [Props stringification bypassed to avoid React Navigation crash]\n\nIf adding or removing sibling components caused this warning you should add a unique "key" prop to your components. https://react.dev/learn/rendering-lists#keeping-list-items-in-order-with-key\n`,
+   );
+ }
+ 
