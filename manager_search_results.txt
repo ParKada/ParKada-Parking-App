@@ -1,0 +1,151 @@
+apps/admin/src\App.tsx:113: // Manager invitation links can arrive with tokens at unexpected routes.
+apps/admin/src\components\AdminLayout.tsx:21: { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "superadmin", "manager", "admin"] },
+apps/admin/src\components\AdminLayout.tsx:23: { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "superadmin", "manager", "admin", "guard", "staff"] },
+apps/admin/src\components\AdminLayout.tsx:24: { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager", "admin", "guard", "staff"] },
+apps/admin/src\components\AdminLayout.tsx:28: { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "admin", "guard", "staff"] },
+apps/admin/src\components\AdminLayout.tsx:29: { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "superadmin", "manager", "admin"] },
+apps/admin/src\components\AdminLayout.tsx:30: { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "superadmin", "manager", "admin"] },
+apps/admin/src\components\AdminLayout.tsx:31: { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager", "admin"] },
+apps/admin/src\components\AdminLayout.tsx:32: { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "superadmin", "manager", "admin"] },
+apps/admin/src\components\AdminLayout.tsx:52: const adminRole = localStorage.getItem("admin_role") || "manager";
+apps/admin/src\components\AdminLayout.tsx:67: if (adminRole === "manager" && adminLotId) {
+apps/admin/src\components\AdminLayout.tsx:301: {(adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : (adminRole === 'staff' || adminRole === 'guard') ? 'Staff' : 'Lot Manager'} Panel
+apps/admin/src\components\AdminLayout.tsx:339: {fullName || ((adminRole === 'superadmin' || adminRole === 'super_admin') ? 'Super Admin' : 'Manager')}
+apps/admin/src\components\parking\DraggableMapEditor.tsx:47: interactive?: boolean; // false for managers
+apps/admin/src\pages\admin\AdminDashboard.tsx:47: // Default to the partner admin dashboard for "manager" / "admin"
+apps/admin/src\pages\admin\AdminGuard.tsx:2: * ParKada — AdminScanner (Manager QR & Manual Check-in)
+apps/admin/src\pages\admin\AdminGuard.tsx:24: const [managerLotId, setManagerLotId] = useState<string | null>(null);
+apps/admin/src\pages\admin\AdminGuard.tsx:32: // 1. Kunin ang Lot ID ng naka-login na manager
+apps/admin/src\pages\admin\AdminGuard.tsx:34: const fetchManagerData = async () => {
+apps/admin/src\pages\admin\AdminGuard.tsx:42: if (data) setManagerLotId(data.lot_id);
+apps/admin/src\pages\admin\AdminGuard.tsx:45: fetchManagerData();
+apps/admin/src\pages\admin\AdminGuard.tsx:111: if (!managerLotId) {
+apps/admin/src\pages\admin\AdminGuard.tsx:132: .eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\AdminLogin.tsx:347: toast.info("Forgot your Lot Manager password?", {
+apps/admin/src\pages\admin\AdminParkingSlots.tsx:189: const canEditPhotos = userRole === "manager" || userRole === "admin" || userRole === "superadmin" || userRole === "super_admin";
+apps/admin/src\pages\admin\AdminParkingSlots.tsx:684: if ((userRole === "manager" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
+apps/admin/src\pages\admin\AdminParkingSlots.tsx:758: userRole !== "manager"
+apps/admin/src\pages\admin\AdminParkingSlots.tsx:1116: // Super admins and managers use the Cloudflare public URL (internet access)
+apps/admin/src\pages\admin\AdminParkingSlots.tsx:1121: // Everyone else (manager, guard) uses the local LAN stream directly — no Cloudflare needed
+apps/admin/src\pages\admin\AdminParkingSlots.tsx:1923: <UserIcon className="text-primary w-5 h-5" /> Manager
+apps/admin/src\pages\admin\AdminParkingSlots.tsx:2161: {/* Expand Button for Manager */}
+apps/admin/src\pages\admin\AdminPartnerApplications.tsx:122: role: "manager",
+apps/admin/src\pages\admin\AdminPersonnel.tsx:3: * Excludes 'Invited' managers from the list and prevents duplicate invitations.
+apps/admin/src\pages\admin\AdminPersonnel.tsx:28: const [managers, setManagers] = useState<any[]>([]);
+apps/admin/src\pages\admin\AdminPersonnel.tsx:38: fetchManagers();
+apps/admin/src\pages\admin\AdminPersonnel.tsx:46: const fetchManagers = async () => {
+apps/admin/src\pages\admin\AdminPersonnel.tsx:50: .eq('role', 'manager')
+apps/admin/src\pages\admin\AdminPersonnel.tsx:51: .neq('status', 'Invited')   // 🔥 Hide invited managers
+apps/admin/src\pages\admin\AdminPersonnel.tsx:54: if (!error && data) setManagers(data);
+apps/admin/src\pages\admin\AdminPersonnel.tsx:58: const checkExistingManager = async (email: string): Promise<boolean> => {
+apps/admin/src\pages\admin\AdminPersonnel.tsx:69: const handleInviteManager = async (e: React.FormEvent) => {
+apps/admin/src\pages\admin\AdminPersonnel.tsx:83: role: "manager"
+apps/admin/src\pages\admin\AdminPersonnel.tsx:94: fetchManagers();
+apps/admin/src\pages\admin\AdminPersonnel.tsx:104: const handleToggleStatus = async (managerId: string, currentStatus: string) => {
+apps/admin/src\pages\admin\AdminPersonnel.tsx:109: if (!window.confirm(`Are you sure you want to ${actionText} this manager?`)) {
+apps/admin/src\pages\admin\AdminPersonnel.tsx:117: .eq('id', managerId);
+apps/admin/src\pages\admin\AdminPersonnel.tsx:121: toast.success(t(`Manager account successfully ${newStatus.toLowerCase()}!`, `Manager account nang matagumpay ${newStatus.toLowerCase()}!`));
+apps/admin/src\pages\admin\AdminPersonnel.tsx:122: fetchManagers();
+apps/admin/src\pages\admin\AdminPersonnel.tsx:148: <form onSubmit={handleInviteManager} className="p-6 space-y-5">
+apps/admin/src\pages\admin\AdminPersonnel.tsx:209: {/* RIGHT: Managers List (Active & Suspended only) */}
+apps/admin/src\pages\admin\AdminPersonnel.tsx:219: <p className="text-xs text-muted-foreground">List of deployed branch managers</p>
+apps/admin/src\pages\admin\AdminPersonnel.tsx:223: {managers.length} Deployed
+apps/admin/src\pages\admin\AdminPersonnel.tsx:227: {managers.length === 0 ? (
+apps/admin/src\pages\admin\AdminPersonnel.tsx:230: <p className="text-sm">No managers deployed yet.</p>
+apps/admin/src\pages\admin\AdminPersonnel.tsx:234: {managers.map((manager, index) => {
+apps/admin/src\pages\admin\AdminPersonnel.tsx:235: const isActive = manager.status !== 'Suspended';
+apps/admin/src\pages\admin\AdminPersonnel.tsx:254: Manager ID: <span className="text-xs font-normal text-muted-foreground">{manager.id.substring(0, 8)}</span>
+apps/admin/src\pages\admin\AdminPersonnel.tsx:266: {manager.parking_lots?.name || "Unassigned"}
+apps/admin/src\pages\admin\AdminPersonnel.tsx:272: onClick={() => handleToggleStatus(manager.id, manager.status)}
+apps/admin/src\pages\admin\AdminPersonnel.tsx:278: title={isActive ? "Suspend Manager" : "Reactivate Manager"}
+apps/admin/src\pages\admin\AdminReports.tsx:82: if (userRole === 'manager' && userLotId) {
+apps/admin/src\pages\admin\AdminReports.tsx:94: if (userRole === 'manager' && userLotId) {
+apps/admin/src\pages\admin\AdminReports.tsx:104: if (userRole === 'manager' && userLotId) {
+apps/admin/src\pages\admin\AdminReports.tsx:113: if (userRole === 'manager' && userLotId) {
+apps/admin/src\pages\admin\AdminReservations.tsx:104: if (userRole === 'manager' && userLotId) {
+apps/admin/src\pages\admin\AdminScanner.tsx:46: const [managerLotId, setManagerLotId] = useState<string | null>(null);
+apps/admin/src\pages\admin\AdminScanner.tsx:47: const [managerLotType, setManagerLotType] = useState<string | null>(null);
+apps/admin/src\pages\admin\AdminScanner.tsx:62: const fetchManagerData = async () => {
+apps/admin/src\pages\admin\AdminScanner.tsx:71: setManagerLotId(data.assigned_lot_id);
+apps/admin/src\pages\admin\AdminScanner.tsx:78: setManagerLotType(lotData.type);
+apps/admin/src\pages\admin\AdminScanner.tsx:86: fetchManagerData();
+apps/admin/src\pages\admin\AdminScanner.tsx:91: if (!managerLotId) return;
+apps/admin/src\pages\admin\AdminScanner.tsx:96: .eq("lot_id", managerLotId)
+apps/admin/src\pages\admin\AdminScanner.tsx:125: if (!managerLotId) return;
+apps/admin/src\pages\admin\AdminScanner.tsx:130: .eq("lot_id", managerLotId)
+apps/admin/src\pages\admin\AdminScanner.tsx:159: if (!managerLotId) return;
+apps/admin/src\pages\admin\AdminScanner.tsx:164: .eq("lot_id", managerLotId)
+apps/admin/src\pages\admin\AdminScanner.tsx:194: if (managerLotId) {
+apps/admin/src\pages\admin\AdminScanner.tsx:199: }, [managerLotId]);
+apps/admin/src\pages\admin\AdminScanner.tsx:210: if (!managerLotId) return;
+apps/admin/src\pages\admin\AdminScanner.tsx:219: filter: `lot_id=eq.${managerLotId}`,
+apps/admin/src\pages\admin\AdminScanner.tsx:229: }, [managerLotId]);
+apps/admin/src\pages\admin\AdminScanner.tsx:319: if (!managerLotId) {
+apps/admin/src\pages\admin\AdminScanner.tsx:333: .eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\AdminScanner.tsx:569: {managerLotType !== "public" && (
+apps/admin/src\pages\admin\AdminSettings.tsx:23: const adminRole = localStorage.getItem("admin_role") || "manager";
+apps/admin/src\pages\admin\AdminSettings.tsx:29: // 1. Standard Rates (Manager)
+apps/admin/src\pages\admin\AdminSettings.tsx:67: fetchManagerData();
+apps/admin/src\pages\admin\AdminSettings.tsx:80: const fetchManagerData = async () => {
+apps/admin/src\pages\admin\AdminSettings.tsx:225: {adminRole === "manager" && (
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:2: * ParKada — ManageGuards (Manager Creation & Roster for Guards)
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:29: // Secondary Client gamit ang ANON KEY para hindi ma-logout si Manager
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:43: const [managerLotId, setManagerLotId] = useState<string | null>(null);
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:44: const [managerLotName, setManagerLotName] = useState<string>("");
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:54: fetchManagerDataAndGuards();
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:57: const fetchManagerDataAndGuards = async () => {
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:62: // 1. Kunin ang Lot ID at Lot Name ng Manager
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:72: setManagerLotId(profile.assigned_lot_id);
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:77: setManagerLotName(lotName || "Assigned Lot");
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:79: // 2. Fetch guards na kabilang lang sa Lot ng Manager
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:123: if (!managerLotId) {
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:149: assigned_lot_id: managerLotId,
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:159: assigned_lot_id: managerLotId,
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:169: fetchManagerDataAndGuards();
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:197: fetchManagerDataAndGuards();
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:219: fetchManagerDataAndGuards();
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:310: This account will be permanently linked to <br/><strong className="text-foreground">{managerLotName}</strong>.
+apps/admin/src\pages\admin\AdminStaffManagement.tsx:381: {managerLotName}
+apps/admin/src\pages\admin\AdminTermsPage.tsx:3: * Terms and Conditions for ParKada Admin/Manager Accounts
+apps/admin/src\pages\admin\AdminTermsPage.tsx:23: content: "By accessing or using the ParKada Admin Dashboard, you agree to be bound by these Terms and Conditions. If you do not agree, please do not use the platform. These terms apply to all administrators and parking managers."
+apps/admin/src\pages\admin\AdminTermsPage.tsx:35: content: "As a manager, you agree to keep your profile, parking lot details, rates, and slot availability accurate and up‑to‑date. Misrepresentation may lead to suspension or termination of your account."
+apps/admin/src\pages\admin\AdminTermsPage.tsx:39: content: "All driver reservations are subject to slot availability on a first‑come, first‑served basis. Managers must honor confirmed reservations unless exceptional circumstances (e.g., force majeure) apply. Cancellation and refund policies are set by the parking facility operator."
+apps/admin/src\pages\admin\AdminTermsPage.tsx:43: content: "Managers are responsible for setting and collecting parking fees through the platform. ParKada processes payments securely but is not liable for disputes between drivers and parking facilities."
+apps/admin/src\pages\admin\AdminTermsPage.tsx:51: content: "As a manager, you will have access to personal information of drivers (e.g., name, email, phone, vehicle details). You must comply with the Data Privacy Act of 2012 (RA 10173). This means: (a) process data only for legitimate parking operations; (b) keep data secure and confidential; (c) do not share or sell data to third parties. Violation may result in criminal and civil liability."
+apps/admin/src\pages\admin\AdminTermsPage.tsx:120: By accessing or using the platform as an administrator or parking manager, you agree to be bound by these terms.
+apps/admin/src\pages\admin\AdminWalkInRecords.tsx:71: if ((userRole === "manager" || userRole === "admin") && userLotId) query = query.eq("lot_id", userLotId);
+apps/admin/src\pages\admin\AdminWalkInRecords.tsx:98: // Filter by lot if manager/guard
+apps/admin/src\pages\admin\AdminWalkInRecords.tsx:99: if ((userRole === "manager" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
+apps/admin/src\pages\admin\AdminWalkInRecords.tsx:488: {userRole === "manager" || userRole === "superadmin" || userRole === "super_admin" ? "Total Revenue" : "Today's Revenue"}
+apps/admin/src\pages\admin\AdminWalkInRecords.tsx:545: {/* Date Filters (Managers/Superadmins only) */}
+apps/admin/src\pages\admin\AdminWalkInRecords.tsx:546: {(userRole === "manager" || userRole === "superadmin" || userRole === "super_admin") && (
+apps/admin/src\pages\admin\AdminWalkInRecords.tsx:566: {(userRole === "manager" || userRole === "superadmin" || userRole === "super_admin") && dateFilter === "custom" && (
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:2: * ParKada — AdminDashboard (Supabase Connected - Super Admin & Manager)
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:152: let managerLotId: string | null = null;
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:162: managerLotId = profileData.assigned_lot_id;
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:169: if (currentRole !== "superadmin" && managerLotId) slotsQuery = slotsQuery.eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:188: if (currentRole !== "superadmin" && managerLotId) lotsQuery = lotsQuery.eq("id", managerLotId);
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:212: if (currentRole !== "superadmin" && managerLotId) todayResQuery = todayResQuery.eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:221: if (currentRole !== "superadmin" && managerLotId) recentResQuery = recentResQuery.eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:233: // 5. Active managers (superadmin only)
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:239: .eq("role", "manager");
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:262: if (currentRole === "manager" && managerLotId) reservationsQuery = reservationsQuery.eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:328: statCards.push({ label: "Total Managers", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
+apps/admin/src\pages\admin\PartnerAdminDashboard.tsx:396: {/* Pie Chart (manager only) */}
+apps/admin/src\pages\admin\SetPasswordPage.tsx:2: * ParKada — SetPasswordPage (for newly invited managers)
+apps/admin/src\pages\admin\SetPasswordPage.tsx:3: * After an invitation link is verified, the manager sets their password here.
+apps/admin/src\pages\admin\SetPasswordPage.tsx:133: You're almost there! Create a secure password for your manager account.
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:2: * ParKada — AdminDashboard (Supabase Connected - Super Admin & Manager)
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:151: let managerLotId: string | null = null;
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:161: managerLotId = profileData.lot_id;
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:168: if (currentRole === "manager" && managerLotId) slotsQuery = slotsQuery.eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:187: if (currentRole === "manager" && managerLotId) lotsQuery = lotsQuery.eq("id", managerLotId);
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:210: if (currentRole === "manager" && managerLotId) todayResQuery = todayResQuery.eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:219: if (currentRole === "manager" && managerLotId) recentResQuery = recentResQuery.eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:231: // 5. Active managers (superadmin only)
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:237: .eq("role", "manager");
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:260: if (currentRole === "manager" && managerLotId) reservationsQuery = reservationsQuery.eq("lot_id", managerLotId);
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:318: statCards.push({ label: "Total Managers", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
+apps/admin/src\pages\admin\SuperAdminDashboard.tsx:362: className={cn("bg-white rounded-2xl p-4 sm:p-5 card-elevated cursor-pointer hover:shadow-md transition", userRole === "manager" ? "lg:col-span-2" : "lg:col-span-3")}
+apps/admin/src\pages\auth\authCallback.tsx:51: // Manager invitations keep their existing destination.
+Total occurrences: 150

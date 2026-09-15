@@ -1,6 +1,8 @@
+import { Modal } from '../../components/SafeModal';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Modal, Animated, Easing, PanResponder, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated, Easing, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { Maximize2, X, Accessibility, RotateCcw } from 'lucide-react-native';
 
 interface MapViewerProps {
@@ -9,6 +11,7 @@ interface MapViewerProps {
   selectedSlotId?: string;
   readonly?: boolean;
   isClosed?: boolean;
+  isPublic?: boolean;
 }
 
 // Central color config so the legend, slot fills, and glow effects always agree.
@@ -45,7 +48,7 @@ function LegendDot({ color, glow = false }: { color: string; glow?: boolean }) {
 // fullscreen header, which is a near-black overlay). Without this the
 // legend used near-black text (`text-slate-900`) unconditionally, which is
 // effectively invisible on that background.
-function Legend({ dark = false }: { dark?: boolean }) {
+export function Legend({ dark = false, hideReserved = false }: { dark?: boolean; hideReserved?: boolean }) {
   const labelClass = dark ? 'text-[10px] font-bold text-white' : 'text-[10px] font-bold text-slate-900';
   const titleClass = dark
     ? 'text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5'
@@ -63,10 +66,12 @@ function Legend({ dark = false }: { dark?: boolean }) {
           <LegendDot color={STATUS_COLORS.occupied.bg} />
           <Text className={labelClass}>Occupied</Text>
         </View>
-        <View className="flex-row items-center gap-1">
-          <LegendDot color={STATUS_COLORS.reserved.bg} />
-          <Text className={labelClass}>Reserved</Text>
-        </View>
+        {!hideReserved && (
+          <View className="flex-row items-center gap-1">
+            <LegendDot color={STATUS_COLORS.reserved.bg} />
+            <Text className={labelClass}>Reserved</Text>
+          </View>
+        )}
         <View className="flex-row items-center gap-1">
           <Accessibility size={11} color="#2563eb" />
           <Text className={labelClass}>PWD</Text>
@@ -247,9 +252,10 @@ function SlotItem({ slot, cWidth, cHeight, isSelected, isClosed, onSelect }: Slo
   );
 }
 
-export default function MapViewer({ slots, onSelectSlot, selectedSlotId, readonly = false, isClosed = false }: MapViewerProps) {
+export default function MapViewer({ slots, onSelectSlot, selectedSlotId, readonly = false, isClosed = false, isPublic = false }: MapViewerProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showResetHint, setShowResetHint] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const screenWidth = Dimensions.get('window').width - 32; // 16px padding on sides
   const mapHeight = screenWidth * (9 / 16);
@@ -257,103 +263,107 @@ export default function MapViewer({ slots, onSelectSlot, selectedSlotId, readonl
   const fullScreenWidth = Dimensions.get('window').width;
   const fullScreenHeight = fullScreenWidth * (9 / 16);
 
-  // --- Custom cross-platform pinch-to-zoom + pan ---
-  // ScrollView's maximumZoomScale/minimumZoomScale/bouncesZoom are iOS-only
-  // in React Native and are silently ignored on Android, which is why pinch
-  // zoom never worked there. This PanResponder-based implementation tracks
-  // raw touches, so it works the same way on both platforms.
-  const MIN_SCALE = 1;
-  const MAX_SCALE = 4;
-  const scale = useRef(new Animated.Value(1)).current;
+  // --- Pinch-to-zoom + pan (react-native-gesture-handler) ---
+  // The map is rendered at a higher intrinsic resolution and displayed at
+  // 1/RENDER_SCALE, so zooming in never upscales a coarse texture (which is
+  // what made slots and labels look pixelated before).
+  const RENDER_SCALE = 3;
+  const ZOOM_MAX = 4;
+  const mapRenderWidth = fullScreenWidth * RENDER_SCALE;
+  const mapRenderHeight = mapRenderWidth * (9 / 16);
+  const BASE_DISPLAY_SCALE = 1 / RENDER_SCALE;
+
+  // Zoom/pan state lives in refs (read/written from gesture handlers without
+  // triggering React re-renders); the Animated.Values drive the view transform.
+  const zoomFactor = useRef(1);
+  const panOffset = useRef({ x: 0, y: 0 });
+  const gestureStart = useRef({ zoom: 1, x: 0, y: 0 });
+  const scale = useRef(new Animated.Value(BASE_DISPLAY_SCALE)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
-  const lastScale = useRef(1);
-  const lastDistance = useRef(0);
-  const lastTranslate = useRef({ x: 0, y: 0 });
-  const lastTapTime = useRef(0);
-
-  const getDistance = (touches: any[]) => {
-    const [a, b] = touches;
-    return Math.sqrt(Math.pow(a.pageX - b.pageX, 2) + Math.pow(a.pageY - b.pageY, 2));
-  };
 
   const animateReset = () => {
     Animated.parallel([
-      Animated.timing(scale, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(scale, { toValue: BASE_DISPLAY_SCALE, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(translateX, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(translateY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
-    lastScale.current = 1;
-    lastTranslate.current = { x: 0, y: 0 };
-    lastDistance.current = 0;
-  };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (evt) => evt.nativeEvent.touches.length >= 1,
-      onMoveShouldSetPanResponder: (evt) => evt.nativeEvent.touches.length >= 1,
-      onPanResponderGrant: (evt) => {
-        const touches = evt.nativeEvent.touches;
-        if (touches.length === 2) {
-          lastDistance.current = getDistance(touches);
-        } else if (touches.length === 1) {
-          // Double-tap-to-reset: two single-finger taps within 300ms.
-          const now = Date.now();
-          if (now - lastTapTime.current < 300) {
-            animateReset();
-            lastTapTime.current = 0;
-          } else {
-            lastTapTime.current = now;
-          }
-        }
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        const touches = evt.nativeEvent.touches;
-        if (touches.length === 2) {
-          const distance = getDistance(touches);
-          if (lastDistance.current > 0) {
-            const nextScale = Math.max(
-              MIN_SCALE,
-              Math.min(MAX_SCALE, lastScale.current * (distance / lastDistance.current))
-            );
-            scale.setValue(nextScale);
-          }
-        } else if (touches.length === 1 && lastScale.current > 1) {
-          // Only pan while zoomed in — otherwise a single-finger drag would
-          // fight with tapping a slot.
-          translateX.setValue(lastTranslate.current.x + gestureState.dx);
-          translateY.setValue(lastTranslate.current.y + gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        // @ts-ignore - _value is available on Animated.Value at runtime
-        const currentScale = (scale as any)._value ?? lastScale.current;
-        lastScale.current = currentScale;
-        if (evt.nativeEvent.changedTouches.length === 1 && currentScale > 1) {
-          lastTranslate.current = {
-            x: lastTranslate.current.x + gestureState.dx,
-            y: lastTranslate.current.y + gestureState.dy,
-          };
-        }
-        lastDistance.current = 0;
-        setShowResetHint(currentScale > 1.02);
-      },
-      onPanResponderTerminationRequest: () => false,
-    })
-  ).current;
-
-  const resetZoom = () => {
-    scale.setValue(1);
-    translateX.setValue(0);
-    translateY.setValue(0);
-    lastScale.current = 1;
-    lastTranslate.current = { x: 0, y: 0 };
-    lastDistance.current = 0;
+    zoomFactor.current = 1;
+    panOffset.current = { x: 0, y: 0 };
+    gestureStart.current = { zoom: 1, x: 0, y: 0 };
     setShowResetHint(false);
   };
 
+  // Gesture.Pinch reports focal coordinates natively, so zooming anchors to
+  // the point between the fingers instead of scaling around the view center.
+  const pinch = Gesture.Pinch()
+    .onStart(() => {
+      gestureStart.current = { zoom: zoomFactor.current, x: panOffset.current.x, y: panOffset.current.y };
+    })
+    .onUpdate((e) => {
+      const nextZoom = Math.max(1, Math.min(ZOOM_MAX, gestureStart.current.zoom * e.scale));
+      const k = nextZoom / zoomFactor.current;
+      // e.focalX/e.focalY are relative to the gesture view (the map rect).
+      // The transform origin sits at the map's center, so convert to
+      // center-relative coordinates before anchoring the zoom.
+      const fx = e.focalX - fullScreenWidth / 2;
+      const fy = e.focalY - fullScreenHeight / 2;
+      zoomFactor.current = nextZoom;
+      panOffset.current = {
+        x: fx - (fx - panOffset.current.x) * k,
+        y: fy - (fy - panOffset.current.y) * k,
+      };
+      scale.setValue(BASE_DISPLAY_SCALE * nextZoom);
+      translateX.setValue(panOffset.current.x);
+      translateY.setValue(panOffset.current.y);
+      setShowResetHint(nextZoom > 1.02);
+    })
+    .onEnd(() => {
+      setShowResetHint(zoomFactor.current > 1.02);
+    })
+    .runOnJS(true);
+
+  const pan = Gesture.Pan()
+    .onStart(() => {
+      if (zoomFactor.current <= 1) return;
+      gestureStart.current = { zoom: zoomFactor.current, x: panOffset.current.x, y: panOffset.current.y };
+    })
+    .onUpdate((e) => {
+      if (zoomFactor.current <= 1) return;
+      const nx = gestureStart.current.x + e.translationX;
+      const ny = gestureStart.current.y + e.translationY;
+      panOffset.current = { x: nx, y: ny };
+      translateX.setValue(nx);
+      translateY.setValue(ny);
+    })
+    .onEnd((e) => {
+      if (zoomFactor.current > 1) {
+        panOffset.current = {
+          x: gestureStart.current.x + e.translationX,
+          y: gestureStart.current.y + e.translationY,
+        };
+      }
+    })
+    .runOnJS(true);
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => animateReset())
+    .runOnJS(true);
+
+  const mapGesture = Gesture.Simultaneous(pinch, pan, doubleTap);
+
   useEffect(() => {
-    if (isFullscreen) resetZoom();
+    if (isFullscreen) {
+      // Reset zoom/pan every time the viewer opens.
+      zoomFactor.current = 1;
+      panOffset.current = { x: 0, y: 0 };
+      gestureStart.current = { zoom: 1, x: 0, y: 0 };
+      scale.setValue(BASE_DISPLAY_SCALE);
+      translateX.setValue(0);
+      translateY.setValue(0);
+      setShowResetHint(false);
+    }
   }, [isFullscreen]);
 
   const renderSlots = (cWidth: number, cHeight: number) => {
@@ -383,8 +393,6 @@ export default function MapViewer({ slots, onSelectSlot, selectedSlotId, readonl
 
   return (
     <>
-      <Legend />
-
       <View
         style={[styles.container, { height: mapHeight }]}
         className="bg-slate-800 rounded-xl overflow-hidden border-2 border-slate-700/50 mb-4 shadow-sm"
@@ -399,82 +407,106 @@ export default function MapViewer({ slots, onSelectSlot, selectedSlotId, readonl
         </TouchableOpacity>
       </View>
 
-      <Modal visible={isFullscreen} animationType="slide" transparent={true}>
-        <View className="flex-1 bg-black">
-          {/* Pinch-to-zoom / pan area, sits below the header overlay */}
-          <View
-            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
-            {...panResponder.panHandlers}
-          >
-            <Animated.View
-              style={{
-                width: fullScreenWidth,
-                height: fullScreenHeight,
-                transform: [
-                  { translateX },
-                  { translateY },
-                  { scale },
-                ],
-              }}
+      <Modal
+        visible={isFullscreen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsFullscreen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Gallery-style stage — the full screen is the visible window. The
+              map keeps its natural 16:9 size and is centered (like a photo);
+              pinch-zoom grows it beyond the screen so it can fill the whole
+              display instead of being clipped at the strip's edges. */}
+          <GestureDetector gesture={mapGesture}>
+            <View
+              style={{ flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}
             >
-              <View
-                style={[styles.container, { width: fullScreenWidth, height: fullScreenHeight }]}
-                className="bg-slate-800 border-y border-slate-700/50"
+              <Animated.View
+                style={{
+                  width: mapRenderWidth,
+                  height: mapRenderHeight,
+                  transform: [
+                    { translateX },
+                    { translateY },
+                    { scale },
+                  ],
+                }}
               >
-                {renderSlots(fullScreenWidth, fullScreenHeight)}
-              </View>
-            </Animated.View>
+                <View
+                  style={[styles.container, { width: mapRenderWidth, height: mapRenderHeight }]}
+                  className="bg-slate-800"
+                >
+                  {renderSlots(mapRenderWidth, mapRenderHeight)}
+                </View>
+              </Animated.View>
+            </View>
+          </GestureDetector>
+
+          {/* Top bar: title, close button, legend. Uses the real safe-area insets
+              (not SafeAreaView) so it never slides under the system status
+              bar / notch and the close button stays tappable. */}
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: 'rgba(2, 6, 23, 0.96)',
+              paddingTop: insets.top,
+              paddingLeft: insets.left,
+              paddingRight: insets.right,
+              paddingBottom: 12,
+              elevation: 12,
+              zIndex: 50,
+            }}
+          >
+            <View className="flex-row justify-between items-center px-4 pt-3 pb-2">
+              <Text className="text-white font-bold text-lg">Floor Map</Text>
+              <TouchableOpacity
+                onPress={() => setIsFullscreen(false)}
+                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                className="bg-slate-800 p-3 rounded-full"
+                style={{ elevation: 13 }}
+              >
+                <X size={20} color="white" />
+              </TouchableOpacity>
+            </View>
+
+            <View className="px-4 pt-1 pb-2">
+              <Legend dark hideReserved={isPublic} />
+            </View>
+
+            <Text className="text-center text-[10px] text-slate-400 font-semibold px-4 pt-2">
+              Pinch to zoom · drag to pan · double-tap to reset
+            </Text>
           </View>
 
-          {/* Floating reset-zoom button — only shown once the user has
-              actually zoomed in, so it doesn't clutter the view at rest. */}
+          {/* Floating reset-zoom pill — bottom-right once the user has zoomed. */}
           {showResetHint && (
-            <TouchableOpacity
-              onPress={animateReset}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              className="absolute bottom-6 self-center bg-slate-900/90 px-4 py-2.5 rounded-full border border-slate-700 flex-row items-center gap-2"
-              style={{ zIndex: 40, elevation: 14, left: '50%', transform: [{ translateX: -55 }] }}
-            >
-              <RotateCcw size={14} color="white" />
-              <Text className="text-white font-bold text-xs">Reset zoom</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Header overlay: title, close button, legend. Solid background +
-              explicit elevation so it reliably sits above the map on Android
-              (where zIndex alone isn't always enough for sibling stacking). */}
-          <SafeAreaView
-            edges={['top']}
-            pointerEvents="box-none"
-            style={{ position: 'absolute', top: 0, left: 0, right: 0 }}
-          >
             <View
+              pointerEvents="box-none"
               style={{
-                backgroundColor: 'rgba(2, 6, 23, 0.96)',
-                paddingBottom: 10,
-                elevation: 12,
-                zIndex: 50,
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                alignItems: 'flex-end',
+                paddingBottom: insets.bottom + 14,
+                paddingRight: 14,
               }}
             >
-              <View className="flex-row justify-between items-center px-4 py-3">
-                <Text className="text-white font-bold text-lg">Floor Map</Text>
-                <TouchableOpacity
-                  onPress={() => setIsFullscreen(false)}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  className="bg-slate-800 p-2 rounded-full"
-                  style={{ elevation: 13 }}
-                >
-                  <X size={20} color="white" />
-                </TouchableOpacity>
-              </View>
-              <View className="px-4">
-                <Legend dark />
-              </View>
-              <Text className="text-center text-[10px] text-slate-400 font-semibold -mt-1">
-                Pinch to zoom · drag to pan · double-tap or use Reset zoom to return to normal
-              </Text>
+              <TouchableOpacity
+                onPress={animateReset}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                className="bg-slate-900/90 px-4 py-2.5 rounded-full border border-slate-700 flex-row items-center gap-2"
+                style={{ elevation: 14 }}
+              >
+                <RotateCcw size={14} color="white" />
+                <Text className="text-white font-bold text-xs">Reset zoom</Text>
+              </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          )}
         </View>
       </Modal>
     </>

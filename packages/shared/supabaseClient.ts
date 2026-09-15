@@ -2,10 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 
 // Support both Expo and Vite environment variables safely
 const getEnvVar = (expoKey: string, viteKey: string) => {
+  // @ts-ignore
   if (typeof process !== 'undefined' && process.env && process.env[expoKey]) {
+    // @ts-ignore
     return process.env[expoKey];
   }
+  // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[viteKey]) {
+    // @ts-ignore
     return import.meta.env[viteKey];
   }
   return undefined;

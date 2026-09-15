@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import CameraGridEditor from "@/components/parking/CameraGridEditor";
+import { createClient } from "@supabase/supabase-js";
 import {
   Loader2,
   Plus,
@@ -39,6 +40,7 @@ import {
   Building2,
   PenTool,
   X,
+  Search,
 } from "lucide-react";
 import {
   Dialog,
@@ -47,26 +49,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@parkada/shared";
 import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminParkingSlots() {
   const { t } = useLanguage();
 
-  const getAdminSupabase = async () => {
-    const { createClient } = await import('@supabase/supabase-js');
-    return createClient(
-      import.meta.env.VITE_SUPABASE_URL,
-      import.meta.env.VITE_SUPABASE_SERVICE_KEY,
-      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-    );
-  };
-
   const [lots, setLots] = useState<any[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string>("");
   const [slots, setSlots] = useState<any[]>([]);
   const [loadingLots, setLoadingLots] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cameraSearchQuery, setCameraSearchQuery] = useState("");
+  const [slotSearchQuery, setSlotSearchQuery] = useState("");
+  const [slotFilters, setSlotFilters] = useState<string[]>([]);
 
   const [isAdding, setIsAdding] = useState(false);
   const [isEditingMap, setIsEditingMap] = useState(false);
@@ -186,10 +183,17 @@ export default function AdminParkingSlots() {
   const itemsPerPage = 10;
   const userRole = localStorage.getItem("admin_role") || "guard";
   const userLotId = localStorage.getItem("admin_lot_id");
+  const canEditPhotos = userRole === "admin" || userRole === "admin" || userRole === "superadmin" || userRole === "super_admin";
 
   // New states for Multi-Camera & Setup
   const [activeTab, setActiveTab] = useState("details");
   const [expandedCameraId, setExpandedCameraId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Reset image error state when switching cameras
+    setImageError(false);
+  }, [expandedCameraId, selectedLotId]);
+
   const [cameraPage, setCameraPage] = useState(0);
   const [lotAccounts, setLotAccounts] = useState<any[]>([]);
 
@@ -206,6 +210,7 @@ export default function AdminParkingSlots() {
   const [editingCameraName, setEditingCameraName] = useState("");
   const [editingCameraUrl, setEditingCameraUrl] = useState("");
   const [showStreamUrl, setShowStreamUrl] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [cameraTestStatus, setCameraTestStatus] = useState<
@@ -251,8 +256,7 @@ export default function AdminParkingSlots() {
       const updates = Object.entries(pendingChanges).map(
         async ([id, changes]) => {
           const { _label, ...realChanges } = changes;
-          const adminSupabase = await getAdminSupabase();
-          const { error } = await adminSupabase
+          const { error } = await supabase
             .from("parking_slots")
             .update(realChanges)
             .eq("id", id);
@@ -342,14 +346,7 @@ export default function AdminParkingSlots() {
     try {
       let STREAM_W = 1024;
       let STREAM_H = 576;
-      const img = document.getElementById(
-        "expanded-camera-feed"
-      ) as HTMLImageElement;
-      if (img && img.naturalWidth && img.naturalHeight) {
-        STREAM_W = img.naturalWidth;
-        STREAM_H = img.naturalHeight;
-      }
-
+      
       const pixelCoords = points.map(p => [
         Math.round((p.x / 100) * STREAM_W),
         Math.round((p.y / 100) * STREAM_H),
@@ -442,6 +439,9 @@ export default function AdminParkingSlots() {
       `cameras_${selectedLotId}`,
       JSON.stringify(newCameras)
     );
+    // Sync newly added camera to Supabase
+    supabase.from("parking_lots").update({ cameras: newCameras }).eq("id", selectedLotId).then();
+    
     setNewCameraName("");
     setNewCameraUrl("");
     setIsAddingCamera(false);
@@ -504,7 +504,7 @@ export default function AdminParkingSlots() {
         updatePayload = { [updateField]: publicUrl };
       }
 
-      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update(updatePayload)
+      const { error: dbError } = await supabase.from("parking_lots").update(updatePayload)
         .eq("id", selectedLotId);
 
       if (dbError) {
@@ -537,7 +537,7 @@ export default function AdminParkingSlots() {
       const currentOthers = activeLot.other_photos || [];
       const newOthers = currentOthers.filter((u: string) => u !== urlToDelete);
 
-      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update({ other_photos: newOthers })
+      const { error: dbError } = await supabase.from("parking_lots").update({ other_photos: newOthers })
         .eq("id", selectedLotId);
 
       if (dbError) throw dbError;
@@ -565,7 +565,7 @@ export default function AdminParkingSlots() {
     try {
       const updateField =
         type === "front_view" ? "front_view_url" : "business_permit_url";
-      const { error: dbError } = await (await getAdminSupabase()).from("parking_lots").update({ [updateField]: null })
+      const { error: dbError } = await supabase.from("parking_lots").update({ [updateField]: null })
         .eq("id", selectedLotId);
 
       if (dbError) throw dbError;
@@ -619,34 +619,79 @@ export default function AdminParkingSlots() {
       )
       .subscribe();
 
-    // Load cameras for this lot
-    const storedCameras = localStorage.getItem(`cameras_${selectedLotId}`);
-    if (storedCameras) {
+    // Load cameras from Supabase (primary) or localStorage (fallback)
+    const fetchCameras = async () => {
       try {
-        let parsedCameras = JSON.parse(storedCameras);
-        // MIGRATION: Ensure first two cameras match Python AI Node expectations
-        let changed = false;
-        parsedCameras = parsedCameras.map((cam: any, idx: number) => {
-          if (idx === 0 && !cam.id.startsWith("cam1_")) {
-            changed = true;
-            return { ...cam, id: `cam1_${selectedLotId}` };
-          }
-          if (idx === 1 && !cam.id.startsWith("cam2_")) {
-            changed = true;
-            return { ...cam, id: `cam2_${selectedLotId}` };
-          }
-          return cam;
-        });
-        setCameras(parsedCameras);
-        if (changed) {
-          localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(parsedCameras));
+        const { data: lotData, error } = await supabase
+          .from("parking_lots")
+          .select("cameras")
+          .eq("id", selectedLotId)
+          .single();
+
+        let remoteCameras = null;
+        if (!error && lotData && lotData.cameras) {
+          remoteCameras = lotData.cameras;
         }
-      } catch (e) {
+
+        const storedCameras = localStorage.getItem(`cameras_${selectedLotId}`);
+
+        if (remoteCameras && Array.isArray(remoteCameras) && remoteCameras.length > 0) {
+          setCameras(remoteCameras);
+          localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(remoteCameras));
+        } else if (storedCameras) {
+          try {
+            let parsedCameras = JSON.parse(storedCameras);
+            // MIGRATION: Ensure first two cameras match Python AI Node expectations
+            let changed = false;
+            parsedCameras = parsedCameras.map((cam: any, idx: number) => {
+              if (idx === 0 && !cam.id.startsWith("cam1_")) {
+                changed = true;
+                return { ...cam, id: `cam1_${selectedLotId}` };
+              }
+              if (idx === 1 && !cam.id.startsWith("cam2_")) {
+                changed = true;
+                return { ...cam, id: `cam2_${selectedLotId}` };
+              }
+              return cam;
+            });
+            setCameras(parsedCameras);
+            if (changed) {
+              localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(parsedCameras));
+            }
+            
+            // Initial sync to Supabase if it was only in localStorage
+            supabase
+              .from("parking_lots")
+              .update({ cameras: parsedCameras })
+              .eq("id", selectedLotId)
+              .then(({ error }) => {
+                if (error) console.warn("Camera initial sync to Supabase failed:", error.message);
+              });
+              
+          } catch (e) {
+            setCameras([]);
+          }
+        } else {
+          // If no cameras are found anywhere, auto-add default cameras for Feldgrau
+          const lotName = lots.find(l => l.id === selectedLotId)?.name || "";
+          if (lotName.toLowerCase().includes("feldgrau")) {
+            const defaultCameras = [
+              { id: `cam1_${selectedLotId}`, name: "Camera 1", stream_url: "" },
+              { id: `cam2_${selectedLotId}`, name: "Camera 2", stream_url: "" }
+            ];
+            setCameras(defaultCameras);
+            supabase.from("parking_lots").update({ cameras: defaultCameras }).eq("id", selectedLotId).then();
+          } else {
+            setCameras([]);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching cameras:", err);
         setCameras([]);
       }
-    } else {
-      setCameras([]);
-    }
+    };
+    
+    fetchCameras();
 
     return () => {
       supabase.removeChannel(channel);
@@ -664,12 +709,7 @@ export default function AdminParkingSlots() {
     }
   }, [activeTab, selectedLotId]);
 
-  // Save cameras to local storage whenever they change
-  useEffect(() => {
-    if (selectedLotId) {
-      localStorage.setItem(`cameras_${selectedLotId}`, JSON.stringify(cameras));
-    }
-  }, [cameras, selectedLotId]);
+
 
   // 🔥 UPDATED: Only accredited lots, sorted alphabetically
   const fetchLots = async () => {
@@ -680,7 +720,7 @@ export default function AdminParkingSlots() {
         .select("*")
         .order("name", { ascending: true }); // ← alphabetical
 
-      if ((userRole === "manager" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
+      if ((userRole === "admin" || userRole === "guard" || userRole === "admin" || userRole === "staff") && userLotId) {
         query = query.eq("id", userLotId);
       }
 
@@ -754,7 +794,7 @@ export default function AdminParkingSlots() {
     if (
       userRole !== "superadmin" &&
       userRole !== "super_admin" &&
-      userRole !== "manager"
+      userRole !== "admin"
     )
       return;
 
@@ -904,8 +944,7 @@ export default function AdminParkingSlots() {
     );
 
     try {
-      const adminSupabase = await getAdminSupabase();
-      const { error } = await adminSupabase
+      const { error } = await supabase
         .from("parking_slots")
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq("id", slotId);
@@ -984,7 +1023,7 @@ export default function AdminParkingSlots() {
       const updatedFloors = currentFloors.filter(
         (_: any, idx: number) => idx !== floorIndex
       );
-      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
+      const { error } = await supabase.from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -1051,7 +1090,7 @@ export default function AdminParkingSlots() {
       const updatedFloors = [...currentFloors];
       updatedFloors[selectedFloorIndex] = renameFloorName.trim();
 
-      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
+      const { error } = await supabase.from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -1072,7 +1111,7 @@ export default function AdminParkingSlots() {
     try {
       const currentFloors = activeLot.floors || ["Main Floor"];
       const updatedFloors = [...currentFloors, newFloorName.trim()];
-      const { error } = await (await getAdminSupabase()).from("parking_lots").update({ floors: updatedFloors })
+      const { error } = await supabase.from("parking_lots").update({ floors: updatedFloors })
         .eq("id", activeLot.id);
       if (error) throw error;
 
@@ -1107,18 +1146,28 @@ export default function AdminParkingSlots() {
   const getCameraUrl = (cameraId?: string) => {
     const lanBase =
       import.meta.env.VITE_CAMERA_LAN_URL || "http://192.168.8.156:5000";
-    const publicBase = import.meta.env.VITE_CAMERA_PUBLIC_URL || "";
+    const publicBase = import.meta.env.VITE_CAMERA_PUBLIC_URL || "https://camera.parkada.site";
 
-    // Use the camera-specific stream path if a cameraId is provided
-    const path = cameraId ? `/video_feed/${cameraId}` : "/video_feed";
+    // SuperAdmins get the delayed AI-processed stream with bounding boxes ONLY when they toggle the grid on
+    // Everyone else gets the buttery smooth raw video stream at all times.
+    const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
+    const wantsAIFeed = isSuperAdmin && (showCameraGrid || isDrawingGrid);
+    const feedEndpoint = wantsAIFeed ? "/video_feed" : "/video_feed_raw";
 
-    // Super admins and managers use the Cloudflare public URL (internet access)
-    // Guards use the LAN URL (same WiFi as the camera machine)
-    if (userRole === "superadmin" || userRole === "super_admin") {
-      return publicBase ? `${publicBase}${path}` : `${lanBase}${path}`;
+    const path = cameraId ? `${feedEndpoint}/${cameraId}` : feedEndpoint;
+
+    // If we are developing locally or accessing via LAN, use the local stream to avoid Cloudflare loopback issues
+    if (
+      window.location.hostname === "localhost" || 
+      window.location.hostname === "127.0.0.1" || 
+      window.location.hostname.startsWith("192.168.")
+    ) {
+      return `${lanBase}${path}`;
     }
-    // Everyone else (manager, guard) uses the local LAN stream directly — no Cloudflare needed
-    return `${lanBase}${path}`;
+
+    // If accessed via the internet (Vercel domain), we MUST use the Cloudflare public URL
+    // Otherwise the browser will block the local IP stream due to mixed-content rules (HTTPS vs HTTP)
+    return publicBase ? `${publicBase}${path}` : `${lanBase}${path}`;
   };
 
   const activeLot = lots.find(l => l.id === selectedLotId);
@@ -1919,7 +1968,7 @@ export default function AdminParkingSlots() {
                 {userRole === "super_admin" && (
                   <div className="bg-white p-6 rounded-2xl shadow-sm border border-border">
                     <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
-                      <UserIcon className="text-primary w-5 h-5" /> Manager
+                      <UserIcon className="text-primary w-5 h-5" /> Admin
                       Accounts
                     </h3>
                     <div className="space-y-3">
@@ -1961,9 +2010,9 @@ export default function AdminParkingSlots() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
                     {/* Front View */}
                     <div
-                      className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${userRole === "manager" ? "cursor-pointer" : activeLot?.front_view_url ? "cursor-zoom-in" : ""}`}
+                      className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${canEditPhotos ? "cursor-pointer" : activeLot?.front_view_url ? "cursor-zoom-in" : ""}`}
                       onClick={() => {
-                        if (userRole === "manager") {
+                        if (canEditPhotos) {
                           frontViewRef.current?.click();
                         } else if (activeLot?.front_view_url) {
                           setExpandedImageUrl(activeLot.front_view_url);
@@ -1992,14 +2041,14 @@ export default function AdminParkingSlots() {
                               e.stopPropagation();
                               setExpandedImageUrl(activeLot.front_view_url);
                             }}
-                            className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${userRole === "manager" ? "opacity-0 group-hover:opacity-100" : "hidden"}`}
+                            className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${canEditPhotos ? "opacity-0 group-hover:opacity-100" : "hidden"}`}
                             title="View Full Image"
                           >
                             <Maximize2 size={16} />
                           </button>
 
                           {/* Delete Button */}
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <button
                               onClick={e => {
                                 e.stopPropagation();
@@ -2012,7 +2061,7 @@ export default function AdminParkingSlots() {
                             </button>
                           )}
 
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity z-10">
                               <Upload size={24} className="mb-2" />
                               <span className="text-sm font-semibold">
@@ -2020,7 +2069,7 @@ export default function AdminParkingSlots() {
                               </span>
                             </div>
                           )}
-                          {userRole !== "manager" && (
+                          {!canEditPhotos && (
                             <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm z-10">
                               Front View
                             </div>
@@ -2028,13 +2077,13 @@ export default function AdminParkingSlots() {
                         </>
                       ) : (
                         <div
-                          className={`w-full h-full flex flex-col items-center justify-center ${userRole === "manager" ? "hover:bg-slate-100 transition-colors" : ""}`}
+                          className={`w-full h-full flex flex-col items-center justify-center ${canEditPhotos ? "hover:bg-slate-100 transition-colors" : ""}`}
                         >
                           <Camera size={24} className="mb-2" />
                           <span className="text-sm font-semibold">
                             Front View
                           </span>
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <span className="text-[10px] mt-1 text-primary">
                               Click to upload
                             </span>
@@ -2045,9 +2094,9 @@ export default function AdminParkingSlots() {
 
                     {/* Business Permit */}
                     <div
-                      className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${userRole === "manager" ? "cursor-pointer" : activeLot?.business_permit_url ? "cursor-zoom-in" : ""}`}
+                      className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 overflow-hidden ${canEditPhotos ? "cursor-pointer" : activeLot?.business_permit_url ? "cursor-zoom-in" : ""}`}
                       onClick={() => {
-                        if (userRole === "manager") {
+                        if (canEditPhotos) {
                           businessPermitRef.current?.click();
                         } else if (activeLot?.business_permit_url) {
                           setExpandedImageUrl(activeLot.business_permit_url);
@@ -2078,14 +2127,14 @@ export default function AdminParkingSlots() {
                                 activeLot.business_permit_url
                               );
                             }}
-                            className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${userRole === "manager" ? "opacity-0 group-hover:opacity-100" : "hidden"}`}
+                            className={`absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md transition-colors z-20 shadow-md ${canEditPhotos ? "opacity-0 group-hover:opacity-100" : "hidden"}`}
                             title="View Full Image"
                           >
                             <Maximize2 size={16} />
                           </button>
 
                           {/* Delete Button */}
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <button
                               onClick={e => {
                                 e.stopPropagation();
@@ -2098,7 +2147,7 @@ export default function AdminParkingSlots() {
                             </button>
                           )}
 
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity z-10">
                               <Upload size={24} className="mb-2" />
                               <span className="text-sm font-semibold">
@@ -2106,7 +2155,7 @@ export default function AdminParkingSlots() {
                               </span>
                             </div>
                           )}
-                          {userRole !== "manager" && (
+                          {!canEditPhotos && (
                             <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm z-10">
                               Business Permit
                             </div>
@@ -2114,13 +2163,13 @@ export default function AdminParkingSlots() {
                         </>
                       ) : (
                         <div
-                          className={`w-full h-full flex flex-col items-center justify-center ${userRole === "manager" ? "hover:bg-slate-100 transition-colors" : ""}`}
+                          className={`w-full h-full flex flex-col items-center justify-center ${canEditPhotos ? "hover:bg-slate-100 transition-colors" : ""}`}
                         >
                           <Camera size={24} className="mb-2" />
                           <span className="text-sm font-semibold">
                             Business Permit
                           </span>
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <span className="text-[10px] mt-1 text-primary">
                               Click to upload
                             </span>
@@ -2131,7 +2180,7 @@ export default function AdminParkingSlots() {
 
                     {/* Other Photos Section */}
                     {(activeLot?.other_photos?.length > 0 ||
-                      userRole === "manager") && (
+                      canEditPhotos) && (
                       <div className="pt-4 mt-2 border-t border-slate-100">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-sm font-bold text-slate-700">
@@ -2143,9 +2192,9 @@ export default function AdminParkingSlots() {
                             (url: string, idx: number) => (
                               <div
                                 key={idx}
-                                className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl overflow-hidden ${userRole !== "manager" ? "cursor-zoom-in" : ""}`}
+                                className={`relative group aspect-video bg-slate-50 border border-slate-200 rounded-xl overflow-hidden ${!canEditPhotos ? "cursor-zoom-in" : ""}`}
                                 onClick={() => {
-                                  if (userRole !== "manager")
+                                  if (!canEditPhotos)
                                     setExpandedImageUrl(url);
                                 }}
                               >
@@ -2155,9 +2204,9 @@ export default function AdminParkingSlots() {
                                   className="w-full h-full object-cover"
                                 />
 
-                                {userRole === "manager" && (
+                                {canEditPhotos && (
                                   <>
-                                    {/* Expand Button for Manager */}
+                                    {/* Expand Button for Admin */}
                                     <button
                                       onClick={e => {
                                         e.stopPropagation();
@@ -2186,7 +2235,7 @@ export default function AdminParkingSlots() {
                             )
                           )}
 
-                          {userRole === "manager" && (
+                          {canEditPhotos && (
                             <div
                               className="aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-100 hover:border-primary/50 transition-colors"
                               onClick={() => otherPhotoRef.current?.click()}
@@ -2218,8 +2267,26 @@ export default function AdminParkingSlots() {
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             {expandedCameraId === null ? (
               // MULTI-CAMERA GRID VIEW
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-                {cameras.map(cam => (
+              <>
+                <div className="mb-6">
+                  <div className="relative max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder={t("Search cameras...", "Maghanap ng camera...")}
+                      value={cameraSearchQuery}
+                      onChange={(e) => setCameraSearchQuery(e.target.value)}
+                      className="pl-9 bg-white shadow-sm border-slate-200 focus-visible:ring-primary"
+                    />
+                  </div>
+                </div>
+                {cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length === 0 && !isAddingCamera ? (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 mb-6">
+                    <Camera className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500 font-medium">No cameras found matching your search.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                    {cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).map(cam => (
                   <div
                     key={cam.id}
                     className="bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-800 cursor-pointer group hover:ring-4 hover:ring-primary/50 transition-all"
@@ -2252,10 +2319,10 @@ export default function AdminParkingSlots() {
                           Camera Offline
                         </p>
                       </div>
-                      <div className="absolute top-3 left-3 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-md backdrop-blur-sm max-w-[70%] truncate">
+                      <div className="absolute top-3 left-3 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-md backdrop-blur-sm max-w-[70%] truncate z-20">
                         {cam.name}
                       </div>
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center z-30">
                         <div className="bg-primary/90 text-primary-foreground p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 shadow-lg">
                           <Eye size={20} />
                         </div>
@@ -2263,9 +2330,12 @@ export default function AdminParkingSlots() {
                     </div>
                   </div>
                 ))}
+                  </div>
+                )}
 
-                {(userRole === "superadmin" || userRole === "super_admin") &&
-                  (isAddingCamera ? (
+                {(userRole === "superadmin" || userRole === "super_admin") && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                  {isAddingCamera ? (
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-center min-h-[200px]">
                       <form
                         onSubmit={handleAddCamera}
@@ -2311,8 +2381,10 @@ export default function AdminParkingSlots() {
                         Add New Camera
                       </span>
                     </div>
-                  ))}
-              </div>
+                  )}
+                  </div>
+                )}
+            </>
             ) : (
               // EXPANDED SINGLE CAMERA VIEW
               <div className="flex flex-col xl:flex-row gap-6 items-start w-full">
@@ -2336,18 +2408,20 @@ export default function AdminParkingSlots() {
                             <Button
                               size="sm"
                               onClick={() => {
-                                if (editingCameraName.trim()) {
-                                  const newCameras = cameras.map(c =>
-                                    c.id === expandedCameraId
-                                      ? { ...c, name: editingCameraName.trim() }
-                                      : c
-                                  );
-                                  setCameras(newCameras);
-                                  localStorage.setItem(
-                                    `cameras_${selectedLotId}`,
-                                    JSON.stringify(newCameras)
-                                  );
-                                }
+                                  if (editingCameraName.trim()) {
+                                    const newCameras = cameras.map(c =>
+                                      c.id === expandedCameraId
+                                        ? { ...c, name: editingCameraName.trim() }
+                                        : c
+                                    );
+                                    setCameras(newCameras);
+                                    localStorage.setItem(
+                                      `cameras_${selectedLotId}`,
+                                      JSON.stringify(newCameras)
+                                    );
+                                    // Sync edited camera to Supabase
+                                    supabase.from("parking_lots").update({ cameras: newCameras }).eq("id", selectedLotId).then();
+                                  }
                                 setEditingCameraId(null);
                                 setEditingCameraField(null);
                               }}
@@ -2435,40 +2509,41 @@ export default function AdminParkingSlots() {
                       )}
                     >
                       <img
+                        key={expandedCameraId}
                         id="expanded-camera-feed"
                         src={
                           cameras.find(c => c.id === expandedCameraId)
                             ?.stream_url ||
                           getCameraUrl(expandedCameraId ?? undefined)
                         }
-                        className="absolute inset-0 w-full h-full object-contain opacity-90"
-                        onError={e => {
-                          e.currentTarget.style.display = "none";
-                          const fallbackMsg = document.getElementById(
-                            "stream-fallback-expanded"
-                          );
-                          if (fallbackMsg) fallbackMsg.style.display = "flex";
-                        }}
+                        className={cn(
+                          "absolute inset-0 w-full h-full object-contain opacity-90",
+                          imageError ? "hidden" : "block"
+                        )}
+                        onLoad={() => setImageError(false)}
+                        onError={() => setImageError(true)}
                       />
-                      {activeLot.name.includes("Thesis Demo") && (
+                      {activeLot.name.includes("Thesis Demo") && !imageError && (
                         <div className="absolute top-4 right-4 bg-red-600/90 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg backdrop-blur-sm z-10">
                           <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>{" "}
                           LIVE
                         </div>
                       )}
-                      <div
-                        id="stream-fallback-expanded"
-                        className="absolute inset-0 flex-col items-center justify-center text-slate-400 hidden"
-                      >
-                        <Eye size={48} className="mb-4 opacity-50" />
-                        <p className="text-xl font-bold text-slate-300">
-                          Camera Feed Offline
-                        </p>
-                        <p className="text-sm opacity-70 mt-2 font-medium">
-                          Please check the connection or start the local stream
-                          script.
-                        </p>
-                      </div>
+                      {imageError && (
+                        <div
+                          id="stream-fallback-expanded"
+                          className="absolute inset-0 flex flex-col items-center justify-center text-slate-400"
+                        >
+                          <Eye size={48} className="mb-4 opacity-50" />
+                          <p className="text-xl font-bold text-slate-300">
+                            Camera Feed Offline
+                          </p>
+                          <p className="text-sm opacity-70 mt-2 font-medium">
+                            Please check the connection or start the local stream
+                            script.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Camera Grid Overlay */}
                       {(showCameraGrid || isDrawingGrid) &&
@@ -2608,8 +2683,38 @@ export default function AdminParkingSlots() {
                   <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <Camera className="w-5 h-5 text-primary" /> Camera Views
                   </h3>
+                  
+                  <div className="mb-4">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        placeholder="Search cameras..." 
+                        value={cameraSearchQuery}
+                        onChange={(e) => {
+                          setCameraSearchQuery(e.target.value);
+                          setCameraPage(0); // reset page on search
+                        }}
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                      />
+                      <svg className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                      </svg>
+                      {cameraSearchQuery && (
+                        <button 
+                          onClick={() => setCameraSearchQuery("")}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex flex-col gap-3">
-                    {cameras.slice(cameraPage * 8, (cameraPage + 1) * 8).map(cam => (
+                    {cameras
+                      .filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase()))
+                      .slice(cameraPage * 7, (cameraPage + 1) * 7)
+                      .map(cam => (
                       <button
                         key={cam.id}
                         onClick={() => {
@@ -2642,7 +2747,7 @@ export default function AdminParkingSlots() {
                     ))}
                   </div>
 
-                  {cameras.length > 8 && (
+                  {cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length > 7 && (
                     <div className="pt-4 mt-4 border-t border-slate-200 flex justify-between items-center">
                       <Button
                         variant="outline"
@@ -2654,13 +2759,13 @@ export default function AdminParkingSlots() {
                         &lt;
                       </Button>
                       <span className="text-xs font-bold text-slate-500">
-                        {cameraPage + 1} / {Math.ceil(cameras.length / 8)}
+                        {cameraPage + 1} / {Math.ceil(cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length / 7)}
                       </span>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCameraPage(p => Math.min(Math.ceil(cameras.length / 8) - 1, p + 1))}
-                        disabled={cameraPage >= Math.ceil(cameras.length / 8) - 1}
+                        onClick={() => setCameraPage(p => Math.min(Math.ceil(cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length / 7) - 1, p + 1))}
+                        disabled={cameraPage >= Math.ceil(cameras.filter(cam => cam.name.toLowerCase().includes(cameraSearchQuery.toLowerCase())).length / 7) - 1}
                         className="rounded-lg h-9 w-12"
                       >
                         &gt;
@@ -2697,6 +2802,63 @@ export default function AdminParkingSlots() {
                     )
                   )}
                 </select>
+
+                <div className="ml-auto flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-muted-foreground mr-1 uppercase">Filter:</span>
+                    <Button 
+                      variant={slotFilters.includes('walk-in') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setSlotFilters(prev => prev.includes('walk-in') ? prev.filter(f => f !== 'walk-in') : [...prev, 'walk-in']);
+                        setCurrentPage(1);
+                      }}
+                      className="rounded-full h-8 text-xs px-3"
+                    >Walk-in</Button>
+                    <Button 
+                      variant={slotFilters.includes('reservable') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setSlotFilters(prev => prev.includes('reservable') ? prev.filter(f => f !== 'reservable') : [...prev, 'reservable']);
+                        setCurrentPage(1);
+                      }}
+                      className="rounded-full h-8 text-xs px-3"
+                    >Reservable</Button>
+                    <Button 
+                      variant={slotFilters.includes('pwd') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setSlotFilters(prev => prev.includes('pwd') ? prev.filter(f => f !== 'pwd') : [...prev, 'pwd']);
+                        setCurrentPage(1);
+                      }}
+                      className="rounded-full h-8 text-xs px-3"
+                    >PWD/Priority</Button>
+                  </div>
+                  
+                  <div className="relative w-full sm:w-auto">
+                    <input 
+                      type="text" 
+                      placeholder="Search slot label..." 
+                      value={slotSearchQuery}
+                      onChange={(e) => {
+                        setSlotSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="h-10 pl-9 pr-8 py-2 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]"
+                    />
+                    <svg className="absolute left-3 top-3 w-4 h-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    {slotSearchQuery && (
+                      <button 
+                        onClick={() => { setSlotSearchQuery(""); setCurrentPage(1); }}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
               <h3
                 className="text-base font-bold text-foreground mb-4"
@@ -2728,9 +2890,22 @@ export default function AdminParkingSlots() {
                   <tbody className="divide-y divide-border">
                     {(() => {
                       const filtered = slots.filter(
-                        s =>
-                          selectedFloorIndex === -1 ||
-                          (s.floor_index || 0) === selectedFloorIndex
+                        s => {
+                          const isFloorMatch = selectedFloorIndex === -1 || (s.floor_index || 0) === selectedFloorIndex;
+                          const isSearchMatch = (s.label || "").toLowerCase().includes(slotSearchQuery.toLowerCase());
+                          
+                          const isReservable = s.is_reservable !== false && String(s.is_reservable) !== "false";
+                          
+                          let isFilterMatch = true;
+                          if (slotFilters.length > 0) {
+                            const matchesWalkIn = slotFilters.includes('walk-in') && !isReservable;
+                            const matchesReservable = slotFilters.includes('reservable') && isReservable;
+                            const matchesPwd = slotFilters.includes('pwd') && s.is_pwd;
+                            isFilterMatch = matchesWalkIn || matchesReservable || matchesPwd;
+                          }
+                          
+                          return isFloorMatch && isSearchMatch && isFilterMatch;
+                        }
                       );
                       const paginated = filtered.slice(
                         (currentPage - 1) * itemsPerPage,

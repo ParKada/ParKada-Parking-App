@@ -1,19 +1,19 @@
-import cv2
-import numpy as np
+import cv2  # type: ignore
+import numpy as np  # type: ignore
 import os
 import time
 import threading
-from ultralytics import YOLO
-import easyocr
-from supabase import create_client, Client, ClientOptions
-from dotenv import load_dotenv
+from ultralytics import YOLO  # type: ignore
+import easyocr  # type: ignore
+from supabase import create_client, Client, ClientOptions  # type: ignore
+from dotenv import load_dotenv  # type: ignore
 import urllib.request
 import json
 
 # IMPORTS FOR WEB STREAMING
 # pyrefly: ignore [missing-import]
-from flask import Flask, Response
-from flask_cors import CORS
+from flask import Flask, Response, abort  # type: ignore
+from flask_cors import CORS  # type: ignore
 
 # =============================================================
 # 1. SECURE DATABASE SETUP
@@ -148,6 +148,19 @@ def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, displ
                             print(f"[OCR] Plate Detected: {clean_text} ({prob*100:.1f}%) in slot {slot_id[:8]}")
                             
                             if is_reservable:
+                                slot_label = slot_id[:8]
+                                try:
+                                    l_url = f"{VITE_SUPABASE_URL}/rest/v1/parking_slots?id=eq.{slot_id}&select=label"
+                                    l_req = urllib.request.Request(l_url)
+                                    l_req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
+                                    l_req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
+                                    with urllib.request.urlopen(l_req, timeout=5) as l_res:
+                                        l_data = json.loads(l_res.read().decode())
+                                        if len(l_data) > 0 and l_data[0].get('label'):
+                                            slot_label = l_data[0]['label']
+                                except Exception:
+                                    pass
+
                                 url = f"{VITE_SUPABASE_URL}/rest/v1/reservations?slot_id=eq.{slot_id}&status=eq.active&select=*,vehicles(plate_number)"
                                 req = urllib.request.Request(url)
                                 req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
@@ -161,16 +174,16 @@ def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, displ
                                             vehicle = res.get('vehicles', {})
                                             res_plate = ''.join(e for e in vehicle.get('plate_number', '') if e.isalnum()).upper() if vehicle else ''
                                             if clean_text == res_plate:
-                                                msg = f"Plate {clean_text} correctly parked in reserved slot."
+                                                msg = f"Reservation Record: {clean_text} have arrived at reserved slot {slot_label}"
                                                 print(f"[OCR] ✅ SUCCESS: {msg}")
                                                 send_admin_notifications(TARGET_LOT_ID, "Reservation Validated", msg)
                                             else:
-                                                msg = f"Vehicle with plate {clean_text} parked in a reserved slot, but reservation is for {res_plate}!"
-                                                print(f"[OCR] ❌ MISMATCH: {msg}")
+                                                msg = f"{clean_text} have incorrectly parked at a reserved/reservable slot {slot_label}"
+                                                print(f"[OCR] ❌ MISMATCH: {msg} (Expected {res_plate})")
                                                 send_admin_notifications(TARGET_LOT_ID, "Reservation Mismatch", msg)
                                         else:
-                                            msg = f"Vehicle {clean_text} parked in a reserved slot, but NO active reservation found!"
-                                            print(f"[OCR] ⚠️ {msg}")
+                                            msg = f"{clean_text} have incorrectly parked at a reserved/reservable slot {slot_label}"
+                                            print(f"[OCR] ⚠️ {msg} (No active reservation)")
                                             send_admin_notifications(TARGET_LOT_ID, "Unauthorized Parking", msg)
                                 except Exception as e:
                                     print(f"[OCR] DB Error checking reservation: {e}")
@@ -245,19 +258,36 @@ CORS(app)
 shared_frames = {}  # { camera_id: frame_or_None }
 shared_frames_lock = threading.Lock()
 
+shared_raw_frames = {}  # { camera_id: raw_frame_or_None }
+shared_raw_frames_lock = threading.Lock()
+
 def generate_frames(camera_id):
-    """Generator that yields the latest frame for a specific camera."""
+    """Generator that yields the latest PROCESSED frame (with boxes) for a specific camera."""
     while True:
         with shared_frames_lock:
             frame = shared_frames.get(camera_id)
 
         if frame is not None:
-            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 28])
+            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
             if ret:
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        time.sleep(0.1)  # ~10 fps
+        time.sleep(0.06)  # fps
+
+def generate_raw_frames(camera_id):
+    """Generator that yields the latest RAW frame (buttery smooth) for a specific camera."""
+    while True:
+        with shared_raw_frames_lock:
+            frame = shared_raw_frames.get(camera_id)
+
+        if frame is not None:
+            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+            if ret:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        time.sleep(0.03)  # ~30 fps
 
 @app.route('/')
 def index():
@@ -269,8 +299,33 @@ def index():
 
 @app.route('/video_feed/<camera_id>')
 def video_feed(camera_id):
-    print(f"[FLASK] Incoming request for video stream: {camera_id}")
-    return Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    print(f"[FLASK] Incoming request for PROCESSED video stream: {camera_id}")
+    
+    # Check if the camera is configured
+    valid_camera = any(c["camera_id"] == camera_id for c in CAMERAS)
+    if not valid_camera:
+        abort(404, description="Camera not configured or offline")
+        
+    response = Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/video_feed_raw/<camera_id>')
+def video_feed_raw(camera_id):
+    print(f"[FLASK] Incoming request for RAW video stream: {camera_id}")
+    
+    # Check if the camera is configured
+    valid_camera = any(c["camera_id"] == camera_id for c in CAMERAS)
+    if not valid_camera:
+        abort(404, description="Camera not configured or offline")
+        
+    response = Response(generate_raw_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 def run_flask():
     print("Starting Flask web server...")
@@ -361,6 +416,7 @@ class CameraWorker:
         self.label      = config["label"]
         self.rtsp_url   = config["rtsp_url"]
         self.camera_id  = config["camera_id"]
+        self.stream     = RTSPStream(self.rtsp_url)
 
         # Per-camera slot state
         self.data_lock  = threading.Lock()
@@ -372,6 +428,8 @@ class CameraWorker:
         # Initialize this camera's frame slot
         with shared_frames_lock:
             shared_frames[self.camera_id] = None
+        with shared_raw_frames_lock:
+            shared_raw_frames[self.camera_id] = None
 
     def sync_db_loop(self):
         """Polls Supabase every 2s to load/sync slots for this specific camera."""
@@ -420,34 +478,35 @@ class CameraWorker:
                                 self.slot_data[idx]["is_reservable"] = is_reservable
                                 self.all_slots[idx] = np.array(coords, np.int32).reshape(-1, 2)
                                 
-                                # --- SELF-HEALING SYNC ---
-                                manual_override = False
-                                updated_at_str = row.get('updated_at')
-                                if updated_at_str:
-                                    try:
-                                        import datetime
-                                        dt = datetime.datetime.fromisoformat(updated_at_str.replace('Z', '+00:00'))
-                                        if (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds() < 120:
-                                            manual_override = True
-                                    except Exception:
-                                        pass
+                                # --- STATE-CHANGE TRIGGERED SYNC ---
+                                current_status = self.slot_data[idx]["status"]
                                 
-                                self.slot_data[idx]["manual_override"] = manual_override
+                                # Convert AI status to DB string for easy comparison
+                                ai_physical = "occupied" if current_status == "FULL" else "empty"
                                 
-                                if not manual_override:
-                                    current_status = self.slot_data[idx]["status"]
-                                    if current_status == "FULL":
-                                        if db_physical != "occupied" or (db_status not in ["occupied", "reserved"]):
-                                            if db_status != "reserved":
-                                                update_supabase_bg(db_id, "occupied", "occupied")
-                                            else:
-                                                update_supabase_bg(db_id, "occupied", None)
-                                    elif current_status == "FREE":
-                                        if db_physical != "empty" or (db_status not in ["available", "unmapped", "reserved"]):
-                                            if db_status != "reserved":
-                                                update_supabase_bg(db_id, "empty", "available")
-                                            else:
-                                                update_supabase_bg(db_id, "empty", None)
+                                # Check if physical state OR main status is out of sync with reality
+                                needs_update = False
+                                if db_physical != ai_physical:
+                                    needs_update = True
+                                elif ai_physical == "occupied" and db_status not in ["occupied", "reserved"]:
+                                    needs_update = True
+                                elif ai_physical == "empty" and db_status not in ["available", "reserved", "unmapped", "maintenance"]:
+                                    needs_update = True
+
+                                if needs_update:
+                                    if ai_physical == "occupied":
+                                        if db_status != "reserved":
+                                            update_supabase_bg(db_id, "occupied", "occupied")
+                                        else:
+                                            update_supabase_bg(db_id, "occupied", None)
+                                    else:
+                                        if db_physical == "unmapped" and db_status != "unmapped":
+                                            # Admin manually set status before AI initialized physical_status
+                                            update_supabase_bg(db_id, "empty", None)
+                                        elif db_status != "reserved":
+                                            update_supabase_bg(db_id, "empty", "available")
+                                        else:
+                                            update_supabase_bg(db_id, "empty", None)
 
                     # Handle deletions
                     for i in range(len(self.slot_ids) - 1, -1, -1):
@@ -464,7 +523,7 @@ class CameraWorker:
 
     def ai_loop(self):
         """Main AI detection loop for this camera."""
-        cap = RTSPStream(self.rtsp_url)
+        cap = self.stream
         print(f"[{self.label}] RTSP stream reader started...")
         time.sleep(2)  # Let stream stabilize
 
@@ -515,8 +574,8 @@ class CameraWorker:
                         
                     vehicle_boxes.append((cx, cy, x1, y1, x2, y2))
                     # Draw detected vehicle bounding box (cyan)
-                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
-                    cv2.circle(display_frame, (cx, cy), 4, (0, 0, 255), -1)
+                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (255, 255, 0), 1, cv2.LINE_AA)
+                    cv2.circle(display_frame, (cx, cy), 2, (0, 0, 255), -1)
 
             def box_overlaps_polygon(poly_pts, bx1, by1, bx2, by2, threshold=0.10):
                 """
@@ -672,19 +731,29 @@ class CameraWorker:
                             text = f"{slot_label}: OCCUPIED ({mins}m {secs}s)"
 
                     # Always draw slot polygon
-                    cv2.polylines(display_frame, [slot_raw.reshape((-1, 1, 2))], True, color, 2)
+                    cv2.polylines(display_frame, [slot_raw.reshape((-1, 1, 2))], True, color, 1, cv2.LINE_AA)
                     cv2.putText(display_frame, text,
                                 (slot_raw[0][0], slot_raw[0][1] - 8),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
 
             # Push annotated frame for web streaming
             with shared_frames_lock:
                 shared_frames[self.camera_id] = display_frame.copy()
 
+    def raw_stream_loop(self):
+        """Bypasses the slow AI loop to push raw frames instantly for smooth viewing."""
+        while True:
+            ret, frame = self.stream.read()
+            if ret and frame is not None:
+                with shared_raw_frames_lock:
+                    shared_raw_frames[self.camera_id] = frame.copy()
+            time.sleep(0.03)
+
     def start(self):
-        """Start both the DB sync and AI loop in background threads."""
+        """Start DB sync, AI loop, and RAW stream loop in background threads."""
         threading.Thread(target=self.sync_db_loop, daemon=True).start()
         threading.Thread(target=self.ai_loop, daemon=True).start()
+        threading.Thread(target=self.raw_stream_loop, daemon=True).start()
         print(f"[{self.label}] Worker started. Stream: /video_feed/{self.camera_id}")
 
 # =============================================================

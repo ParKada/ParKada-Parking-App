@@ -1,5 +1,8 @@
 packages:
-  - 'apps/*'
+  - 'apps/mobile'
+  - 'apps/admin'
+  - 'apps/portal'
+  - 'apps/landing'
   - 'packages/*'
 onlyBuiltDependencies:
   - esbuild

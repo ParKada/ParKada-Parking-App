@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { View, Text, Image, ActivityIndicator, Platform, LogBox, StyleSheet } from 'react-native';
+import { View, Text, Image, ActivityIndicator, Platform, LogBox } from 'react-native';
 import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { supabase } from '../lib/supabase';
 import { AuthProvider, useAuth } from '../lib/AuthProvider';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '../global.css';
 
 LogBox.ignoreLogs([
@@ -219,17 +220,15 @@ function RootNavigation() {
   }
 
   // 3. Saka lamang lalabas ang buong app (kasama ang Tabs at Home) kapag tapos na ang lahat
-  return (
-    <View style={{ flex: 1 }}>
-      <Slot />
-    </View>
-  );
+  return <Slot />;
 }
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigation />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <RootNavigation />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

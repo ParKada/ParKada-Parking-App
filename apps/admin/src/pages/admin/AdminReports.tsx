@@ -40,9 +40,7 @@ export default function AdminReports() {
   const [isLoading, setIsLoading] = useState(true);
   const [viewOption, setViewOption] = useState<string>("all");
 
-  const userRole = localStorage.getItem("admin_role");
-  const userLotId = localStorage.getItem("admin_lot_id");
-  const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
+  const [isSuperAdminState, setIsSuperAdminState] = useState(false);
 
   // Refs for each report section
   const compositionRef = useRef<HTMLDivElement>(null);
@@ -55,10 +53,10 @@ export default function AdminReports() {
   const ocrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isSuperAdmin && viewOption === "toplots") {
+    if (!isSuperAdminState && viewOption === "toplots") {
       setViewOption("all");
     }
-  }, [isSuperAdmin, viewOption]);
+  }, [isSuperAdminState, viewOption]);
 
   useEffect(() => {
     fetchReportData();
@@ -73,14 +71,30 @@ export default function AdminReports() {
   const fetchReportData = async () => {
     setIsLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      let currentRole = "";
+      let currentLotId: string | null = null;
+      if (user) {
+        const { data: profileData } = await supabase
+          .from("admin_profiles")
+          .select("role, assigned_lot_id")
+          .eq("id", user.id)
+          .single();
+        if (profileData?.role) {
+          currentRole = profileData.role.toLowerCase();
+          currentLotId = profileData.assigned_lot_id;
+          setIsSuperAdminState(currentRole === "superadmin" || currentRole === "super_admin");
+        }
+      }
+
       let reservationsQuery = supabase
         .from('reservations')
         .select(`
-          id, total_amount, status, created_at, start_time, lot_id,
+          id, total_amount, status, created_at, start_time, lot_id, plate_number,
           parking_lots (name, type, total_slots, operating_hours)
         `);
-      if (userRole === 'manager' && userLotId) {
-        reservationsQuery = reservationsQuery.eq('lot_id', userLotId);
+      if (currentRole !== 'superadmin' && currentRole !== 'super_admin' && currentLotId) {
+        reservationsQuery = reservationsQuery.eq('lot_id', currentLotId);
       }
       const { data: reservationsData, error: resError } = await reservationsQuery;
       if (resError) throw resError;
@@ -88,11 +102,11 @@ export default function AdminReports() {
       let walkInQuery = supabase
         .from('walk_in_records')
         .select(`
-          id, amount_paid, entry_time, exit_time, created_at, lot_id,
+          id, amount_paid, entry_time, exit_time, created_at, lot_id, plate_number, status,
           parking_lots (id, name, type)
         `);
-      if (userRole === 'manager' && userLotId) {
-        walkInQuery = walkInQuery.eq('lot_id', userLotId);
+      if (currentRole !== 'superadmin' && currentRole !== 'super_admin' && currentLotId) {
+        walkInQuery = walkInQuery.eq('lot_id', currentLotId);
       }
       const { data: walkInData, error: walkError } = await walkInQuery;
       if (walkError) throw walkError;
@@ -101,17 +115,47 @@ export default function AdminReports() {
         .from('plate_validation_logs')
         .select(`id, lot_id, camera_id, detected_plate, confidence_score, validation_status, created_at`)
         .order('created_at', { ascending: false });
-      if (userRole === 'manager' && userLotId) {
-        ocrQuery = ocrQuery.eq('lot_id', userLotId);
+      if (currentRole !== 'superadmin' && currentRole !== 'super_admin' && currentLotId) {
+        ocrQuery = ocrQuery.eq('lot_id', currentLotId);
       }
       const { data: ocrData, error: ocrError } = await ocrQuery;
-      if (!ocrError) {
-        setOcrLogs(ocrData || []);
-      }
+      
+      let combinedLogs = ocrData ? [...ocrData] : [];
+      
+      reservationsData?.forEach(r => {
+        if (r.plate_number) {
+          combinedLogs.push({
+            id: r.id,
+            lot_id: r.lot_id,
+            camera_id: "Online Booking",
+            detected_plate: r.plate_number,
+            confidence_score: 100,
+            validation_status: r.status,
+            created_at: r.created_at
+          });
+        }
+      });
+      
+      walkInData?.forEach(w => {
+        if (w.plate_number) {
+          combinedLogs.push({
+            id: w.id,
+            lot_id: w.lot_id,
+            camera_id: "Walk-in Entry",
+            detected_plate: w.plate_number,
+            confidence_score: 100,
+            validation_status: w.status || (w.exit_time ? 'completed' : 'active'),
+            created_at: w.entry_time
+          });
+        }
+      });
+      
+      combinedLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setOcrLogs(combinedLogs);
 
       let lotsQuery = supabase.from('parking_lots').select('operating_hours');
-      if (userRole === 'manager' && userLotId) {
-        lotsQuery = lotsQuery.eq('id', userLotId);
+      if (currentRole !== 'superadmin' && currentRole !== 'super_admin' && currentLotId) {
+        lotsQuery = lotsQuery.eq('id', currentLotId);
       }
       const { data: lotsData } = await lotsQuery;
 
@@ -258,9 +302,7 @@ export default function AdminReports() {
     
     reservations.forEach(r => {
       if (r.start_time) {
-        const hour = parseInt(r.start_time.split(':')[0]);
-        const isPM = r.start_time.includes('PM');
-        const standardHour = (isPM && hour !== 12) ? hour + 12 : (!isPM && hour === 12 ? 0 : hour);
+        const standardHour = new Date(r.start_time).getHours();
         if (hourlyMap[standardHour] !== undefined) hourlyMap[standardHour] += 1;
       }
     });
@@ -306,6 +348,8 @@ export default function AdminReports() {
         type: r.parking_lots?.type || "unknown",
         onlineBookings: 0,
         onlineRevenue: 0,
+        walkinBookings: 0,
+        walkinRevenue: 0,
       };
       lotMap[lotName].onlineBookings += 1;
       lotMap[lotName].onlineRevenue += Number(r.total_amount || 0);
@@ -315,11 +359,13 @@ export default function AdminReports() {
       if (!lotMap[lotName]) lotMap[lotName] = {
         name: lotName,
         type: w.parking_lots?.type || "unknown",
-        onlineBookings: 0, // We could rename this to totalBookings but for now just add to online
+        onlineBookings: 0, 
         onlineRevenue: 0,
+        walkinBookings: 0,
+        walkinRevenue: 0,
       };
-      lotMap[lotName].onlineBookings += 1;
-      lotMap[lotName].onlineRevenue += Number(w.amount_paid || 0);
+      lotMap[lotName].walkinBookings += 1;
+      lotMap[lotName].walkinRevenue += Number(w.amount_paid || 0);
     });
     const lotArray = Object.values(lotMap);
     setLotStats(lotArray);
@@ -338,7 +384,7 @@ export default function AdminReports() {
     return wrapper;
   };
 
-  const handleExportPDF = () => {
+  const handleExportReport = () => {
     let content: HTMLElement | null = null;
     let title = "ParKada_Report";
 
@@ -352,7 +398,7 @@ export default function AdminReports() {
         title = "Daily_Revenue_Report";
         break;
       case "toplots":
-        if (isSuperAdmin) {
+        if (isSuperAdminState) {
           content = topLotsRef.current ? topLotsRef.current.cloneNode(true) as HTMLElement : null;
           title = "Top_Lots_Report";
         }
@@ -369,7 +415,7 @@ export default function AdminReports() {
         content = hourlyRef.current ? hourlyRef.current.cloneNode(true) as HTMLElement : null;
         title = "Hourly_Pattern_Report";
         break;
-      case "lots":
+      case "lot":
         content = lotRef.current ? lotRef.current.cloneNode(true) as HTMLElement : null;
         title = "Lot_Performance_Report";
         break;
@@ -380,7 +426,7 @@ export default function AdminReports() {
       case "all":
       default:
         content = buildWrapper([
-          compositionRef, dailyRef, isSuperAdmin ? topLotsRef : null,
+          compositionRef, dailyRef, isSuperAdminState ? topLotsRef : null,
           monthlyRef, weeklyRef, hourlyRef, lotRef, ocrRef
         ]);
         title = "All_Reports";
@@ -392,60 +438,9 @@ export default function AdminReports() {
       return;
     }
 
-    const originalTitle = document.title;
-    document.title = title;
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error(t("Popup blocked. Please allow popups for this site.", "Popup blocked. Pakisuyo allow popups for this site."));
-      return;
-    }
-
-    const styles = document.querySelector('link[rel="stylesheet"]')?.outerHTML || '';
-    // Print-friendly CSS – removed the action buttons
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${title}</title>
-          ${styles}
-          <style>
-            body { font-family: 'Inter', sans-serif; padding: 20px; margin: 0; background: white; }
-            @media print {
-              body { margin: 0; padding: 0; }
-            }
-            .print-wrapper { margin: 0 auto; }
-            .report-card { margin-bottom: 30px; break-inside: avoid; }
-            h3 { color: #0f172a; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { padding: 8px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background: #f8fafc; font-weight: 700; }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .no-print { display: none; }
-          </style>
-        </head>
-        <body>
-          ${content.outerHTML}
-          <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #94a3b8;">
-            Generated by ParKada Reports • ${new Date().toLocaleString()}
-          </div>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-
-    document.title = originalTitle;
-  };
-
-  const handleExportCSV = () => {
+    // Generate CSV data
     let exportData: any[] = [];
     let filename = "export.csv";
-
     if (viewOption === "ocr") {
       exportData = ocrLogs.map(log => ({
         "Date": new Date(log.created_at).toLocaleString(),
@@ -464,27 +459,116 @@ export default function AdminReports() {
       }));
       filename = "Occupancy_Revenue_Report.csv";
     }
+    
+    let csvContentStr = "";
+    if (exportData.length > 0) {
+        const headers = Object.keys(exportData[0]).join(",");
+        const rows = exportData.map(row => 
+          Object.values(row).map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")
+        );
+        csvContentStr = [headers, ...rows].join("\\n");
+    }
+    const b64csv = btoa(unescape(encodeURIComponent(csvContentStr)));
 
-    if (exportData.length === 0) {
-      toast.error(t("No data available to export.", "No data available to export."));
+    const originalTitle = document.title;
+    document.title = title;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error(t("Popup blocked. Please allow popups for this site.", "Popup blocked. Pakisuyo allow popups for this site."));
       return;
     }
 
-    const headers = Object.keys(exportData[0]).join(",");
-    const rows = exportData.map(row => 
-      Object.values(row).map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")
-    );
-    const csvContent = [headers, ...rows].join("\n");
-    
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success(t(`${filename} downloaded successfully!`, `${filename} downloaded nang matagumpay!`));
+    const styles = document.querySelector('link[rel="stylesheet"]')?.outerHTML || '';
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title}</title>
+          ${styles}
+          <style>
+            body { font-family: 'Inter', sans-serif; padding: 20px; margin: 0; background: white; }
+            @media print {
+              body { margin: 0; padding: 0; }
+              .no-print { display: none !important; }
+            }
+            .print-wrapper { margin: 0 auto; }
+            .report-card { margin-bottom: 30px; break-inside: avoid; }
+            h3 { color: #0f172a; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 8px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            
+            .no-print { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 20px; background: #f8fafc; padding: 15px; border-radius: 8px; }
+            .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 6px; }
+            .btn-pdf { background: #0A1D37; color: white; }
+            .btn-csv { background: #10b981; color: white; }
+            
+            .report-header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; border-bottom: 2px solid #e2e8f0; margin-bottom: 30px; }
+            .brand { display: flex; align-items: center; }
+            .brand h1 { margin: 0; font-size: 28px; color: #0A1D37; font-weight: 900; letter-spacing: -0.5px; }
+            .report-meta { text-align: right; }
+            .report-meta h2 { margin: 0 0 6px 0; font-size: 18px; color: #0f172a; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+            .report-meta p { margin: 0; font-size: 12px; color: #64748b; font-weight: 600; }
+          </style>
+        </head>
+        <body>
+          <div class="no-print">
+            <button class="btn btn-csv" onclick="downloadCSV()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M3 15a1.5 1.5 0 0 1 1-1.5 1.5 1.5 0 0 1 1 1.5v1a1.5 1.5 0 0 1-1 1.5 1.5 1.5 0 0 1-1-1.5Z"/><path d="M19.5 13.5 21 18l1.5-4.5"/><path d="M8 13.5v3a1.5 1.5 0 0 0 1.5 1.5 1.5 1.5 0 0 0 1.5-1.5v-3"/><path d="M13 13.5v4"/><path d="M13 15.5h2"/><path d="M13 17.5h2"/><path d="M14 2H6a2 2 0 0 0-2 2v7.5"/></svg>
+              Download CSV
+            </button>
+            <button class="btn btn-pdf" onclick="window.print()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+              Print / PDF
+            </button>
+          </div>
+          
+          <div class="report-header">
+            <div class="brand">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 12px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+              <h1>ParKada</h1>
+            </div>
+            <div class="report-meta">
+              <h2>${title.replace(/_/g, ' ')}</h2>
+              <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            </div>
+          </div>
+          
+          ${content.outerHTML}
+          <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">
+            End of Report • ParKada Parking Management System
+          </div>
+          <script>
+            function downloadCSV() {
+              const base64Str = "${b64csv}";
+              if (!base64Str) {
+                alert("No CSV data available to export.");
+                return;
+              }
+              const decodedContent = decodeURIComponent(escape(atob(base64Str)));
+              const blob = new Blob([decodedContent], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.setAttribute("download", "${filename}");
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+
+    document.title = originalTitle;
   };
 
   const totalRevenue = lotStats.reduce((sum: number, lot: any) => sum + lot.onlineRevenue, 0);
@@ -501,10 +585,10 @@ export default function AdminReports() {
   }
 
   const showSection = (section: string) => viewOption === "all" || viewOption === section;
-  const showTopLots = isSuperAdmin && showSection("toplots");
+  const showTopLots = isSuperAdminState && showSection("toplots");
 
   return (
-    <AdminLayout title={isSuperAdmin ? "System Analytics" : "Lot Analytics"}>
+    <AdminLayout title={isSuperAdminState ? "System Analytics" : "Lot Analytics"}>
       <div className="space-y-6 pb-10">
 
         {/* Control Bar */}
@@ -520,20 +604,17 @@ export default function AdminReports() {
               <option value="all">All Reports</option>
               <option value="composition">Revenue Composition</option>
               <option value="daily">Daily Revenue</option>
-              {isSuperAdmin && <option value="toplots">Top 5 Lots</option>}
+              {isSuperAdminState && <option value="toplots">Top 5 Lots</option>}
               <option value="monthly">Monthly Revenue</option>
               <option value="weekly">Weekly Occupancy</option>
               <option value="hourly">Hourly Pattern</option>
-              <option value="lots">Lot Performance</option>
+              <option value="lot">Lot Performance</option>
               <option value="ocr">OCR Validation Report</option>
             </select>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleExportCSV} variant="outline" className="rounded-xl gap-2 text-slate-700">
-              <FileSpreadsheet size={16} /> Export CSV
-            </Button>
-            <Button onClick={handleExportPDF} className="rounded-xl gap-2 bg-[#0A1D37]">
-              <Download size={16} /> Export PDF
+            <Button onClick={handleExportReport} className="rounded-xl gap-2 bg-[#0A1D37]">
+              <Download size={16} /> Export
             </Button>
           </div>
         </div>
@@ -651,7 +732,7 @@ export default function AdminReports() {
             <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
               <Clock size={16} className="text-emerald-500" /> Hourly Occupancy Pattern
             </h3>
-            <p className="text-[10px] text-muted-foreground mb-6">Based on online reservations</p>
+            <p className="text-[10px] text-muted-foreground mb-6">Based on online reservations & walk-ins</p>
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={hourlyData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -665,11 +746,11 @@ export default function AdminReports() {
         )}
 
         {/* Lot Performance Table */}
-        {showSection("lots") && (
+        {showSection("lot") && (
           <div ref={lotRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
               <MapPin size={20} className="text-primary" />
-              {isSuperAdmin ? "Revenue by Parking Lot" : "Your Lot Performance"}
+              {isSuperAdminState ? "Revenue by Parking Lot" : "Your Lot Performance"}
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full">

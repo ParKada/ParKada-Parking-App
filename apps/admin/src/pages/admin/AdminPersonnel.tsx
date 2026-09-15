@@ -1,6 +1,6 @@
 /*
  * ParKada — AdminPersonnel (System Admin Creation via Edge Function)
- * Excludes 'Invited' managers from the list and prevents duplicate invitations.
+ * Excludes 'Invited' admins from the list and prevents duplicate invitations.
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -25,7 +25,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 export default function AdminPersonnel() {
   const { t } = useLanguage();
   const [lots, setLots] = useState<any[]>([]);
-  const [managers, setManagers] = useState<any[]>([]);
+  const [admins, setAdmins] = useState<any[]>([]);
   
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
@@ -35,7 +35,7 @@ export default function AdminPersonnel() {
 
   useEffect(() => {
     fetchLots();
-    fetchManagers();
+    fetchAdmins();
   }, []);
 
   const fetchLots = async () => {
@@ -43,19 +43,19 @@ export default function AdminPersonnel() {
     if (!error && data) setLots(data);
   };
 
-  const fetchManagers = async () => {
+  const fetchAdmins = async () => {
     const { data, error } = await supabase
       .from('admin_profiles')
       .select('id, role, status, parking_lots(name)')
-      .eq('role', 'manager')
-      .neq('status', 'Invited')   // 🔥 Hide invited managers
+      .eq('role', 'admin')
+      .neq('status', 'Invited')   // 🔥 Hide invited admins
       .order('status', { ascending: true });
       
-    if (!error && data) setManagers(data);
+    if (!error && data) setAdmins(data);
   };
 
   // 🔥 NEW: Check if the email already exists in admin_profiles (any status)
-  const checkExistingManager = async (email: string): Promise<boolean> => {
+  const checkExistingAdmin = async (email: string): Promise<boolean> => {
     // Since admin_profiles does not store email directly, we need to look up the auth user by email.
     // Using a secure edge function is better, but for frontend quick check we can query via Supabase (if allowed).
     // Simpler: rely on the Edge Function's error handling. But we can still try to get user id via auth API (requires admin rights).
@@ -66,7 +66,7 @@ export default function AdminPersonnel() {
     return false;
   };
 
-  const handleInviteManager = async (e: React.FormEvent) => {
+  const handleInviteAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminEmail || !adminLotId || !adminPassword || !adminName) {
       return toast.error(t("Please fill in all fields (Name, Email, Password, Lot).", "Pakisuyo fill in all fields (Name, Email, Password, Lot)."));
@@ -80,7 +80,7 @@ export default function AdminPersonnel() {
           password: adminPassword,
           full_name: adminName,
           lot_id: adminLotId, 
-          role: "manager" 
+          role: "admin" 
         }
       });
 
@@ -91,10 +91,14 @@ export default function AdminPersonnel() {
       setAdminPassword("");
       setAdminName("");
       setAdminLotId("");
-      fetchManagers(); 
+      fetchAdmins(); 
     } catch (error: any) {
       console.error(error);
-      toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
+      let errMsg = error.message;
+      if (errMsg && errMsg.includes("non-2xx status code")) {
+        errMsg = "Failed to create account. The email address might already be registered.";
+      }
+      toast.error(t(`Error: ${errMsg}`, `Problema: ${errMsg}`));
     } finally {
       setIsSubmitting(false);
     }
@@ -118,8 +122,8 @@ export default function AdminPersonnel() {
 
       if (error) throw error;
 
-      toast.success(t(`Manager account successfully ${newStatus.toLowerCase()}!`, `Manager account nang matagumpay ${newStatus.toLowerCase()}!`));
-      fetchManagers();
+      toast.success(t(`Admin account successfully ${newStatus.toLowerCase()}!`, `Admin account nang matagumpay ${newStatus.toLowerCase()}!`));
+      fetchAdmins();
     } catch (error: any) {
       console.error(error);
       toast.error(t(`Error: ${error.message}`, `Problema: ${error.message}`));
@@ -145,7 +149,7 @@ export default function AdminPersonnel() {
               </div>
             </div>
 
-            <form onSubmit={handleInviteManager} className="p-6 space-y-5">
+            <form onSubmit={handleInviteAdmin} className="p-6 space-y-5">
               <div className="space-y-2">
                 <Label className="text-[11px] font-bold uppercase text-muted-foreground ml-1">Assign to Branch</Label>
                 <div className="relative">
@@ -206,7 +210,7 @@ export default function AdminPersonnel() {
           </div>
         </div>
 
-        {/* RIGHT: Managers List (Active & Suspended only) */}
+        {/* RIGHT: Admins List (Active & Suspended only) */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-3xl shadow-sm border border-border p-6 h-full min-h-100">
             <div className="flex items-center justify-between mb-6">
@@ -216,22 +220,22 @@ export default function AdminPersonnel() {
                 </div>
                 <div>
                   <h3 className="font-bold text-lg">Active Personnel</h3>
-                  <p className="text-xs text-muted-foreground">List of deployed branch managers</p>
+                  <p className="text-xs text-muted-foreground">List of deployed branch admins</p>
                 </div>
               </div>
               <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold">
-                {managers.length} Deployed
+                {admins.length} Deployed
               </div>
             </div>
 
-            {managers.length === 0 ? (
+            {admins.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground bg-slate-50 rounded-xl border border-dashed border-border">
                 <Database size={32} className="mb-2 opacity-50" />
-                <p className="text-sm">No managers deployed yet.</p>
+                <p className="text-sm">No admins deployed yet.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {managers.map((manager, index) => {
+                {admins.map((manager, index) => {
                   const isActive = manager.status !== 'Suspended';
                   return (
                     <div 
@@ -251,7 +255,7 @@ export default function AdminPersonnel() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-bold text-foreground">
-                              Manager ID: <span className="text-xs font-normal text-muted-foreground">{manager.id.substring(0, 8)}</span>
+                              Admin ID: <span className="text-xs font-normal text-muted-foreground">{manager.id.substring(0, 8)}</span>
                             </p>
                             <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                               isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
@@ -275,7 +279,7 @@ export default function AdminPersonnel() {
                             ? 'text-rose-500 hover:bg-rose-100'
                             : 'text-emerald-600 hover:bg-emerald-100'
                         }`}
-                        title={isActive ? "Suspend Manager" : "Reactivate Manager"}
+                        title={isActive ? "Suspend Admin" : "Reactivate Admin"}
                       >
                         {isActive ? <UserMinus size={18} /> : <UserCheck size={18} />}
                       </button>

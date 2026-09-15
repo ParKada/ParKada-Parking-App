@@ -2,10 +2,21 @@
   "name": "parkada-parking-app",
   "version": "1.0.0",
   "main": "expo-router/entry",
+  "packageManager": "pnpm@9.12.0",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "19.2.3",
+      "react-native": "0.86.3",
+      "react-native-safe-area-context": "5.7.0",
+      "react-native-screens": "4.26.2",
+      "@react-navigation/core": "7.3.2",
+      "@react-navigation/native": "7.1.9"
+    }
   }
 }

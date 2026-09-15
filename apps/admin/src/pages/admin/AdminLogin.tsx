@@ -90,8 +90,9 @@ export default function AdminLogin() {
       .single();
 
     if (profileError || !profileData) {
+      console.error("Profile fetch error in processLoginSuccess:", profileError);
       await supabase.auth.signOut();
-      throw new Error("Access Denied: Wala kang access sa admin portal.");
+      throw new Error(`Access Denied: Wala kang access sa admin portal. Detail: ${profileError?.message || 'No profile found'}`);
     }
 
     if (profileData.status === "Suspended") {
@@ -319,10 +320,15 @@ export default function AdminLogin() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => setNeedsVerification(false)}
+                onClick={() => {
+                  setNeedsVerification(false);
+                  setEmail("");
+                  setPassword("");
+                  setOtp("");
+                }}
                 className="w-full h-12 text-sm font-semibold rounded-xl text-muted-foreground"
               >
-                Back to Login
+                Cancel
               </Button>
             </form>
           ) : (
@@ -344,7 +350,7 @@ export default function AdminLogin() {
                   <button 
                     type="button"
                     onClick={() => {
-                      toast.info("Forgot your Lot Manager password?", {
+                      toast.info("Forgot your Admin password?", {
                         description: "Please log in to your ParKada Partner Portal account (where you submitted your application) to view or change your admin dashboard password.",
                         duration: 8000,
                         action: {

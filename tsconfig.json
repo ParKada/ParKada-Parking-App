@@ -1,4 +1,16 @@
 {
-  "compilerOptions": {},
-  "extends": "expo/tsconfig.base"
+  "compilerOptions": {
+    "noEmit": true,
+    "types": []
+  },
+  "files": [
+    "test-fn.js"
+  ],
+  "exclude": [
+    "apps/admin",
+    "apps/landing",
+    "apps/portal",
+    "apps/ai-node"
+  ],
+  "references": []
 }

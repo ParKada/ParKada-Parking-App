@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ShieldCheck, Wallet, CheckCircle2, ChevronLeft, Info } from "lucide-react-native";
+import { ShieldCheck, Wallet, CheckCircle2, ChevronLeft, Info, QrCode } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
 
 export default function PaymentPage() {
@@ -56,8 +56,7 @@ export default function PaymentPage() {
         user_id: userId,
         title: "Congratulations! 🎉",
         message: `Reservation confirmed for Slot ${slotLabel}.`,
-        type: "reservation",
-        read: false
+        type: "reservation"
       }
     ]);
     if (error) console.error("Notification trigger failed:", error.message);
@@ -144,7 +143,7 @@ export default function PaymentPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-[#0A1D37]">Verifying Payment Details...</Text>
       </SafeAreaView>
@@ -153,38 +152,55 @@ export default function PaymentPage() {
 
   if (isSuccess) {
     return (
-      <SafeAreaView className="flex-1 bg-white justify-center px-8">
-        <View className="items-center mb-8">
-          <View className="w-24 h-24 bg-emerald-100 rounded-full items-center justify-center mb-6">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center" }}>
+        <View className="items-center px-6 w-full">
+          <View className="w-24 h-24 bg-emerald-100 rounded-full items-center justify-center mb-6 shadow-sm shadow-emerald-200">
             <CheckCircle2 size={48} color="#059669" />
           </View>
-          <Text className="text-2xl font-black text-slate-800 text-center">Payment Received</Text>
-          <Text className="text-sm text-slate-500 mt-2 text-center">
-            Your reservation for <Text className="font-bold text-slate-800">{params.plate}</Text> is now active.
+          <Text className="text-3xl font-black text-slate-800 text-center tracking-tight">Payment Sent!</Text>
+          <Text className="text-sm text-slate-500 mt-3 text-center leading-relaxed px-4">
+            Your reservation for vehicle <Text className="font-bold text-slate-800">{params.plate}</Text> is now successfully active.
           </Text>
-        </View>
 
-        <View className="w-full bg-slate-50 rounded-3xl p-6 border border-slate-100 mb-8">
-           <View className="flex-row justify-between items-center mb-4">
-             <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sales Invoice No.</Text>
-             <Text className="text-sm font-black text-slate-800 uppercase tracking-tight">
-               {invoiceNo || "GENERATING..."}
-             </Text>
-           </View>
-           <View className="flex-row justify-between items-center">
-             <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider">Method</Text>
-             <Text className="text-sm font-black text-slate-800 uppercase">{params.pay}</Text>
-           </View>
-        </View>
+          <View className="w-full bg-white rounded-3xl p-6 border border-slate-100 shadow-sm mt-8 mb-10">
+             <View className="flex-row justify-between items-center mb-5">
+               <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest">Transaction ID</Text>
+               <Text className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                 {invoiceNo || "GENERATING..."}
+               </Text>
+             </View>
+             
+             <View className="h-px bg-slate-50 w-full mb-5" />
+             
+             <View className="flex-row justify-between items-center">
+               <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest">Amount Paid</Text>
+               <Text className="text-lg font-black text-emerald-600">₱{params.total}.00</Text>
+             </View>
+          </View>
 
-        <TouchableOpacity 
-          onPress={() => {
-            router.replace('/(app)/reservations');
-          }} 
-          className="w-full h-14 rounded-2xl bg-[#0A1D37] items-center justify-center shadow-lg"
-        >
-          <Text className="font-bold text-white text-base">View Bookings</Text>
-        </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => {
+              if (newReservationId) {
+                router.replace(`/(app)/receipt/${newReservationId}`);
+              } else {
+                router.replace('/(app)/reservations');
+              }
+            }} 
+            activeOpacity={0.8}
+            className="w-full h-14 rounded-2xl bg-blue-600 flex-row items-center justify-center shadow-lg shadow-blue-500/30 mb-4"
+          >
+            <QrCode size={20} color="white" />
+            <Text className="font-black text-white text-base ml-2">View Receipt & QR Code</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onPress={() => router.replace('/(app)/reservations')} 
+            activeOpacity={0.7}
+            className="w-full h-14 rounded-2xl bg-slate-100 items-center justify-center"
+          >
+            <Text className="font-bold text-slate-600 text-sm">Back to Bookings</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -192,7 +208,7 @@ export default function PaymentPage() {
   const isGcash = params.pay === 'gcash';
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-100">
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
           <ChevronLeft size={24} color="#0A1D37" />
@@ -243,7 +259,7 @@ export default function PaymentPage() {
         </View>
 
         <View className="flex-row items-start gap-2 px-2 opacity-60 mb-8 mt-auto">
-           <Info size={16} color="#64748B" className="mt-0.5" />
+           <Info size={16} color="#64748B" style={{ marginTop: 2 }} />
            <Text className="flex-1 text-[10px] font-medium text-slate-500 leading-relaxed">
              By clicking "Pay Now", you authorize ParKada to deduct ₱{params.total} from your {params.pay} account. This transaction is encrypted and secured.
            </Text>

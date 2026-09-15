@@ -5,6 +5,7 @@
  */
 import { useState, useEffect } from "react";
 import { supabase } from "@parkada/shared";
+import { createClient } from "@supabase/supabase-js";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,12 +21,13 @@ import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AdminSettings() {
   const { language, setLanguage, t } = useLanguage();
-  const adminRole = localStorage.getItem("admin_role") || "manager";
+  const adminRole = localStorage.getItem("admin_role") || "admin";
+  const isSuperAdmin = adminRole === "super_admin" || adminRole === "superadmin";
   const [localLanguage, setLocalLanguage] = useState(language);
   const [isSaving, setIsSaving] = useState(false);
   const [adminLotId, setAdminLotId] = useState<string | null>(null);
   
-  // 1. Standard Rates (Manager)
+  // 1. Standard Rates (Admin)
   const [pricingScheme, setPricingScheme] = useState<"hourly" | "fixed">("hourly");
   const [baseRate, setBaseRate] = useState("50");
   const [hourlyRate, setHourlyRate] = useState("20");
@@ -60,10 +62,10 @@ export default function AdminSettings() {
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
-    if (adminRole === "super_admin") {
+    if (isSuperAdmin) {
       fetchGlobalSettings();
     } else {
-      fetchManagerData();
+      fetchAdminData();
     }
   }, [adminRole]);
 
@@ -73,10 +75,13 @@ export default function AdminSettings() {
       setMaxConcurrentReservations(data.max_concurrent_reservations?.toString() || "1");
       setMaxVehiclesPerUser(data.max_vehicles_per_user?.toString() || "3");
       setGlobalMaintenanceMode(data.maintenance_mode || false);
+      if (data.slot_cleanup_minutes !== undefined) {
+        setSlotCleanupMinutes(data.slot_cleanup_minutes?.toString() || "10");
+      }
     }
   };
 
-  const fetchManagerData = async () => {
+  const fetchAdminData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data } = await supabase
@@ -146,10 +151,8 @@ export default function AdminSettings() {
     e.preventDefault();
     setIsSaving(true);
     
-    if (adminRole === "super_admin") {
+    if (isSuperAdmin) {
       try {
-        // Use service key to bypass RLS for system_settings (since this is restricted to super_admin anyway)
-        const { createClient } = await import('@supabase/supabase-js');
         const adminSupabase = createClient(
           import.meta.env.VITE_SUPABASE_URL,
           import.meta.env.VITE_SUPABASE_SERVICE_KEY,
@@ -167,6 +170,7 @@ export default function AdminSettings() {
           max_concurrent_reservations: parseInt(maxConcurrentReservations),
           max_vehicles_per_user: parseInt(maxVehiclesPerUser),
           maintenance_mode: globalMaintenanceMode,
+          slot_cleanup_minutes: parseInt(slotCleanupMinutes),
           updated_at: new Date().toISOString()
         });
         if (error) throw error;
@@ -199,7 +203,6 @@ export default function AdminSettings() {
         max_reservation_hours: parseInt(maxReservationHours),
         min_reservation_hours: parseInt(minReservationHours),
         overtime_fee_per_hour: parseFloat(overtimeFeePerHour),
-        slot_cleanup_minutes: parseInt(slotCleanupMinutes),
         maintenance_mode: maintenanceMode,
         online_payments_enabled: onlinePaymentsEnabled,
         operating_hours: operatingHoursStr,
@@ -221,7 +224,7 @@ export default function AdminSettings() {
     <AdminLayout title="System Configurations">
       <div className="max-w-6xl mx-auto space-y-6 pb-12">
         
-        {adminRole === "manager" && (
+        {adminRole === "admin" && (
           <div className="bg-rose-500/10 border border-rose-500/20 p-5 rounded-2xl flex items-start gap-4">
             <div className="bg-rose-500/20 p-2 rounded-full shrink-0"><Ban className="text-rose-600" size={24} /></div>
             <div><h4 className="text-rose-800 font-black text-sm uppercase tracking-wider">No Refund Policy</h4><p className="text-rose-700/80 text-xs font-medium mt-1">ParKada does NOT issue refunds for any reason. Once a reservation is paid, it is final.</p></div>
@@ -229,7 +232,7 @@ export default function AdminSettings() {
         )}
 
         <form onSubmit={handleSaveSettings}>
-          {adminRole === "super_admin" ? (
+          {isSuperAdmin ? (
             <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto">
               <div className="flex items-center gap-3"><div className="bg-violet-500/10 p-2 rounded-xl text-violet-600"><CalendarClock size={20} /></div><h3 className="font-bold text-lg">Global Reservation Limits</h3></div>
               
@@ -249,6 +252,36 @@ export default function AdminSettings() {
                   <div className="flex items-center justify-between">
                     <div><p className="text-sm font-bold">Global Maintenance Mode</p><p className="text-[10px] text-muted-foreground">Pause all new reservations across the ENTIRE platform</p></div>
                     <Switch checked={globalMaintenanceMode} onCheckedChange={setGlobalMaintenanceMode} />
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex items-center gap-3"><Timer size={16} className="text-muted-foreground"/><div><p className="text-sm font-bold">Global Slot Cleanup Time</p><p className="text-[10px] text-muted-foreground">Minutes after end before available (Applies to all)</p></div></div>
+                    <div className="w-24"><Input type="number" className="h-12 rounded-xl text-center" value={slotCleanupMinutes} onChange={(e) => setSlotCleanupMinutes(e.target.value)} required /></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Language Preferences (Super Admin) */}
+              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto mt-6">
+                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
+                    <div className="flex bg-slate-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("en")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("tl")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        Tagalog
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -314,6 +347,32 @@ export default function AdminSettings() {
                 </div>
                 <p className="text-[10px] text-muted-foreground flex items-center gap-1"><AlertCircle size={10} /> Reservations outside these hours are not allowed.</p>
               </div>
+
+              {/* Language Preferences */}
+              <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6">
+                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
+                    <div className="flex bg-slate-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("en")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLocalLanguage("tl")}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        Tagalog
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* ========== RIGHT COLUMN ========== */}
@@ -337,13 +396,6 @@ export default function AdminSettings() {
                   <div className="flex items-center justify-between pt-2">
                     <div><p className="text-sm font-bold">Overtime Fee (per hour)</p><p className="text-[10px] text-muted-foreground">After booked duration</p></div>
                     <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" className="h-12 rounded-xl text-center pl-6" value={overtimeFeePerHour} onChange={(e) => setOvertimeFeePerHour(e.target.value)} required /></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3"><Timer size={16} className="text-muted-foreground"/><div><p className="text-sm font-bold">Slot Cleanup Time</p><p className="text-[10px] text-muted-foreground">Minutes after end before available</p></div></div>
-                    <div className="w-24"><Input type="number" className="h-12 rounded-xl text-center" value={slotCleanupMinutes} onChange={(e) => setSlotCleanupMinutes(e.target.value)} required /></div>
-                  </div>
-                  <div className="flex items-center justify-between">                  
-                    
                   </div>
 
                   <div className="bg-slate-50 p-3 rounded-xl text-xs text-slate-600">
@@ -380,63 +432,29 @@ export default function AdminSettings() {
                 </div>
               </div>
 
-
-
-              {/* Payment Gateway (mock) */}
-              <div className="bg-slate-50 rounded-3xl border p-6 space-y-4">
-                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><div className="bg-white p-2 rounded-xl shadow-sm"><CreditCard size={20} /></div><h3 className="font-bold text-lg">Payment Gateway</h3></div><span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-1 rounded-md">Coming Soon</span></div>
-                <div className="space-y-3">
-                  <div><Label className="text-[10px] font-bold uppercase">Merchant ID</Label><Input type="text" className="h-10 rounded-lg bg-white font-mono text-sm mt-1" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
-                  <div><Label className="text-[10px] font-bold uppercase">Production API Key</Label><div className="relative mt-1"><Input type={showKey ? "text" : "password"} className="h-10 rounded-lg bg-white font-mono text-sm pr-10" defaultValue="pk_live_51HXXXXXParKadagcash" /><button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
-                </div>
-              </div>
               </div>
             </div>
           )}
 
-          {/* Language Preferences */}
-          <div className="mt-8 bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto">
-            <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><Languages size={20} /></div><h3 className="font-bold text-lg">System Language</h3></div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div><p className="text-sm font-bold">Preferred Language</p><p className="text-[10px] text-muted-foreground">Changes notification language for this account</p></div>
-                <div className="flex bg-slate-100 rounded-lg p-1">
-                  <button
-                    type="button"
-                    onClick={() => setLocalLanguage("en")}
-                    className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "en" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
-                  >
-                    English
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLocalLanguage("tl")}
-                    className={cn("px-4 py-2 text-xs font-bold rounded-md transition-all", localLanguage === "tl" ? "bg-white shadow-sm text-blue-700" : "text-slate-500 hover:text-slate-700")}
-                  >
-                    Tagalog
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+
 
           {/* Save Button */}
-          <div className="mt-8 bg-white border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm max-w-3xl mx-auto">
+          <div className={cn("mt-8 bg-white border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm", isSuperAdmin ? "max-w-3xl mx-auto" : "w-full")}>
             <div className="flex items-center gap-4 text-slate-600">
               <div className="bg-slate-100 p-3 rounded-full"><ShieldAlert size={24} /></div>
               <div>
-                <h4 className="font-bold text-sm">{adminRole === "super_admin" ? "Global System Rules" : "System Maintenance"}</h4>
-                <p className="text-xs text-muted-foreground">{adminRole === "super_admin" ? "Changes apply to all users across all lots." : "Pause all incoming reservations globally."}</p>
+                <h4 className="font-bold text-sm">{isSuperAdmin ? "Global System Rules" : "System Maintenance"}</h4>
+                <p className="text-xs text-muted-foreground">{isSuperAdmin ? "Changes apply to all users across all lots." : "Pause all incoming reservations globally."}</p>
               </div>
             </div>
             <Button type="submit" disabled={isSaving} className="w-full md:w-auto h-14 px-8 font-black uppercase tracking-widest rounded-xl bg-slate-900 text-white hover:bg-slate-800">
-              <Save size={18} /> {isSaving ? "Processing..." : adminRole === "super_admin" ? "Save Global Rules" : "Save Lot Settings"}
+              <Save size={18} /> {isSaving ? "Processing..." : isSuperAdmin ? "Save Global Rules" : "Save Lot Settings"}
             </Button>
           </div>
         </form>
 
         <div className="text-center text-[10px] text-muted-foreground mt-4">
-          ⚡ {adminRole === "super_admin" ? "These limits prevent abuse across the entire platform." : "Settings are automatically applied to your assigned parking establishment."}
+          ⚡ {isSuperAdmin ? "These limits prevent abuse across the entire platform." : "Settings are automatically applied to your assigned parking establishment."}
         </div>
       </div>
     </AdminLayout>

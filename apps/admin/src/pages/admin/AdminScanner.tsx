@@ -43,8 +43,8 @@ const formatTimeRange = (start: string | null, end: string | null) => {
 
 export default function AdminScanner() {
   const { t } = useLanguage();
-  const [managerLotId, setManagerLotId] = useState<string | null>(null);
-  const [managerLotType, setManagerLotType] = useState<string | null>(null);
+  const [managerLotId, setAdminLotId] = useState<string | null>(null);
+  const [managerLotType, setAdminLotType] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +59,7 @@ export default function AdminScanner() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
-    const fetchManagerData = async () => {
+    const fetchAdminData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data } = await supabase
@@ -68,14 +68,14 @@ export default function AdminScanner() {
           .eq("id", user.id)
           .single();
         if (data && data.assigned_lot_id) {
-          setManagerLotId(data.assigned_lot_id);
+          setAdminLotId(data.assigned_lot_id);
           const { data: lotData } = await supabase
             .from("parking_lots")
             .select("type")
             .eq("id", data.assigned_lot_id)
             .single();
           if (lotData) {
-            setManagerLotType(lotData.type);
+            setAdminLotType(lotData.type);
             if (lotData.type === "public") {
               setActiveTab("parked");
             }
@@ -83,7 +83,7 @@ export default function AdminScanner() {
         }
       }
     };
-    fetchManagerData();
+    fetchAdminData();
   }, []);
 
   // Expected: booked & reserved

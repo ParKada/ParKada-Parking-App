@@ -37,7 +37,7 @@ serve(async (req) => {
     });
 
     if (createError) {
-      if (createError.message && (createError.message.includes("already registered") || createError.message.includes("already exists"))) {
+      if (createError.message && (createError.message.includes("already registered") || createError.message.includes("already exists") || createError.message.includes("already been registered"))) {
         return new Response(
           JSON.stringify({ error: "This email is already registered as an admin." }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }

@@ -1,5 +1,5 @@
 /*
- * ParKada — AdminScanner (Manager QR & Manual Check-in)
+ * ParKada — AdminScanner (Admin QR & Manual Check-in)
  * Design: Civic Tech / Filipino Urban Identity
  */
 import { useState, useEffect } from "react";
@@ -21,7 +21,7 @@ const isUUID = (uuid: string) => {
 
 export default function AdminScanner() {
   const { t } = useLanguage();
-  const [managerLotId, setManagerLotId] = useState<string | null>(null);
+  const [managerLotId, setAdminLotId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function AdminScanner() {
 
   // 1. Kunin ang Lot ID ng naka-login na manager
   useEffect(() => {
-    const fetchManagerData = async () => {
+    const fetchAdminData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data } = await supabase
@@ -39,10 +39,10 @@ export default function AdminScanner() {
           .select("lot_id")
           .eq("id", user.id)
           .single();
-        if (data) setManagerLotId(data.lot_id);
+        if (data) setAdminLotId(data.lot_id);
       }
     };
-    fetchManagerData();
+    fetchAdminData();
   }, []);
 
   // 🟢 SCANNER LOGIC: Pinapagana ang camera

@@ -48,7 +48,7 @@ export default function AuthCallback() {
 
         if (data.session) {
           toast.success(t("Invitation verified! Please set your password.", "Invitation verified! Pakisuyo set your password."));
-          // Manager invitations keep their existing destination.
+          // Admin invitations keep their existing destination.
           window.location.href = "/set-password";
         } else {
           throw new Error("No session created");

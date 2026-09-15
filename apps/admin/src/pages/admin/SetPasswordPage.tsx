@@ -1,5 +1,5 @@
 /*
- * ParKada — SetPasswordPage (for newly invited managers)
+ * ParKada — SetPasswordPage (for newly invited admins)
  * After an invitation link is verified, the manager sets their password here.
  * After setting the password, the admin_profiles status is updated from 'Invited' to 'Active'.
  */

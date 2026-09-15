@@ -1,5 +1,5 @@
 /*
- * ParKada — AdminDashboard (Supabase Connected - Super Admin & Manager)
+ * ParKada — AdminDashboard (Supabase Connected - Super Admin & Admin)
  * Real‑time updates, TypeScript, map view, clickable cards, skeleton loading.
  * UPDATED: Parking Lots Overview shows only accredited lots.
  */
@@ -7,7 +7,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@parkada/shared";
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { ParkingSquare, Users, BookOpen, Activity, Loader2, RefreshCw, Map as MapIcon } from "lucide-react";
+import { ParkingSquare, Users, BookOpen, Activity, Loader2, RefreshCw, Map as MapIcon, DollarSign } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -48,9 +48,10 @@ interface Reservation {
 
 interface FormattedReservation {
   id: string;
-  lotName: string;
+  lotName?: string;
   slotLabel: string;
-  date: string;
+  date: Date | string;
+  dateStr?: string;
   amount: number;
   status: string;
 }
@@ -61,6 +62,9 @@ interface Stats {
   occupiedSlots: number;
   reservedSlots: number;
   todayReservations: number;
+  todayRevenue: number;
+  walkInRevenue: number;
+  reservationRevenue: number;
   activeUsers: number;
 }
 
@@ -93,6 +97,9 @@ export default function PartnerAdminDashboard() {
     occupiedSlots: 0,
     reservedSlots: 0,
     todayReservations: 0,
+    todayRevenue: 0,
+    walkInRevenue: 0,
+    reservationRevenue: 0,
     activeUsers: 0,
   });
   const [lotsOverview, setLotsOverview] = useState<ParkingLot[]>([]);
@@ -212,33 +219,80 @@ export default function PartnerAdminDashboard() {
       if (currentRole !== "superadmin" && managerLotId) todayResQuery = todayResQuery.eq("lot_id", managerLotId);
       const { count: todayCount } = await todayResQuery;
 
-      // 4. Recent reservations
+      // 4. Recent Records (Reservations & Walk-ins)
       let recentResQuery = supabase
         .from("reservations")
-        .select("id, start_time, end_time, created_at, total_amount, status, parking_lots(name), parking_slots(label)")
+        .select("id, start_time, end_time, created_at, total_amount, status, parking_slots(label)")
         .order("created_at", { ascending: false })
         .limit(5);
-      if (currentRole !== "superadmin" && managerLotId) recentResQuery = recentResQuery.eq("lot_id", managerLotId);
-      const { data: reservationsData } = await recentResQuery;
+      
+      let recentWalkInQuery = supabase
+        .from("walk_in_records")
+        .select("id, entry_time, exit_time, amount_paid, status, parking_slots(label)")
+        .order("entry_time", { ascending: false })
+        .limit(5);
 
-      const formattedReservations: FormattedReservation[] = (reservationsData || []).map((res: any) => ({
+      if (currentRole !== "superadmin" && managerLotId) {
+        recentResQuery = recentResQuery.eq("lot_id", managerLotId);
+        recentWalkInQuery = recentWalkInQuery.eq("lot_id", managerLotId);
+      }
+
+      const [recentResData, recentWalkInData] = await Promise.all([recentResQuery, recentWalkInQuery]);
+
+      const formattedRes = (recentResData.data || []).map((res: any) => ({
         id: res.id.substring(0, 8),
-        lotName: res.parking_lots?.name || "Unknown",
         slotLabel: res.parking_slots?.label || "N/A",
-        date: res.created_at ? new Date(res.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
+        date: new Date(res.created_at),
+        dateStr: res.created_at ? new Date(res.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
         amount: res.total_amount || 0,
         status: res.status,
       }));
 
-      // 5. Active managers (superadmin only)
+      const formattedWalkIns = (recentWalkInData.data || []).map((w: any) => ({
+        id: w.id.substring(0, 8),
+        slotLabel: "Walk In",
+        date: new Date(w.entry_time),
+        dateStr: w.entry_time ? new Date(w.entry_time).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
+        amount: w.amount_paid || 0,
+        status: w.status || (w.exit_time ? 'completed' : 'active'),
+      }));
+
+      const formattedReservations = [...formattedRes, ...formattedWalkIns]
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
+        .slice(0, 5);
+
+      // 5. Active admins (superadmin only)
       let activeCount = 0;
       if (currentRole === "superadmin") {
         const { count } = await supabase
           .from("admin_profiles")
           .select("*", { count: "exact", head: true })
-          .eq("role", "manager");
+          .eq("role", "admin");
         activeCount = count || 0;
       }
+
+      // 6. Today's Revenue
+      let walkInRevQuery = supabase
+        .from("walk_in_records")
+        .select("amount_paid, exit_time")
+        .gte("entry_time", todayStart.toISOString())
+        .lt("entry_time", tomorrowStart.toISOString())
+        .not("exit_time", "is", null);
+      if (currentRole !== "superadmin" && managerLotId) walkInRevQuery = walkInRevQuery.eq("lot_id", managerLotId);
+      
+      let resRevQuery = supabase
+        .from("reservations")
+        .select("total_amount")
+        .gte("created_at", todayStart.toISOString())
+        .lt("created_at", tomorrowStart.toISOString())
+        .eq("status", "completed");
+      if (currentRole !== "superadmin" && managerLotId) resRevQuery = resRevQuery.eq("lot_id", managerLotId);
+
+      const [{ data: walkInData }, { data: resData }] = await Promise.all([walkInRevQuery, resRevQuery]);
+      
+      const walkInRev = (walkInData || []).reduce((sum, r) => sum + (r.amount_paid || 0), 0);
+      const resRev = (resData || []).reduce((sum, r) => sum + (r.total_amount || 0), 0);
+      const todayRevenue = walkInRev + resRev;
 
       // 6. Dynamic weekly occupancy (unchanged)
       const totalSlotsCount = total;
@@ -259,7 +313,7 @@ export default function PartnerAdminDashboard() {
         .not("status", "eq", "cancelled")
         .lt("start_time", endOfWeek.toISOString())
         .gte("end_time", startOfWeek.toISOString());
-      if (currentRole === "manager" && managerLotId) reservationsQuery = reservationsQuery.eq("lot_id", managerLotId);
+      if (currentRole === "admin" && managerLotId) reservationsQuery = reservationsQuery.eq("lot_id", managerLotId);
       const { data: weekReservations } = await reservationsQuery;
 
       for (let i = 0; i < 7; i++) {
@@ -287,6 +341,9 @@ export default function PartnerAdminDashboard() {
         occupiedSlots: occupied,
         reservedSlots: reserved,
         todayReservations: todayCount || 0,
+        todayRevenue,
+        walkInRevenue: walkInRev,
+        reservationRevenue: resRev,
         activeUsers: activeCount,
       });
       setLotsOverview(formattedLots);
@@ -325,7 +382,7 @@ export default function PartnerAdminDashboard() {
     statCards.push({ label: "Today's Bookings", value: stats.todayReservations, icon: BookOpen, color: "bg-amber-100 text-amber-700", path: "/admin/reservations" });
   }
   if (isSuperAdmin) {
-    statCards.push({ label: "Total Managers", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
+    statCards.push({ label: "Total Admins", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
   }
 
   if (isLoading) {
@@ -358,39 +415,40 @@ export default function PartnerAdminDashboard() {
               onClick={() => setLocation(path)}
               className="bg-white rounded-2xl p-4 card-elevated text-left w-full hover:shadow-lg transition-all cursor-pointer"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", color)}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", color)}>
                   <Icon size={20} />
                 </div>
+                <p className="text-sm font-bold text-muted-foreground">{label}</p>
               </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-foreground">{value}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-foreground">{value}</p>
             </button>
           ))}
         </div>
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Weekly Bar Chart */}
+          {/* Today's Revenue */}
           <div
-            className="bg-white rounded-2xl p-4 sm:p-5 card-elevated cursor-pointer hover:shadow-md transition lg:col-span-2"
+            className="bg-white rounded-2xl p-4 sm:p-5 card-elevated flex flex-col justify-center items-center lg:col-span-2 cursor-pointer hover:shadow-md transition"
             onClick={() => setLocation("/admin/reports")}
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-sm font-bold text-foreground">Weekly Occupancy Rate (%)</h3>
-              <button onClick={refreshData} disabled={isRefreshing} className="p-1 rounded-full hover:bg-muted transition-colors">
-                <RefreshCw size={16} className={cn("text-muted-foreground", isRefreshing && "animate-spin")} />
-              </button>
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+              <DollarSign size={32} className="text-emerald-600" />
             </div>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={weeklyData} barSize={28}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }} formatter={(v) => [`${v}%`, "Occupancy"]} />
-                <Bar dataKey="occupancy" fill="#0f172a" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Today's Revenue</h3>
+            <p className="text-4xl sm:text-5xl font-black text-slate-900 mb-6">₱{stats.todayRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            
+            <div className="w-full grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+              <div className="text-center">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Walk-ins</p>
+                <p className="text-lg font-bold text-slate-700">₱{stats.walkInRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+              <div className="text-center border-l border-slate-100">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Reservations</p>
+                <p className="text-lg font-bold text-slate-700">₱{stats.reservationRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            </div>
           </div>
 
           {/* Pie Chart (manager only) */}
@@ -418,52 +476,66 @@ export default function PartnerAdminDashboard() {
           </div>
         </div>
 
-
-
-        {/* Recent Reservations Table */}
+        {/* Weekly Occupancy Rate */}
+        <div
+          className="bg-white rounded-2xl p-4 sm:p-5 card-elevated cursor-pointer hover:shadow-md transition w-full"
+          onClick={() => setLocation("/admin/reports")}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="text-sm font-bold text-foreground">Weekly Occupancy Rate (%)</h3>
+            <button onClick={refreshData} disabled={isRefreshing} className="p-1 rounded-full hover:bg-muted transition-colors">
+              <RefreshCw size={16} className={cn("text-muted-foreground", isRefreshing && "animate-spin")} />
+            </button>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={weeklyData} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="day" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+              <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }} formatter={(v) => [`${v}%`, "Occupancy"]} />
+              <Bar dataKey="occupancy" fill="#0f172a" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>        {/* Recent Records Table */}
         {!isPublicLot && (
         <div className="bg-white rounded-2xl p-4 sm:p-5 card-elevated">
-          <h3 className="text-sm font-bold text-foreground mb-4">Recent Reservations</h3>
+          <h3 className="text-sm font-bold text-foreground mb-4">Recent Records</h3>
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             <table className="w-full text-sm min-w-125">
               <thead>
                 <tr className="text-xs text-muted-foreground border-b border-border">
-                  <th className="text-left pb-2 font-semibold">ID</th>
-                  <th className="text-left pb-2 font-semibold">Location</th>
                   <th className="text-left pb-2 font-semibold">Slot</th>
                   <th className="text-left pb-2 font-semibold">Date</th>
                   <th className="text-left pb-2 font-semibold">Amount</th>
                   <th className="text-left pb-2 font-semibold">Status</th>
                 </tr>
               </thead>
-<tbody className="divide-y divide-border">
-  {recentReservations.length === 0 ? (
-    <tr>
-      <td colSpan={6} className="text-center py-4 text-muted-foreground text-xs">
-        No recent reservations found.
-      </td>
-    </tr>
-  ) : (
-    recentReservations.map((res) => (
-      <tr 
-        key={res.id} 
-        onClick={() => setLocation("/admin/reservations")} 
-        className="hover:bg-muted/30 transition-colors cursor-pointer"
-      >
-        <td className="py-2.5 font-mono text-xs text-muted-foreground">{res.id}</td>
-        <td className="py-2.5 font-medium truncate max-w-35">{res.lotName}</td>
-        <td className="py-2.5 font-bold">{res.slotLabel}</td>
-        <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.date}</td>
-        <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
-        <td className="py-2.5">
-          <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
-            {res.status}
-          </span>
-        </td>
-      </tr>
-    ))
-  )}
-</tbody>
+              <tbody className="divide-y divide-border">
+                {recentReservations.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-4 text-muted-foreground text-xs">
+                      No recent records found.
+                    </td>
+                  </tr>
+                ) : (
+                  recentReservations.map((res: any) => (
+                    <tr 
+                      key={res.id} 
+                      onClick={() => setLocation("/admin/reservations")} 
+                      className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    >
+                      <td className="py-2.5 font-bold">{res.slotLabel}</td>
+                      <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.dateStr}</td>
+                      <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
+                      <td className="py-2.5">
+                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
+                          {res.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
             </table>
           </div>
         </div>

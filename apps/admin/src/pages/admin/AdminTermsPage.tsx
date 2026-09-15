@@ -1,6 +1,6 @@
 /*
  * ParKada — AdminTermsPage
- * Terms and Conditions for ParKada Admin/Manager Accounts
+ * Terms and Conditions for ParKada Admin/Admin Accounts
  */
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ export default function AdminTermsPage() {
   const sections = [
     {
       title: "1. Acceptance of Terms",
-      content: "By accessing or using the ParKada Admin Dashboard, you agree to be bound by these Terms and Conditions. If you do not agree, please do not use the platform. These terms apply to all administrators and parking managers."
+      content: "By accessing or using the ParKada Admin Dashboard, you agree to be bound by these Terms and Conditions. If you do not agree, please do not use the platform. These terms apply to all administrators and parking admins."
     },
     {
       title: "2. Description of Service",
@@ -36,11 +36,11 @@ export default function AdminTermsPage() {
     },
     {
       title: "5. Booking and Reservation Policies",
-      content: "All driver reservations are subject to slot availability on a first‑come, first‑served basis. Managers must honor confirmed reservations unless exceptional circumstances (e.g., force majeure) apply. Cancellation and refund policies are set by the parking facility operator."
+      content: "All driver reservations are subject to slot availability on a first‑come, first‑served basis. Admins must honor confirmed reservations unless exceptional circumstances (e.g., force majeure) apply. Cancellation and refund policies are set by the parking facility operator."
     },
     {
       title: "6. Fees and Payment Processing",
-      content: "Managers are responsible for setting and collecting parking fees through the platform. ParKada processes payments securely but is not liable for disputes between drivers and parking facilities."
+      content: "Admins are responsible for setting and collecting parking fees through the platform. ParKada processes payments securely but is not liable for disputes between drivers and parking facilities."
     },
     {
       title: "7. Prohibited Conduct",

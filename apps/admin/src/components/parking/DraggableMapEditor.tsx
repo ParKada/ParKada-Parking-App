@@ -44,7 +44,7 @@ interface DraggableMapEditorProps {
   onUpdateSlot: (id: string, updates: Partial<any>) => void;
   onEditSlot?: (slot: any) => void;
   onDeleteSlot?: (slotId: string) => void;
-  interactive?: boolean; // false for managers
+  interactive?: boolean; // false for admins
 }
 
 export default function DraggableMapEditor({

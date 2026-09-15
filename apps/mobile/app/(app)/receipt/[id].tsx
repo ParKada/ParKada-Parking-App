@@ -34,7 +34,7 @@ export default function DigitalReceiptPage() {
       try {
         const { data: resData, error: resError } = await supabase
           .from("reservations")
-          .select(`*, parking_lots (name, address), parking_slots (label)`)
+          .select(`*, parking_slots (label, parking_lots (name, address))`)
           .eq("id", id)
           .single();
 
@@ -64,7 +64,7 @@ export default function DigitalReceiptPage() {
   const handleShare = async () => {
     if (!res) return;
     try {
-      const shareMessage = `Parkada Ticket\n\nLocation: ${res.parking_lots?.name || 'N/A'}\nSlot: ${res.parking_slots?.label || 'N/A'}\nVehicle: ${res.plate_number}\nRef: ${receiptRef}`;
+      const shareMessage = `Parkada Ticket\n\nLocation: ${res.parking_slots?.parking_lots?.name || 'N/A'}\nSlot: ${res.parking_slots?.label || 'N/A'}\nVehicle: ${res.plate_number}\nRef: ${receiptRef}`;
       
       await Share.share({
         message: shareMessage,
@@ -78,7 +78,7 @@ export default function DigitalReceiptPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-slate-500">Generating Receipt...</Text>
       </SafeAreaView>
@@ -87,7 +87,7 @@ export default function DigitalReceiptPage() {
 
   if (!res) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
           <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
             <ChevronLeft size={24} color="#0A1D37" />
@@ -117,7 +117,7 @@ export default function DigitalReceiptPage() {
   const endTimeFormatted = formatTimeFromISO(res.end_time);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-200">
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full">
           <ChevronLeft size={24} color="#0A1D37" />
@@ -169,7 +169,7 @@ export default function DigitalReceiptPage() {
                 <MapPin size={20} color="#0A1D37" />
                 <View className="flex-1">
                   <Text className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Location</Text>
-                  <Text className="text-xs font-bold text-slate-800" numberOfLines={1}>{res.parking_lots?.name || "N/A"}</Text>
+                  <Text className="text-xs font-bold text-slate-800" numberOfLines={1}>{res.parking_slots?.parking_lots?.name || "N/A"}</Text>
                 </View>
               </View>
 

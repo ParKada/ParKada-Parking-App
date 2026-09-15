@@ -1,5 +1,6 @@
+import { Modal } from '../../components/SafeModal';
 import { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, Modal, TextInput, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, TextInput, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { 
@@ -219,7 +220,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-slate-500">Loading Profile...</Text>
       </SafeAreaView>
@@ -275,7 +276,7 @@ export default function ProfilePage() {
     : "Connect GCash or Maya for 1-tap payment";
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={['top', 'left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }} edges={['top', 'left', 'right']}>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         className="flex-1 px-4 pt-4"
