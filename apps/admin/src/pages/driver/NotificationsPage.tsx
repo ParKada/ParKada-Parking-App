@@ -118,11 +118,7 @@ export default function NotificationPage() {
       const { error: insertError } = await supabase.from("notifications").insert({
         user_id: userId,
         title,
-        message,
-        type,
-        recipient_role: "user",
-        read: false,
-        related_id: reservationId,
+        message
       });
       if (insertError) throw insertError;
 

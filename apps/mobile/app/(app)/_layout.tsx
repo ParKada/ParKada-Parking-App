@@ -12,6 +12,10 @@ export default function AppLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Cross-fades between tabs so the Home -> Find transition reads as one
+        // smooth motion together with the curtain animation on the home screen.
+        // Ignored harmlessly on older versions of @react-navigation/bottom-tabs.
+        animation: 'shift',
         tabBarStyle: {
           backgroundColor: '#ffffff',
           borderTopColor: '#e2e8f0',
@@ -29,8 +33,7 @@ export default function AppLayout() {
         tabBarInactiveTintColor: '#94a3b8',
         tabBarLabelStyle: {
           fontSize: 10,
-          fontFamily: 'System',
-          fontWeight: 'bold',
+          fontFamily: 'Manrope_700Bold',
         },
       }}
     >
@@ -69,8 +72,9 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />
-      
+
       {/* Hide these screens from the tabs */}
+      <Tabs.Screen name="favorites" options={{ href: null }} />
       <Tabs.Screen name="lot/[id]" options={{ href: null }} />
       <Tabs.Screen name="payment/index" options={{ href: null }} />
       <Tabs.Screen name="payment/extension" options={{ href: null }} />

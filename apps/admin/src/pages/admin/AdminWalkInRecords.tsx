@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { supabase } from "@parkada/shared";
 import { toast } from "sonner";
-import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer, List, Edit3, Trash2 } from "lucide-react";
+import { Plus, DollarSign, Car, Clock, CheckCircle, TrendingUp, Printer, List, Edit3, Trash2, Search, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -40,6 +40,7 @@ export default function AdminWalkInRecords() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     plate_number: "",
+    slot_id: "",
     amount_paid: "",
     notes: "",
   });
@@ -49,6 +50,8 @@ export default function AdminWalkInRecords() {
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "custom">("today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [checkoutConfirm, setCheckoutConfirm] = useState<WalkInRecord | null>(null);
   const [editingNoteRecord, setEditingNoteRecord] = useState<WalkInRecord | null>(null);
   const [newNote, setNewNote] = useState("");
@@ -162,6 +165,12 @@ export default function AdminWalkInRecords() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const manualRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchRecords();
+    setIsRefreshing(false);
   };
 
   // ================= PRINT: NEW WINDOW (NO SIDEBARS) =================
@@ -325,7 +334,7 @@ export default function AdminWalkInRecords() {
     
     const { error } = await supabase.from("walk_in_records").insert({
       lot_id: validLotId,
-      slot_id: null,
+      slot_id: form.slot_id || null,
       guard_id: guardId,
       plate_number: form.plate_number.toUpperCase(),
       amount_paid: parseFloat(form.amount_paid),
@@ -338,7 +347,7 @@ export default function AdminWalkInRecords() {
       toast.error(error.message);
     } else {
       toast.success(t("Walk‑in recorded", "Walk‑in recorded"));
-      setForm({ plate_number: "", amount_paid: "", notes: "" });
+      setForm({ plate_number: "", slot_id: "", amount_paid: "", notes: "" });
       setShowForm(false);
       fetchRecords();
     }
@@ -560,15 +569,28 @@ export default function AdminWalkInRecords() {
           </div>
         </div>
 
-        {/* Filters & Buttons */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            {recordType === "active" ? (
+              <><Clock className="text-amber-600" size={24} /> Active Walk-ins ({getDateRangeText()})</>
+            ) : recordType === "archived" ? (
+              <><CheckCircle className="text-emerald-600" size={24} /> Completed Records ({getDateRangeText()})</>
+            ) : (
+              <><List className="text-blue-600" size={24} /> All Records ({getDateRangeText()})</>
+            )}
+          </h3>
+        </div>
+
+        {/* Unified Filter Row matching Walk-ins layout */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border mb-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Record Type Tabs */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setRecordType("all")}
                   className={cn(
-                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
                     recordType === "all" ? "bg-blue-600 text-white shadow-md" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
                   )}
                 >
@@ -577,7 +599,7 @@ export default function AdminWalkInRecords() {
                 <button
                   onClick={() => setRecordType("active")}
                   className={cn(
-                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
                     recordType === "active" ? "bg-amber-500 text-white shadow-md" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
                   )}
                 >
@@ -586,66 +608,84 @@ export default function AdminWalkInRecords() {
                 <button
                   onClick={() => setRecordType("archived")}
                   className={cn(
-                    "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+                    "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
                     recordType === "archived" ? "bg-emerald-600 text-white shadow-md" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                   )}
                 >
                   Completed
                 </button>
-                
-                {/* Date Filters (Admins/Superadmins only) */}
-                {(userRole === "admin" || userRole === "superadmin" || userRole === "super_admin") && (
-                  <>
-                    <div className="w-px bg-slate-200 mx-2 self-stretch hidden md:block" />
-                    <div className="relative flex items-center">
-                      <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
-                        {["today", "week", "month", "custom"].map((f) => (
-                          <button
-                            key={f}
-                            onClick={() => setDateFilter(f as any)}
-                            className={cn(
-                              "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
-                              dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
-                            )}
-                          >
-                            {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
-                          </button>
-                        ))}
-                      </div>
-                      
-                      {dateFilter === "custom" && (
-                        <div className="absolute top-[120%] right-0 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl p-4 flex flex-row items-center gap-4 z-[60] animate-in fade-in slide-in-from-top-2 w-max">
-                          <div className="flex flex-col gap-1.5">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase px-1">Start Date</span>
-                            <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-[140px] h-9 text-sm" />
-                          </div>
-                          <div className="text-slate-300 mt-5">–</div>
-                          <div className="flex flex-col gap-1.5">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase px-1">End Date</span>
-                            <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-[140px] h-9 text-sm" />
-                          </div>
-                        </div>
+              </div>
+
+              <div className="w-px h-6 bg-slate-200 hidden md:block" />
+
+              {/* Date Filters */}
+              <div className="relative flex items-center">
+                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
+                  {["today", "week", "month", "custom"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setDateFilter(f as any)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
+                        dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
                       )}
+                    >
+                      {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
+                    </button>
+                  ))}
+                </div>
+                
+                {dateFilter === "custom" && (
+                  <div className="absolute top-[120%] right-0 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl p-4 flex flex-row items-center gap-4 z-[60] animate-in fade-in slide-in-from-top-2 w-max">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase px-1">Start Date</span>
+                      <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-[140px] h-9 text-sm" />
                     </div>
-                  </>
+                    <div className="text-slate-300 mt-5">–</div>
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase px-1">End Date</span>
+                      <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-[140px] h-9 text-sm" />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={handlePrint} variant="outline" className="rounded-xl gap-2">
-                <Printer size={16} /> Export Records 
+            
+            <div className="flex items-center gap-2">
+              <Button onClick={handlePrint} variant="outline" size="sm" className="rounded-xl gap-2 h-8 text-xs">
+                <Printer size={14} /> Export
               </Button>
-              <Button onClick={() => setShowForm(!showForm)} className="rounded-xl">
-                <Plus className="mr-2 h-4 w-4" /> Add Walk‑in
+              <Button onClick={() => setShowForm(!showForm)} className="bg-primary text-white rounded-xl gap-1 font-bold h-8 text-xs">
+                <Plus size={14} /> New
               </Button>
             </div>
+          </div>
+
+          <div className="h-px w-full bg-slate-100" />
+
+          {/* Bottom Row: Search & Refresh */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+              <input 
+                type="text" 
+                placeholder="Search by plate number..." 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+                className="pl-8 pr-3 py-2 bg-slate-50 border rounded-xl text-sm w-full shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={manualRefresh} disabled={isRefreshing} className="rounded-xl h-9 bg-slate-50">
+              <RefreshCw size={14} className={cn("mr-2", isRefreshing && "animate-spin")} />
+              Refresh List
+            </Button>
           </div>
         </div>
 
         {/* Add Form */}
         {showForm && (
           <div className="bg-white p-6 rounded-2xl border shadow-sm">
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
                 <Label className="text-sm font-semibold">Plate Number *</Label>
                 <Input
@@ -655,6 +695,19 @@ export default function AdminWalkInRecords() {
                   className="h-11"
                   required
                 />
+              </div>
+              <div>
+                <Label className="text-sm font-semibold">Slot (Optional)</Label>
+                <select
+                  value={form.slot_id}
+                  onChange={(e) => setForm({ ...form, slot_id: e.target.value })}
+                  className="w-full h-11 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                >
+                  <option value="">Unassigned / Walk-In</option>
+                  {slots.map(slot => (
+                    <option key={slot.id} value={slot.id}>{slot.label}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label className="text-sm font-semibold">Base Amount (₱) *</Label>
@@ -669,7 +722,7 @@ export default function AdminWalkInRecords() {
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">Covers first 3 hours. Overtime ₱10/hour beyond.</p>
               </div>
-              <div className="md:col-span-2">
+              <div className="md:col-span-3">
                 <Label className="text-sm font-semibold">Notes (optional)</Label>
                 <Textarea
                   value={form.notes}
@@ -678,7 +731,7 @@ export default function AdminWalkInRecords() {
                   className="h-20 resize-none"
                 />
               </div>
-              <div className="md:col-span-2 flex justify-end gap-3">
+              <div className="md:col-span-3 flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)} className="rounded-xl">
                   Cancel
                 </Button>
@@ -692,23 +745,14 @@ export default function AdminWalkInRecords() {
 
       {/* Main Table */}
       <div className="mb-8">
-        <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-          {recordType === "active" ? (
-            <><Clock className="text-amber-600" size={20} /> Active Walk-ins ({getDateRangeText()})</>
-          ) : recordType === "archived" ? (
-            <><CheckCircle className="text-emerald-600" size={20} /> Completed Records ({getDateRangeText()})</>
-          ) : (
-            <><List className="text-blue-600" size={20} /> All Records ({getDateRangeText()})</>
-          )}
-        </h3>
         <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             {renderTable(
-              records.filter(r => 
-                recordType === "active" ? !r.exit_time : 
-                recordType === "archived" ? !!r.exit_time : 
-                true
-              ), 
+              records.filter(r => {
+                const typeMatch = recordType === "active" ? !r.exit_time : recordType === "archived" ? !!r.exit_time : true;
+                const searchMatch = !searchTerm || r.plate_number.toLowerCase().includes(searchTerm.toLowerCase());
+                return typeMatch && searchMatch;
+              }), 
               "No records found for the selected period."
             )}
           </div>

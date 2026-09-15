@@ -23,6 +23,7 @@ export default function AdminSettings() {
   const { language, setLanguage, t } = useLanguage();
   const adminRole = localStorage.getItem("admin_role") || "admin";
   const isSuperAdmin = adminRole === "super_admin" || adminRole === "superadmin";
+  const isStaff = adminRole === "staff";
   const [localLanguage, setLocalLanguage] = useState(language);
   const [isSaving, setIsSaving] = useState(false);
   const [adminLotId, setAdminLotId] = useState<string | null>(null);
@@ -33,12 +34,14 @@ export default function AdminSettings() {
   const [hourlyRate, setHourlyRate] = useState("20");
   const [fixedRate, setFixedRate] = useState("150");
   const [overnightRate, setOvernightRate] = useState("250");
+  const [waitingTimeFee, setWaitingTimeFee] = useState("10");
 
   // 2. Statutory Discounts
+  const [statutoryDiscountsEnabled, setStatutoryDiscountsEnabled] = useState(true);
   const [seniorDiscount, setSeniorDiscount] = useState("20");
 
-
   // 3. Global Operating Hours
+  const [isOpen24Hours, setIsOpen24Hours] = useState(false);
   const [openTime, setOpenTime] = useState("06:00");
   const [closeTime, setCloseTime] = useState("22:00");
 
@@ -129,7 +132,13 @@ export default function AdminSettings() {
       setHourlyRate(data.rate_per_hour?.toString() || "20");
       setFixedRate(data.fixed_rate?.toString() || "150");
       setOvernightRate(data.overnight_rate?.toString() || "250");
-      setSeniorDiscount(data.senior_discount_pct?.toString() || "20");
+      setWaitingTimeFee(data.extension_fee?.toString() || "10");
+      if (data.senior_discount_pct && data.senior_discount_pct > 0) {
+        setStatutoryDiscountsEnabled(true);
+        setSeniorDiscount(data.senior_discount_pct.toString());
+      } else {
+        setStatutoryDiscountsEnabled(false);
+      }
       setMaxReservationHours(data.max_reservation_hours?.toString() || "6");
       setMinReservationHours(data.min_reservation_hours?.toString() || "1");
       setOvertimeFeePerHour(data.overtime_fee_per_hour?.toString() || "50");
@@ -138,10 +147,15 @@ export default function AdminSettings() {
       setOnlinePaymentsEnabled(data.online_payments_enabled ?? true);
       
       if (data.operating_hours) {
-        const parts = data.operating_hours.split("-");
-        if (parts.length === 2) {
-          setOpenTime(parseTimeFrom12Hour(parts[0].trim()));
-          setCloseTime(parseTimeFrom12Hour(parts[1].trim()));
+        if (data.operating_hours.toLowerCase() === "24 hours") {
+          setIsOpen24Hours(true);
+        } else {
+          setIsOpen24Hours(false);
+          const parts = data.operating_hours.split("-");
+          if (parts.length === 2) {
+            setOpenTime(parseTimeFrom12Hour(parts[0].trim()));
+            setCloseTime(parseTimeFrom12Hour(parts[1].trim()));
+          }
         }
       }
     }
@@ -192,14 +206,15 @@ export default function AdminSettings() {
     }
 
     try {
-      const operatingHoursStr = `${formatTimeTo12Hour(openTime)} - ${formatTimeTo12Hour(closeTime)}`;
+      const operatingHoursStr = isOpen24Hours ? "24 Hours" : `${formatTimeTo12Hour(openTime)} - ${formatTimeTo12Hour(closeTime)}`;
       const { error } = await supabase.from('parking_lots').update({
         pricing_scheme: pricingScheme,
         base_rate: parseFloat(baseRate),
         rate_per_hour: parseFloat(hourlyRate),
         fixed_rate: parseFloat(fixedRate),
         overnight_rate: parseFloat(overnightRate),
-        senior_discount_pct: parseFloat(seniorDiscount),
+        extension_fee: parseFloat(waitingTimeFee),
+        senior_discount_pct: statutoryDiscountsEnabled ? parseFloat(seniorDiscount) : 0,
         max_reservation_hours: parseInt(maxReservationHours),
         min_reservation_hours: parseInt(minReservationHours),
         overtime_fee_per_hour: parseFloat(overtimeFeePerHour),
@@ -231,6 +246,13 @@ export default function AdminSettings() {
           </div>
         )}
 
+        {isStaff && (
+          <div className="bg-blue-500/10 border border-blue-500/20 p-5 rounded-2xl flex items-start gap-4 mb-4">
+            <div className="bg-blue-500/20 p-2 rounded-full shrink-0"><Eye className="text-blue-600" size={24} /></div>
+            <div><h4 className="text-blue-800 font-black text-sm uppercase tracking-wider">Staff View (Read-Only)</h4><p className="text-blue-700/80 text-xs font-medium mt-1">Settings are read-only for staff members. You may only configure your display language.</p></div>
+          </div>
+        )}
+
         <form onSubmit={handleSaveSettings}>
           {isSuperAdmin ? (
             <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6 max-w-3xl mx-auto">
@@ -254,7 +276,7 @@ export default function AdminSettings() {
                     <Switch checked={globalMaintenanceMode} onCheckedChange={setGlobalMaintenanceMode} />
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
-                    <div className="flex items-center gap-3"><Timer size={16} className="text-muted-foreground"/><div><p className="text-sm font-bold">Global Slot Cleanup Time</p><p className="text-[10px] text-muted-foreground">Minutes after end before available (Applies to all)</p></div></div>
+                    <div className="flex items-center gap-3"><Timer size={16} className="text-muted-foreground"/><div><p className="text-sm font-bold">Global Slot Cleanup Time</p><p className="text-[10px] text-muted-foreground">Seconds after end before available (Applies to all)</p></div></div>
                     <div className="w-24"><Input type="number" className="h-12 rounded-xl text-center" value={slotCleanupMinutes} onChange={(e) => setSlotCleanupMinutes(e.target.value)} required /></div>
                   </div>
                 </div>
@@ -301,15 +323,17 @@ export default function AdminSettings() {
                   <div className="flex bg-slate-100 rounded-lg p-1">
                     <button
                       type="button"
+                      disabled={isStaff}
                       onClick={() => setPricingScheme("hourly")}
-                      className={cn("px-3 py-1.5 text-xs font-bold rounded-md transition-all", pricingScheme === "hourly" ? "bg-white shadow-sm text-emerald-700" : "text-slate-500 hover:text-slate-700")}
+                      className={cn("px-3 py-1.5 text-xs font-bold rounded-md transition-all", pricingScheme === "hourly" ? "bg-white shadow-sm text-emerald-700" : "text-slate-500 hover:text-slate-700", isStaff && "opacity-50 cursor-not-allowed")}
                     >
                       Hourly
                     </button>
                     <button
                       type="button"
+                      disabled={isStaff}
                       onClick={() => setPricingScheme("fixed")}
-                      className={cn("px-3 py-1.5 text-xs font-bold rounded-md transition-all", pricingScheme === "fixed" ? "bg-white shadow-sm text-emerald-700" : "text-slate-500 hover:text-slate-700")}
+                      className={cn("px-3 py-1.5 text-xs font-bold rounded-md transition-all", pricingScheme === "fixed" ? "bg-white shadow-sm text-emerald-700" : "text-slate-500 hover:text-slate-700", isStaff && "opacity-50 cursor-not-allowed")}
                     >
                       Fixed (Whole Day)
                     </button>
@@ -318,32 +342,63 @@ export default function AdminSettings() {
                 
                 {pricingScheme === "hourly" ? (
                   <div className="grid grid-cols-2 gap-4">
-                    <div><Label className="text-[10px] font-bold uppercase">Base Rate (1st 3 Hrs)</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" className="h-12 rounded-xl text-lg font-bold pl-8" value={baseRate} onChange={(e) => setBaseRate(e.target.value)} required /></div></div>
-                    <div><Label className="text-[10px] font-bold uppercase">Hourly Succeeding</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" className="h-12 rounded-xl text-lg font-bold pl-8" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} required /></div></div>
+                    <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Base Rate (1st 3 Hrs)</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold pl-8", isStaff && "text-slate-400 bg-slate-50")} value={baseRate} onChange={(e) => setBaseRate(e.target.value)} required /></div></div>
+                    <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Hourly Succeeding</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold pl-8", isStaff && "text-slate-400 bg-slate-50")} value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} required /></div></div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
-                    <div><Label className="text-[10px] font-bold uppercase">Fixed Rate (Whole Day)</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" className="h-12 rounded-xl text-lg font-bold pl-8" value={fixedRate} onChange={(e) => setFixedRate(e.target.value)} required /></div></div>
-                    <div><Label className="text-[10px] font-bold uppercase">Overnight Stay</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" className="h-12 rounded-xl text-lg font-bold pl-8" value={overnightRate} onChange={(e) => setOvernightRate(e.target.value)} required /></div></div>
+                    <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Fixed Rate (Whole Day)</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold pl-8", isStaff && "text-slate-400 bg-slate-50")} value={fixedRate} onChange={(e) => setFixedRate(e.target.value)} required /></div></div>
+                    <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Overnight Stay</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold pl-8", isStaff && "text-slate-400 bg-slate-50")} value={overnightRate} onChange={(e) => setOvernightRate(e.target.value)} required /></div></div>
                   </div>
                 )}
               </div>
 
               {/* Discounts */}
               <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6">
-                <div className="flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><BadgePercent size={20} /></div><h3 className="font-bold text-lg">Statutory & Eco Discounts</h3></div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-500/10 p-2 rounded-xl text-blue-600"><BadgePercent size={20} /></div>
+                    <h3 className="font-bold text-lg">Statutory Discounts</h3>
+                  </div>
+                  <Switch 
+                    disabled={isStaff}
+                    checked={statutoryDiscountsEnabled} 
+                    onCheckedChange={setStatutoryDiscountsEnabled} 
+                  />
+                </div>
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center"><div><p className="text-sm font-bold">Senior Citizen & PWD</p></div><div className="relative w-24"><Input type="number" className="h-10 rounded-xl text-right pr-8" value={seniorDiscount} onChange={(e) => setSeniorDiscount(e.target.value)} /><span className="absolute right-3 top-1/2 -translate-y-1/2">%</span></div></div>
-
+                  <div className={`flex justify-between items-center transition-opacity ${statutoryDiscountsEnabled ? 'opacity-100' : 'opacity-50'}`}>
+                    <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Senior Citizen & PWD</p></div>
+                    <div className="relative w-24">
+                      <Input 
+                        type="number" 
+                        min="0"
+                        disabled={isStaff || !statutoryDiscountsEnabled}
+                        className={cn("h-10 rounded-xl text-right pr-8", isStaff && "text-slate-400 bg-slate-50")}
+                        value={seniorDiscount} 
+                        onChange={(e) => setSeniorDiscount(e.target.value)} 
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2">%</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Operating Hours */}
               <div className="bg-white rounded-3xl shadow-sm border p-6 space-y-6">
-                <div className="flex items-center gap-3"><div className="bg-indigo-500/10 p-2 rounded-xl text-indigo-600"><Clock size={20} /></div><h3 className="font-bold text-lg">Operating Hours</h3></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><Label className="text-[10px] font-bold uppercase">Opening Time</Label><Input type="time" className="h-12 rounded-xl mt-1" value={openTime} onChange={(e) => setOpenTime(e.target.value)} required /></div>
-                  <div><Label className="text-[10px] font-bold uppercase">Closing Time</Label><Input type="time" className="h-12 rounded-xl mt-1" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} required /></div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-indigo-500/10 p-2 rounded-xl text-indigo-600"><Clock size={20} /></div>
+                    <h3 className="font-bold text-lg">Operating Hours</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className={cn("text-xs font-bold text-slate-500 uppercase", isStaff && "text-slate-400")}>Open 24/7</Label>
+                    <Switch disabled={isStaff} checked={isOpen24Hours} onCheckedChange={setIsOpen24Hours} />
+                  </div>
+                </div>
+                <div className={`grid grid-cols-2 gap-4 transition-opacity ${isOpen24Hours ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                  <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Opening Time</Label><Input type="time" disabled={isStaff || isOpen24Hours} className={cn("h-12 rounded-xl mt-1", isStaff && "text-slate-400 bg-slate-50")} value={openTime} onChange={(e) => setOpenTime(e.target.value)} required={!isOpen24Hours} /></div>
+                  <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Closing Time</Label><Input type="time" disabled={isStaff || isOpen24Hours} className={cn("h-12 rounded-xl mt-1", isStaff && "text-slate-400 bg-slate-50")} value={closeTime} onChange={(e) => setCloseTime(e.target.value)} required={!isOpen24Hours} /></div>
                 </div>
                 <p className="text-[10px] text-muted-foreground flex items-center gap-1"><AlertCircle size={10} /> Reservations outside these hours are not allowed.</p>
               </div>
@@ -382,23 +437,35 @@ export default function AdminSettings() {
                 <div className="flex items-center gap-3"><div className="bg-violet-500/10 p-2 rounded-xl text-violet-600"><CalendarClock size={20} /></div><h3 className="font-bold text-lg">Reservation Rules</h3></div>
                 
                 <div className="space-y-5">
-                  {/* Duration limits */}
-                  <div className="flex items-center justify-between">
-                    <div><p className="text-sm font-bold">Max Duration (Hours)</p><p className="text-[10px] text-muted-foreground">Per reservation</p></div>
-                    <div className="w-24"><Input type="number" className="h-12 rounded-xl text-center" value={maxReservationHours} onChange={(e) => setMaxReservationHours(e.target.value)} required /></div>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-b pb-4">
-                    <div><p className="text-sm font-bold">Minimum Duration (Hours)</p><p className="text-[10px] text-muted-foreground">Lowest allowed</p></div>
-                    <div className="w-24"><Input type="number" className="h-12 rounded-xl text-center" value={minReservationHours} onChange={(e) => setMinReservationHours(e.target.value)} required /></div>
+                  <div className={`transition-opacity ${pricingScheme === 'fixed' ? 'opacity-50' : 'opacity-100'}`}>
+                    {/* Duration limits */}
+                    <div className="flex items-center justify-between">
+                      <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Max Duration (Hours)</p><p className="text-[10px] text-muted-foreground">Per reservation</p></div>
+                      <div className="w-24"><Input type="number" min="1" disabled={isStaff || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center", isStaff && "text-slate-400 bg-slate-50")} value={maxReservationHours} onChange={(e) => setMaxReservationHours(e.target.value)} required /></div>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-b pb-4 mt-2">
+                      <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Minimum Duration (Hours)</p><p className="text-[10px] text-muted-foreground">Lowest allowed</p></div>
+                      <div className="w-24"><Input type="number" min="1" disabled={isStaff || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center", isStaff && "text-slate-400 bg-slate-50")} value={minReservationHours} onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (val < 1) setMinReservationHours("1");
+                        else setMinReservationHours(e.target.value);
+                      }} required /></div>
+                    </div>
+
+                    {/* Fees & cleanup */}
+                    <div className="flex items-center justify-between pt-4 pb-4 border-b">
+                      <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Overtime Fee (per hour)</p><p className="text-[10px] text-muted-foreground">After booked duration</p></div>
+                      <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" min="0" disabled={isStaff || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center pl-6", isStaff && "text-slate-400 bg-slate-50")} value={overtimeFeePerHour} onChange={(e) => setOvertimeFeePerHour(e.target.value)} required /></div>
+                    </div>
                   </div>
 
-                  {/* Fees & cleanup */}
-                  <div className="flex items-center justify-between pt-2">
-                    <div><p className="text-sm font-bold">Overtime Fee (per hour)</p><p className="text-[10px] text-muted-foreground">After booked duration</p></div>
-                    <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" className="h-12 rounded-xl text-center pl-6" value={overtimeFeePerHour} onChange={(e) => setOvertimeFeePerHour(e.target.value)} required /></div>
+                  {/* Additional Waiting Time Fee */}
+                  <div className={`flex items-center justify-between pt-2 transition-opacity ${pricingScheme === 'hourly' ? 'opacity-50' : 'opacity-100'}`}>
+                    <div><p className={cn("text-sm font-bold", isStaff ? "text-slate-400" : "text-blue-700")}>Additional Waiting Time Fee (per hr)</p><p className={cn("text-[10px]", isStaff ? "text-slate-400/80" : "text-blue-600/80")}>Fee added if they arrive late (Fixed Rate Only)</p></div>
+                    <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" min="0" disabled={isStaff || pricingScheme === 'hourly'} className={cn("h-12 rounded-xl text-center pl-6", isStaff ? "text-slate-400 bg-slate-50 border-slate-200" : "border-blue-200")} value={waitingTimeFee} onChange={(e) => setWaitingTimeFee(e.target.value)} required /></div>
                   </div>
 
-                  <div className="bg-slate-50 p-3 rounded-xl text-xs text-slate-600">
+                  <div className="bg-slate-50 p-3 rounded-xl text-xs text-slate-600 mt-4">
                     <p className="font-bold mb-1">📌 How it works:</p>
                     <ul className="list-disc list-inside space-y-0.5 text-[11px]">
                       <li>Reservation starts <strong>immediately</strong> upon payment.</li>
@@ -422,12 +489,12 @@ export default function AdminSettings() {
                 <div className="flex items-center gap-3"><div className="bg-amber-500/10 p-2 rounded-xl text-amber-600"><Settings size={20} /></div><h3 className="font-bold text-lg">System Toggles</h3></div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <div><p className="text-sm font-bold">Maintenance Mode</p><p className="text-[10px] text-muted-foreground">Pause all new reservations</p></div>
-                    <Switch checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
+                    <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Maintenance Mode</p><p className="text-[10px] text-muted-foreground">Pause all new reservations</p></div>
+                    <Switch disabled={isStaff} checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
-                    <div><p className="text-sm font-bold">Online Payments</p><p className="text-[10px] text-muted-foreground">If disabled, reservations are cash‑only</p></div>
-                    <Switch checked={onlinePaymentsEnabled} onCheckedChange={setOnlinePaymentsEnabled} />
+                    <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Online Payments</p><p className="text-[10px] text-muted-foreground">If disabled, reservations are cash‑only</p></div>
+                    <Switch disabled={isStaff} checked={onlinePaymentsEnabled} onCheckedChange={setOnlinePaymentsEnabled} />
                   </div>
                 </div>
               </div>
@@ -439,18 +506,20 @@ export default function AdminSettings() {
 
 
           {/* Save Button */}
-          <div className={cn("mt-8 bg-white border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm", isSuperAdmin ? "max-w-3xl mx-auto" : "w-full")}>
-            <div className="flex items-center gap-4 text-slate-600">
-              <div className="bg-slate-100 p-3 rounded-full"><ShieldAlert size={24} /></div>
-              <div>
-                <h4 className="font-bold text-sm">{isSuperAdmin ? "Global System Rules" : "System Maintenance"}</h4>
-                <p className="text-xs text-muted-foreground">{isSuperAdmin ? "Changes apply to all users across all lots." : "Pause all incoming reservations globally."}</p>
+          {!isStaff && (
+            <div className={cn("mt-8 bg-white border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm", isSuperAdmin ? "max-w-3xl mx-auto" : "w-full")}>
+              <div className="flex items-center gap-4 text-slate-600">
+                <div className="bg-slate-100 p-3 rounded-full"><ShieldAlert size={24} /></div>
+                <div>
+                  <h4 className="font-bold text-sm">{isSuperAdmin ? "Global System Rules" : "System Maintenance"}</h4>
+                  <p className="text-xs text-muted-foreground">{isSuperAdmin ? "Changes apply to all users across all lots." : "Pause all incoming reservations globally."}</p>
+                </div>
               </div>
+              <Button type="submit" disabled={isSaving} className="w-full md:w-auto h-14 px-8 font-black uppercase tracking-widest rounded-xl bg-slate-900 text-white hover:bg-slate-800">
+                <Save size={18} /> {isSaving ? "Processing..." : isSuperAdmin ? "Save Global Rules" : "Save Lot Settings"}
+              </Button>
             </div>
-            <Button type="submit" disabled={isSaving} className="w-full md:w-auto h-14 px-8 font-black uppercase tracking-widest rounded-xl bg-slate-900 text-white hover:bg-slate-800">
-              <Save size={18} /> {isSaving ? "Processing..." : isSuperAdmin ? "Save Global Rules" : "Save Lot Settings"}
-            </Button>
-          </div>
+          )}
         </form>
 
         <div className="text-center text-[10px] text-muted-foreground mt-4">

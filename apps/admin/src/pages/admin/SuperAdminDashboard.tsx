@@ -211,47 +211,24 @@ export default function SuperAdminDashboard() {
       if (currentRole === "admin" && managerLotId) todayResQuery = todayResQuery.eq("lot_id", managerLotId);
       const { count: todayCount } = await todayResQuery;
 
-      // 4. Recent Records (Reservations & Walk-ins)
+      // 4. Recent Logs (Reservations Only for Super Admin)
       let recentResQuery = supabase
         .from("reservations")
-        .select("id, start_time, end_time, created_at, total_amount, status, parking_slots(label)")
+        .select("id, created_at, total_amount, status, parking_slots(label), parking_lots(name)")
         .order("created_at", { ascending: false })
         .limit(5);
       
-      let recentWalkInQuery = supabase
-        .from("walk_in_records")
-        .select("id, entry_time, exit_time, amount_paid, status, parking_slots(label)")
-        .order("entry_time", { ascending: false })
-        .limit(5);
+      const { data: recentResData } = await recentResQuery;
 
-      if (currentRole === "admin" && managerLotId) {
-        recentResQuery = recentResQuery.eq("lot_id", managerLotId);
-        recentWalkInQuery = recentWalkInQuery.eq("lot_id", managerLotId);
-      }
-
-      const [recentResData, recentWalkInData] = await Promise.all([recentResQuery, recentWalkInQuery]);
-
-      const formattedRes = (recentResData.data || []).map((res: any) => ({
+      const formattedReservations = (recentResData || []).map((res: any) => ({
         id: res.id.substring(0, 8),
-        slotLabel: res.parking_slots?.label || "N/A",
+        location: res.parking_lots?.name || "N/A",
+        slotLabel: res.parking_slots?.label || "-",
         date: new Date(res.created_at),
         dateStr: res.created_at ? new Date(res.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
         amount: res.total_amount || 0,
         status: res.status,
       }));
-
-      const formattedWalkIns = (recentWalkInData.data || []).map((w: any) => ({
-        id: w.id.substring(0, 8),
-        slotLabel: "Walk In",
-        date: new Date(w.entry_time),
-        dateStr: w.entry_time ? new Date(w.entry_time).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
-        amount: w.amount_paid || 0,
-        status: w.status || (w.exit_time ? 'completed' : 'active'),
-      }));
-
-      const formattedReservations = [...formattedRes, ...formattedWalkIns]
-        .sort((a, b) => b.date.getTime() - a.date.getTime())
-        .slice(0, 5);
 
       // 5. Active admins (superadmin only)
       let activeCount = 0;
@@ -340,7 +317,7 @@ export default function SuperAdminDashboard() {
     { label: "Today's Bookings", value: stats.todayReservations, icon: BookOpen, color: "bg-amber-100 text-amber-700", path: "/admin/reservations" },
   ];
   if (isSuperAdmin) {
-    statCards.push({ label: "Total Admins", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
+    statCards.push({ label: "Total Accredited Partners", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
   }
 
   if (isLoading) {
@@ -468,13 +445,15 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Records Table */}
+        {/* Recent Logs Table */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 card-elevated">
-          <h3 className="text-sm font-bold text-foreground mb-4">Recent Records</h3>
+          <h3 className="text-sm font-bold text-foreground mb-4">Recent Logs</h3>
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <table className="w-full text-sm min-w-125">
+            <table className="w-full text-sm min-w-[600px]">
               <thead>
                 <tr className="text-xs text-muted-foreground border-b border-border">
+                  <th className="text-left pb-2 font-semibold">ID</th>
+                  <th className="text-left pb-2 font-semibold">Location</th>
                   <th className="text-left pb-2 font-semibold">Slot</th>
                   <th className="text-left pb-2 font-semibold">Date</th>
                   <th className="text-left pb-2 font-semibold">Amount</th>
@@ -484,8 +463,8 @@ export default function SuperAdminDashboard() {
               <tbody className="divide-y divide-border">
                 {recentReservations.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="text-center py-4 text-muted-foreground text-xs">
-                      No recent records found.
+                    <td colSpan={6} className="text-center py-4 text-muted-foreground text-xs">
+                      No recent logs found.
                     </td>
                   </tr>
                 ) : (
@@ -495,11 +474,13 @@ export default function SuperAdminDashboard() {
                       onClick={() => setLocation("/admin/reservations")} 
                       className="hover:bg-muted/30 transition-colors cursor-pointer"
                     >
-                      <td className="py-2.5 font-bold">{res.slotLabel}</td>
-                      <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.dateStr}</td>
-                      <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
-                      <td className="py-2.5">
-                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
+                      <td className="py-3 text-muted-foreground text-xs font-mono">{res.id}</td>
+                      <td className="py-3 text-foreground font-medium">{res.location}</td>
+                      <td className="py-3 font-bold">{res.slotLabel}</td>
+                      <td className="py-3 text-muted-foreground text-xs whitespace-nowrap">{res.dateStr}</td>
+                      <td className="py-3 font-bold text-foreground">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
+                      <td className="py-3">
+                        <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
                           {res.status}
                         </span>
                       </td>

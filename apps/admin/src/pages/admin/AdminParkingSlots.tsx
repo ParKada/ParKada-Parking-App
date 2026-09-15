@@ -245,7 +245,12 @@ export default function AdminParkingSlots() {
       setTabToSwitch(tab);
       setShowTabWarning(true);
     } else {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => console.error(err));
+      }
       setActiveTab(tab);
+      setIsMapFullscreen(false);
+      setIsFullscreen(false);
       if (tab === "cameras") setExpandedCameraId(null);
     }
   };
@@ -2502,10 +2507,10 @@ export default function AdminParkingSlots() {
                   >
                     <div
                       className={cn(
-                        "relative bg-black",
+                        "relative bg-black flex-shrink-0",
                         isFullscreen
                           ? "h-full aspect-video max-w-full"
-                          : "w-full aspect-video overflow-hidden"
+                          : "w-full aspect-video overflow-hidden min-h-[300px] sm:min-h-[400px]"
                       )}
                     >
                       <img

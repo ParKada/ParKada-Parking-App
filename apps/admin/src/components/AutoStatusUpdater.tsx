@@ -51,9 +51,7 @@ export default function AutoStatusUpdater() {
             await supabase.from("notifications").insert({
               user_id: res.user_id,
               title: "Upcoming Reservation",
-              message: `Your booking for Slot ${res.slot_id} starts at ${res.start_time}.`,
-              type: "urgent",
-              read: false
+              message: `Your booking for Slot ${res.slot_id} starts at ${res.start_time}.`
             });
             setNotifiedReservations(prev => new Set(prev).add(res.id));
           }

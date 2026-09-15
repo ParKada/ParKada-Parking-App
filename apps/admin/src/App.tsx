@@ -49,6 +49,7 @@ import AdminTermsPage from "./pages/admin/AdminTermsPage";
 import SetPasswordPage from "./pages/admin/SetPasswordPage";
 import AuthCallback from "./pages/auth/authCallback";
 import AdminWalkInRecords from "./pages/admin/AdminWalkInRecords";
+import SuperAdminRecords from "./pages/admin/SuperAdminRecords";
 
 
 function Router() {
@@ -92,6 +93,7 @@ function Router() {
       <Route path="/admin/staffmanagement" component={AdminStaffManagement} />
       <Route path="/set-password" component={SetPasswordPage} />
       <Route path="/admin/walkin" component={AdminWalkInRecords} />
+      <Route path="/admin/records" component={SuperAdminRecords} />
 
       {/* 5. DYNAMIC ROUTES */}
       <Route path="/parking/:id" component={ParkingLotPage} />

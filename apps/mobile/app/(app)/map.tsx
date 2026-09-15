@@ -7,6 +7,9 @@ import { Map, List, Search, Navigation, Route as RouteIcon, Crosshair, Star, Hea
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabase";
+import { useFavorites } from "../../hooks/useFavorites";
+
+const logoImage = require("../../assets/ParKadav2.png");
 
 const lipaCenter = { latitude: 13.9430, longitude: 121.1625, latitudeDelta: 0.015, longitudeDelta: 0.015 };
 
@@ -87,7 +90,7 @@ export default function ParkingMapPage() {
   const [routeCoords, setRouteCoords] = useState<{latitude: number, longitude: number}[] | null>(null);
   const [isFetchingRoute, setIsFetchingRoute] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [favorites, setFavorites] = useState<number[]>([]);
+  const { favoriteIds: favorites, toggleFavorite, isFavorite, loading: favsLoading } = useFavorites();
   const [selectedLot, setSelectedLot] = useState<any | null>(null);
   const [activeLot, setActiveLot] = useState<any | null>(null);
   const [lotReviews, setLotReviews] = useState<any[]>([]);
@@ -174,10 +177,6 @@ export default function ParkingMapPage() {
   ).current;
 
   useEffect(() => {
-    AsyncStorage.getItem("favoriteParkingLots").then(saved => {
-      if (saved) setFavorites(JSON.parse(saved));
-    });
-    
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
@@ -185,19 +184,6 @@ export default function ParkingMapPage() {
       setUserCoords({ lat: location.coords.latitude, lng: location.coords.longitude });
     })();
   }, []);
-
-  const toggleFavorite = async (lotId: number) => {
-    setFavorites(prev => {
-      const newFavs = prev.includes(lotId) 
-        ? prev.filter(id => id !== lotId) 
-        : [...prev, lotId];
-      
-      AsyncStorage.setItem("favoriteParkingLots", JSON.stringify(newFavs)).catch(err => 
-        console.error("Failed to save favorites:", err)
-      );
-      return newFavs;
-    });
-  };
 
   const centerToUser = () => {
     if (userCoords && mapRef.current) {
@@ -372,7 +358,15 @@ export default function ParkingMapPage() {
   }, [computedLots, search, filter, userCoords]);
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: "#f8fafc" }}>
+    <SafeAreaView edges={['top']} className="flex-1 bg-slate-50">
+      {/* Header — logo (acts as back button) + title, replacing a plain back arrow */}
+<View className="flex-row items-center gap-2 px-4 py-4 bg-white border-b border-slate-200 z-20">
+  <TouchableOpacity onPress={() => router.back()} className="active:opacity-70">
+    <Image source={logoImage} className="w-10 h-10 rounded-md" resizeMode="contain" />
+  </TouchableOpacity>
+  <Text className="text-xl font-black text-[#0A1D37]">Find Parking</Text>
+</View>
+
       <View className="px-4 py-3 bg-white border-b border-slate-200 z-20">
         <View className="relative mb-3">
           <View className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
@@ -415,14 +409,20 @@ export default function ParkingMapPage() {
         </View>
       </View>
 
-      {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#0A1D37" />
-          <Text className="mt-4 text-slate-500 font-bold">Loading Map Data...</Text>
+      {/* Loading Overlay (Seamless Transition from Home) */}
+      {loading && (
+        <View style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, backgroundColor: "#0A1D37", alignItems: "center", justifyContent: "center" }]}>
+          <Image
+            source={logoImage}
+            style={{ width: 64, height: 64 }}
+            resizeMode="contain"
+          />
+          <Text className="text-white/60 text-xs font-bold mt-3">Opening map…</Text>
         </View>
-      ) : view === "map" ? (
+      )}
+
+      {view === "map" ? (
         <View style={{ flex: 1 }}>
-          {/* MapView gamit ang native Marker properties (walang custom JSX children) */}
           <MapView
             ref={mapRef}
             style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
@@ -437,24 +437,79 @@ export default function ParkingMapPage() {
               const isClosed = lot.open_hours ? !isParkingOpen(lot.open_hours, currentTime) : lot.status === 'closed';
               const isAccredited = lot.is_accredited === true;
               
-              // Pin color logic
+              // Pin color logic — closed/non-accredited lots still get a
+              // marker (gray), so they remain visible on the map even
+              // though they can't be tapped through to a reservation.
               let pinColor = '#10b981'; // Green
               if (isClosed) pinColor = '#64748b'; // Gray
               else if (isAccredited) {
                 if (lot.available_slots === 0) pinColor = '#f43f5e'; // Red
                 else if (lot.available_slots <= 5) pinColor = '#f59e0b'; // Amber
+              } else {
+                pinColor = '#64748b'; // Gray for walk-in-only, non-accredited lots
               }
 
-              // Marker status text
-              const statusText = isClosed ? "Closed" : isAccredited ? `${lot.available_slots} slots available` : "Walk-in Only";
+              const statusText = isClosed ? "Closed" : isAccredited ? `${lot.available_slots} slots` : "Walk-in Only";
 
               return (
                 <Marker
                   key={`marker-${lot.id}`}
                   coordinate={{ latitude: Number(lot.latitude), longitude: Number(lot.longitude) }}
-                  pinColor={pinColor}
-                  onPress={() => handleSelectLot(lot)}
-                />
+                  anchor={{ x: 0.5, y: 1 }}
+                  onPress={() => { if (isAccredited) handleSelectLot(lot); }}
+                >
+                  <View pointerEvents="none" style={{ alignItems: 'center', width: 150 }}>
+                    <View
+                      style={{
+                        backgroundColor: pinColor,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 10,
+                        marginBottom: 3,
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>{statusText}</Text>
+                    </View>
+                    <View
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        backgroundColor: 'white',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: pinColor,
+                        elevation: 4,
+                        shadowColor: '#000',
+                        shadowOpacity: 0.2,
+                        shadowRadius: 3,
+                        shadowOffset: { width: 0, height: 1 },
+                      }}
+                    >
+                      <MapPin size={15} color={pinColor} />
+                    </View>
+                    <View
+                      style={{
+                        backgroundColor: 'white',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 8,
+                        marginTop: 3,
+                        maxWidth: 150,
+                        elevation: 3,
+                        shadowColor: '#000',
+                        shadowOpacity: 0.15,
+                        shadowRadius: 2,
+                        shadowOffset: { width: 0, height: 1 },
+                      }}
+                    >
+                      <Text numberOfLines={1} style={{ fontSize: 10, fontWeight: '700', color: '#0A1D37' }}>
+                        {lot.name}
+                      </Text>
+                    </View>
+                  </View>
+                </Marker>
               );
             })}
           </MapView>
@@ -485,7 +540,7 @@ export default function ParkingMapPage() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible pb-2 flex-row px-4">
                 {filteredAndSorted.map(lot => {
                   const isClosed = lot.open_hours ? !isParkingOpen(lot.open_hours, currentTime) : lot.status === 'closed';
-                  const isFavorite = favorites.includes(lot.id);
+                  const isFav = isFavorite(lot.id);
                   const isAccredited = lot.is_accredited === true;
 
                   return (
@@ -505,7 +560,7 @@ export default function ParkingMapPage() {
                           className="p-1"
                           activeOpacity={0.7}
                         >
-                          <Heart size={18} color={isFavorite ? "#f43f5e" : "#cbd5e1"} fill={isFavorite ? "#f43f5e" : "transparent"} />
+                          <Heart size={18} color={isFav ? "#f43f5e" : "#cbd5e1"} fill={isFav ? "#f43f5e" : "transparent"} />
                         </TouchableOpacity>
                       </View>
                       
@@ -519,7 +574,7 @@ export default function ParkingMapPage() {
                         )}
                       </View>
 
-                      <View className="flex-row gap-2 mt-auto">
+                      <View className="flex-row gap-1.5 mt-auto">
                         <TouchableOpacity 
                           onPress={(e) => {
                             e.stopPropagation();
@@ -528,7 +583,7 @@ export default function ParkingMapPage() {
                           className="flex-1 bg-blue-50 py-2 rounded-lg items-center flex-row justify-center gap-1"
                         >
                           {isFetchingRoute ? <ActivityIndicator size="small" color="#2563EB" /> : <RouteIcon size={12} color="#2563EB" />}
-                          <Text className="text-[10px] font-black text-blue-600">ROUTE</Text>
+                          <Text className="text-[9px] font-black text-blue-600">ROUTE</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           onPress={(e) => {
@@ -538,7 +593,7 @@ export default function ParkingMapPage() {
                           className="flex-1 bg-emerald-500 py-2 rounded-lg items-center flex-row justify-center gap-1"
                         >
                           <Map size={12} color="white" />
-                          <Text className="text-[10px] font-black text-white">GMAPS</Text>
+                          <Text className="text-[9px] font-black text-white">GMAPS</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           onPress={(e) => {
@@ -548,8 +603,9 @@ export default function ParkingMapPage() {
                           className="flex-1 bg-[#33CCFF] py-2 rounded-lg items-center flex-row justify-center gap-1"
                         >
                           <Navigation size={12} color="white" />
-                          <Text className="text-[10px] font-black text-white">WAZE</Text>
+                          <Text className="text-[9px] font-black text-white">WAZE</Text>
                         </TouchableOpacity>
+
                       </View>
                     </TouchableOpacity>
                   );
@@ -560,6 +616,7 @@ export default function ParkingMapPage() {
 
           {/* Animated Place Details Bottom Sheet */}
           <Animated.View 
+            pointerEvents={activeLot ? "auto" : "none"}
             style={{ transform: [{ translateY }] }}
             className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-3xl pt-0 pb-6 shadow-[0_-10px_40px_rgba(0,0,0,0.2)]"
           >
@@ -606,7 +663,7 @@ export default function ParkingMapPage() {
                       </View>
                     </View>
                     <TouchableOpacity onPress={() => toggleFavorite(activeLot.id)} className="p-2 bg-slate-50 rounded-full">
-                      <Heart size={22} color={favorites.includes(activeLot.id) ? "#f43f5e" : "#cbd5e1"} fill={favorites.includes(activeLot.id) ? "#f43f5e" : "transparent"} />
+                      <Heart size={22} color={isFavorite(activeLot.id) ? "#f43f5e" : "#cbd5e1"} fill={isFavorite(activeLot.id) ? "#f43f5e" : "transparent"} />
                     </TouchableOpacity>
                   </View>
 
@@ -727,10 +784,10 @@ export default function ParkingMapPage() {
           </Animated.View>
         </View>
       ) : (
-        <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
           {filteredAndSorted.map(lot => {
             const isClosed = lot.open_hours ? !isParkingOpen(lot.open_hours, currentTime) : lot.status === 'closed';
-            const isFavorite = favorites.includes(lot.id);
+            const isFav = isFavorite(lot.id);
             const isAccredited = lot.is_accredited === true;
 
             return (
@@ -746,7 +803,18 @@ export default function ParkingMapPage() {
                 <View className="flex-row justify-between items-start mb-2">
                   <View className="flex-1 pr-4">
                     <Text className="text-base font-black text-slate-800">{lot.name}</Text>
-                    {isAccredited && lot.average_rating > 0 && renderStars(lot.average_rating)}
+                    {isAccredited ? (
+                      (lot.average_rating && lot.average_rating > 0) ? (
+                        <View className="flex-row items-center mt-0.5">
+                          {renderStars(lot.average_rating)}
+                          <Text className="text-[10px] font-bold text-slate-400 ml-1">({Number(lot.average_rating).toFixed(1)})</Text>
+                        </View>
+                      ) : (
+                        <View className="mt-0.5">
+                          <Text className="text-[10px] font-bold text-slate-400">No ratings yet</Text>
+                        </View>
+                      )
+                    ) : null}
                     <View className="flex-row items-center gap-1.5 mt-2">
                       <MapPin size={12} color="#94a3b8" />
                       <Text className="text-[11px] text-slate-500">{lot.address}</Text>
@@ -760,7 +828,7 @@ export default function ParkingMapPage() {
                     className="p-2 -mr-2 -mt-2"
                     activeOpacity={0.7}
                   >
-                    <Heart size={20} color={isFavorite ? "#f43f5e" : "#cbd5e1"} fill={isFavorite ? "#f43f5e" : "transparent"} />
+                    <Heart size={20} color={isFav ? "#f43f5e" : "#cbd5e1"} fill={isFav ? "#f43f5e" : "transparent"} />
                   </TouchableOpacity>
                 </View>
 

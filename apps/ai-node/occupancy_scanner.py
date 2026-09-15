@@ -100,6 +100,34 @@ with model_lock:
 print("Warmup complete!")
 
 # =============================================================
+# 3. GLOBAL SETTINGS SYNC
+# =============================================================
+GLOBAL_CLEANUP_SECONDS = 20.0
+GLOBAL_CLEANUP_LOCK = threading.Lock()
+
+def sync_global_settings_loop():
+    global GLOBAL_CLEANUP_SECONDS
+    url = f"{VITE_SUPABASE_URL}/rest/v1/system_settings?id=eq.1&select=slot_cleanup_minutes"
+    req = urllib.request.Request(url)
+    req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
+    req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
+    
+    while True:
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode())
+                if len(data) > 0 and 'slot_cleanup_minutes' in data[0]:
+                    with GLOBAL_CLEANUP_LOCK:
+                        val = data[0]['slot_cleanup_minutes']
+                        if val is not None:
+                            GLOBAL_CLEANUP_SECONDS = float(val)
+        except Exception as e:
+            pass
+        time.sleep(10)
+
+threading.Thread(target=sync_global_settings_loop, daemon=True).start()
+
+# =============================================================
 # 4. OCR VALIDATION LOGIC
 # =============================================================
 SCAN_COOLDOWN = 60
@@ -166,6 +194,8 @@ def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, displ
                                 req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
                                 req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
                                 
+                                has_valid_reservation = False
+                                
                                 try:
                                     with urllib.request.urlopen(req, timeout=10) as response:
                                         active_reservations = json.loads(response.read().decode())
@@ -177,38 +207,104 @@ def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, displ
                                                 msg = f"Reservation Record: {clean_text} have arrived at reserved slot {slot_label}"
                                                 print(f"[OCR] ✅ SUCCESS: {msg}")
                                                 send_admin_notifications(TARGET_LOT_ID, "Reservation Validated", msg)
+                                                has_valid_reservation = True
                                             else:
                                                 msg = f"{clean_text} have incorrectly parked at a reserved/reservable slot {slot_label}"
                                                 print(f"[OCR] ❌ MISMATCH: {msg} (Expected {res_plate})")
                                                 send_admin_notifications(TARGET_LOT_ID, "Reservation Mismatch", msg)
                                         else:
-                                            msg = f"{clean_text} have incorrectly parked at a reserved/reservable slot {slot_label}"
-                                            print(f"[OCR] ⚠️ {msg} (No active reservation)")
-                                            send_admin_notifications(TARGET_LOT_ID, "Unauthorized Parking", msg)
+                                            if is_reservable:
+                                                msg = f"{clean_text} parked at a reservable slot {slot_label} without reservation."
+                                                print(f"[OCR] ⚠️ {msg}")
+                                                send_admin_notifications(TARGET_LOT_ID, "Walk-In on Reservable Slot", msg)
                                 except Exception as e:
                                     print(f"[OCR] DB Error checking reservation: {e}")
                                     
-                            else:
-                                log_data = {
-                                    "lot_id": TARGET_LOT_ID,
-                                    "slot_id": slot_id,
-                                    "plate_number": clean_text
-                                }
-                                url = f"{VITE_SUPABASE_URL}/rest/v1/walk_in_records"
-                                req = urllib.request.Request(url, data=json.dumps(log_data).encode('utf-8'), method='POST')
-                                req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
-                                req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
-                                req.add_header('Content-Type', 'application/json')
-                                req.add_header('Prefer', 'return=minimal')
-                                try:
-                                    with urllib.request.urlopen(req, timeout=10):
-                                        msg = f"Automated walk-in record created for plate {clean_text}."
-                                        print(f"[OCR] ✅ {msg}")
-                                        send_admin_notifications(TARGET_LOT_ID, "New Walk-In Arrival", msg)
-                                except Exception as e:
-                                    print(f"[OCR] Error logging to walk_in_records: {e}")
+                                if not has_valid_reservation:
+                                    # Create walk-in record for any unreserved vehicle
+                                    log_data = {
+                                        "lot_id": TARGET_LOT_ID,
+                                        "slot_id": slot_id,
+                                        "plate_number": clean_text
+                                    }
+                                    url = f"{VITE_SUPABASE_URL}/rest/v1/walk_in_records"
+                                    req = urllib.request.Request(url, data=json.dumps(log_data).encode('utf-8'), method='POST')
+                                    req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
+                                    req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
+                                    req.add_header('Content-Type', 'application/json')
+                                    req.add_header('Prefer', 'return=minimal')
+                                    try:
+                                        with urllib.request.urlopen(req, timeout=10):
+                                            msg = f"Walk-in record started for {clean_text} at {slot_label}."
+                                            print(f"[OCR] ✅ {msg}")
+                                            # We no longer spam notifications for standard walk-ins to avoid noise,
+                                            # only the "Walk-In on Reservable Slot" above will send an alert.
+                                    except Exception as e:
+                                        print(f"[OCR] Error logging to walk_in_records: {e}")
                             return 
     threading.Thread(target=_task, daemon=True).start()
+
+def complete_walk_in(slot_id):
+    def api_call():
+        try:
+            url = f"{VITE_SUPABASE_URL}/rest/v1/walk_in_records?slot_id=eq.{slot_id}&status=eq.active&select=id,entry_time,lot_id"
+            req = urllib.request.Request(url)
+            req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
+            req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
+            
+            with urllib.request.urlopen(req, timeout=10) as response:
+                active_records = json.loads(response.read().decode())
+                
+            if not active_records:
+                return
+                
+            record = active_records[0]
+            record_id = record['id']
+            lot_id = record['lot_id']
+            entry_time = record['entry_time']
+            
+            rate_url = f"{VITE_SUPABASE_URL}/rest/v1/parking_lots?id=eq.{lot_id}&select=base_rate,rate_per_hour"
+            rate_req = urllib.request.Request(rate_url)
+            rate_req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
+            rate_req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
+            
+            base_rate, rate_per_hour = 50.0, 20.0
+            try:
+                with urllib.request.urlopen(rate_req, timeout=5) as r_res:
+                    rate_data = json.loads(r_res.read().decode())
+                    if len(rate_data) > 0:
+                        base_rate = float(rate_data[0].get('base_rate') or 50)
+                        rate_per_hour = float(rate_data[0].get('rate_per_hour') or 20)
+            except Exception:
+                pass
+                
+            from datetime import datetime, timezone
+            entry_dt = datetime.strptime(entry_time[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+            now_dt = datetime.now(timezone.utc)
+            duration_hrs = (now_dt - entry_dt).total_seconds() / 3600.0
+            
+            total_amount = base_rate
+            if duration_hrs > 3:
+                total_amount += (int(duration_hrs) - 3) * rate_per_hour
+                
+            update_data = {
+                "exit_time": now_dt.isoformat(),
+                "status": "completed",
+                "amount_paid": total_amount
+            }
+            update_url = f"{VITE_SUPABASE_URL}/rest/v1/walk_in_records?id=eq.{record_id}"
+            update_req = urllib.request.Request(update_url, data=json.dumps(update_data).encode('utf-8'), method='PATCH')
+            update_req.add_header('apikey', VITE_SUPABASE_SERVICE_KEY)
+            update_req.add_header('Authorization', f'Bearer {VITE_SUPABASE_SERVICE_KEY}')
+            update_req.add_header('Content-Type', 'application/json')
+            
+            with urllib.request.urlopen(update_req, timeout=10):
+                print(f"[OCR] ✅ Walk-in completed {record_id[:8]}. Amount: ₱{total_amount:.2f}")
+                
+        except Exception as e:
+            print(f"[OCR] Error completing walk-in: {e}")
+            
+    threading.Thread(target=api_call, daemon=True).start()
 
 # =============================================================
 # 5. RTSP STREAM READER (auto-reconnects on failure)
@@ -637,9 +733,10 @@ class CameraWorker:
                         self.slot_data[i]["last_empty_time"] = time.time()
 
                     now = time.time()
-                    CONFIRM_FULL_DELAY = 7.0   # seconds required to confirm parking
-                    CONFIRM_FREE_DELAY = 20.0  # seconds required to confirm leaving (prevents false frees at night/poor visibility)
-                    TOLERANCE = 5.0      # seconds we allow detection to flicker before resetting the timer
+                    with GLOBAL_CLEANUP_LOCK:
+                        CONFIRM_FULL_DELAY = GLOBAL_CLEANUP_SECONDS
+                        CONFIRM_FREE_DELAY = GLOBAL_CLEANUP_SECONDS
+                    TOLERANCE = min(5.0, max(2.0, GLOBAL_CLEANUP_SECONDS * 0.5))
 
                     current_status = self.slot_data[i]["status"]
 
@@ -675,6 +772,15 @@ class CameraWorker:
                                 # Has it been empty for longer than TOLERANCE?
                                 if now - self.slot_data[i]["last_occupied_time"] > TOLERANCE:
                                     self.slot_data[i]["pending_full_start"] = None
+                                    
+                            # No Show Warning for reserved slots
+                            if self.slot_data[i].get("db_status") == "reserved":
+                                empty_alert_sent_time = self.slot_data[i].get("empty_alert_sent_time", 0)
+                                if now - empty_alert_sent_time > 1800: # 30 mins cooldown
+                                    msg = f"Alert: Slot {slot_label} is reserved but no vehicle is parked."
+                                    print(f"[OCR] ⚠️ {msg}")
+                                    send_admin_notifications(TARGET_LOT_ID, "No-Show Warning", msg)
+                                    self.slot_data[i]["empty_alert_sent_time"] = now
 
                         elapsed = int(now - self.slot_data[i]["time_in"])
                         mins, secs = divmod(elapsed, 60)
@@ -700,6 +806,10 @@ class CameraWorker:
                                     self.slot_data[i]["status"] = "FREE"
                                     self.slot_data[i]["time_in"] = 0
                                     self.slot_data[i]["pending_free_start"] = None
+                                    
+                                    # Trigger walk-in completion since slot is now FREE
+                                    complete_walk_in(self.slot_ids[i])
+                                    
                                     if not self.slot_data[i].get("manual_override", False):
                                         if self.slot_data[i].get("db_status") != "reserved":
                                             update_supabase_bg(self.slot_ids[i], "empty", "available")

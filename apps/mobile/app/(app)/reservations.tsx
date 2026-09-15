@@ -1,10 +1,12 @@
 import { Modal } from '../../components/SafeModal';
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Link } from "expo-router";
+import { router } from "expo-router";
 import { Clock, Car, Calendar, CheckCircle2, BookmarkCheck, Star, X } from "lucide-react-native";
 import { supabase } from "../../lib/supabase";
+
+const logoImage = require("../../assets/ParKadav2.png");
 
 const formatTimeFromISO = (isoString: string) => {
   if (!isoString) return "--:--";
@@ -49,53 +51,67 @@ export default function ReservationsTabScreen() {
   const [reviewText, setReviewText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchMyReservations = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("reservations")
+        .select(`
+          *,
+          parking_slots (
+            label,
+            parking_lots (id, name, address)
+          )
+        `)
+        .eq("profile_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const { data: reviews } = await supabase
+        .from("parking_reviews")
+        .select("reservation_id")
+        .eq("profile_id", user.id);
+
+      const ratedReservationIds = new Set(reviews?.map(r => r.reservation_id) || []);
+
+      const enriched = (data || []).map((rawRes: any) => {
+        const slotData = Array.isArray(rawRes.parking_slots) ? rawRes.parking_slots[0] : rawRes.parking_slots;
+        const lotData = slotData?.parking_lots ? (Array.isArray(slotData.parking_lots) ? slotData.parking_lots[0] : slotData.parking_lots) : null;
+        return {
+          ...rawRes,
+          parking_slots: {
+            ...slotData,
+            parking_lots: lotData
+          },
+          duration: String(rawRes.duration || 0),
+          total_amount: String(rawRes.total_amount || 0),
+          plate_number: String(rawRes.plate_number || "N/A"),
+          hasRated: ratedReservationIds.has(rawRes.id)
+        };
+      });
+      setReservations(enriched);
+    } catch (error) {
+      console.error("Error fetching reservations:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchMyReservations = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data, error } = await supabase
-          .from("reservations")
-          .select(`
-            *,
-            parking_slots (
-              label,
-              parking_lots (id, name, address)
-            )
-          `)
-          .eq("profile_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
-        const enriched = (data || []).map((rawRes: any) => {
-          const slotData = Array.isArray(rawRes.parking_slots) ? rawRes.parking_slots[0] : rawRes.parking_slots;
-          const lotData = slotData?.parking_lots ? (Array.isArray(slotData.parking_lots) ? slotData.parking_lots[0] : slotData.parking_lots) : null;
-          return {
-            ...rawRes,
-            parking_slots: {
-              ...slotData,
-              parking_lots: lotData
-            },
-            duration: String(rawRes.duration || 0),
-            total_amount: String(rawRes.total_amount || 0),
-            plate_number: String(rawRes.plate_number || "N/A"),
-            hasRated: false
-          };
-        });
-        setReservations(enriched);
-      } catch (error) {
-        console.error("Error fetching reservations:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchMyReservations();
   }, []);
 
-  // Status vocabulary in the DB: pending | reserved | active | completed | cancelled
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchMyReservations();
+  };
+
   const filteredReservations = reservations.filter((res) => {
     if (!res) return false;
     if (activeTab === "all") return true;
@@ -118,15 +134,18 @@ export default function ReservationsTabScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not logged in");
 
+      const lotId = selectedReservation?.parking_slots?.parking_lots?.id;
+
       const { error } = await supabase
         .from("parking_reviews")
         .insert({
-          lot_id: selectedReservation.lot_id,
+          lot_id: lotId,
           profile_id: user.id,
           reservation_id: selectedReservation.id,
           rating,
           review: reviewText.trim() || null
         });
+        
       if (error) throw error;
 
       Alert.alert("Success", "Thank you for your review!");
@@ -140,19 +159,60 @@ export default function ReservationsTabScreen() {
     }
   };
 
+  const cancelBooking = async (reservation: any) => {
+    Alert.alert(
+      "Cancel Reservation?",
+      "Are you sure you want to cancel this booking? ParKada does not issue refunds once you paid for the reserved slot.",
+      [
+        { text: "Keep Booking", style: "cancel" },
+        { 
+          text: "Yes, Cancel", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("reservations")
+                .update({ status: "cancelled" })
+                .eq("id", reservation.id);
+              if (error) throw error;
+              
+              const { error: slotErr } = await supabase
+                .from("parking_slots")
+                .update({ status: "available" })
+                .eq("id", reservation.slot_id);
+              if (slotErr) throw slotErr;
+              
+              Alert.alert("Cancelled", "Your booking has been cancelled.");
+              fetchMyReservations();
+            } catch (e: any) {
+              Alert.alert("Error", e.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#0A1D37" />
-        <Text className="mt-4 font-bold text-slate-500">Loading your history...</Text>
+        <Text style={{ marginTop: 16, fontWeight: 'bold', color: '#64748b' }}>Loading your history...</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
-      <View className="px-4 py-4 bg-white border-b border-slate-200">
-        <Text className="text-xl font-black text-[#0A1D37]">My Bookings</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-slate-100 z-10">
+        <View className="flex-row items-center gap-2">
+          <Image source={require("../../assets/ParKadav2.png")} className="w-10 h-10 rounded-md" resizeMode="contain" />
+          <Text className="font-black text-xl">
+            <Text className="text-[#0A1D37]">Par</Text>
+            <Text className="text-amber-400">Kada</Text>
+          </Text>
+        </View>
       </View>
 
       <View className="p-4 flex-1">
@@ -179,15 +239,19 @@ export default function ReservationsTabScreen() {
               {activeTab === "active" ? "No active reservations found." : activeTab === "completed" ? "No completed reservations found." : "No reservations found."}
             </Text>
             {activeTab === "active" ? (
-              <Link href="/map" asChild>
-                <TouchableOpacity className="mt-4">
-                  <Text className="text-[#0A1D37] font-black underline">Find Parking</Text>
-                </TouchableOpacity>
-              </Link>
+              <TouchableOpacity onPress={() => router.push("/map")} className="mt-4">
+                <Text className="text-[#0A1D37] font-black underline">Find Parking</Text>
+              </TouchableOpacity>
             ) : null}
           </View>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            className="flex-1"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0A1D37" colors={["#0A1D37"]} />
+            }
+          >
             <View className="pb-20 space-y-4">
               {filteredReservations.map(res => {
                 if (!res) return null;
@@ -205,8 +269,9 @@ export default function ReservationsTabScreen() {
                 const badgeIconColor = isOngoing ? "#059669" : isReserved ? "#2563EB" : isCancelled ? "#DC2626" : "#64748B";
 
                 return (
-                  <Link href={`/(app)/receipt/${res.id}`} asChild key={res.id}>
-                    <TouchableOpacity
+                  <TouchableOpacity
+                      key={res.id}
+                      onPress={() => router.push(`/(app)/receipt/${res.id}`)}
                       activeOpacity={0.8}
                       className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3"
                     >
@@ -222,9 +287,9 @@ export default function ReservationsTabScreen() {
                         </View>
                       </View>
 
-                      <Text className="text-xs font-bold text-slate-500 mb-3">
-                        Slot {res.parking_slots?.label || "--"} • {res.plate_number || "N/A"}
-                      </Text>
+                    <Text className="text-xs font-bold text-slate-500 mb-3">
+                      Slot {res.parking_slots?.label || "--"} • {res.plate_number || "N/A"}
+                    </Text>
 
                       <View className="flex-row justify-between items-center mb-3">
                         <View className="flex-row items-center gap-1.5 flex-1 pr-2">
@@ -258,9 +323,20 @@ export default function ReservationsTabScreen() {
                             <Text className="text-xs font-bold text-slate-400">Rated</Text>
                           </View>
                         ) : null}
+                        {(isOngoing || isReserved) ? (
+                          <TouchableOpacity
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              cancelBooking(res);
+                            }}
+                            className="bg-rose-50 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
+                          >
+                            <X size={14} color="#e11d48" />
+                            <Text className="text-xs font-bold text-rose-700">Cancel</Text>
+                          </TouchableOpacity>
+                        ) : null}
                       </View>
                     </TouchableOpacity>
-                  </Link>
                 );
               })}
             </View>

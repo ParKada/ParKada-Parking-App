@@ -17,6 +17,7 @@ export default function ExtendPaymentPage() {
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'gcash' | 'maya'>('gcash');
   const [success, setSuccess] = useState(false);
+  const [newEndTime, setNewEndTime] = useState<string | null>(null);
 
   if (!extendReservationId || !extendAmount || !extendHours) {
     return (
@@ -67,6 +68,7 @@ export default function ExtendPaymentPage() {
 
         if (updateError) throw updateError;
 
+        setNewEndTime(newEnd.toISOString());
         setSuccess(true);
       } catch (err: any) {
         console.error(err);
@@ -84,7 +86,24 @@ export default function ExtendPaymentPage() {
             <CheckCircle2 size={48} color="#059669" />
           </View>
           <Text className="text-2xl font-black text-[#0A1D37] mb-2 text-center">Extension Successful!</Text>
-          <Text className="text-sm text-slate-500 mb-8 text-center">Your parking session has been extended.</Text>
+          <Text className="text-sm text-slate-500 mb-6 text-center">Your parking session has been extended.</Text>
+          
+          <View className="w-full bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-8">
+            <View className="flex-row justify-between mb-2">
+              <Text className="text-slate-500 font-bold text-xs uppercase">Added Time</Text>
+              <Text className="text-slate-800 font-black text-sm">+{extendHours} hour(s)</Text>
+            </View>
+            <View className="flex-row justify-between mb-2">
+              <Text className="text-slate-500 font-bold text-xs uppercase">Amount Paid</Text>
+              <Text className="text-emerald-600 font-black text-sm">₱{extendAmount}</Text>
+            </View>
+            <View className="flex-row justify-between pt-2 border-t border-slate-100">
+              <Text className="text-slate-500 font-bold text-xs uppercase">New End Time</Text>
+              <Text className="text-[#0A1D37] font-black text-sm">
+                {newEndTime ? new Date(newEndTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--'}
+              </Text>
+            </View>
+          </View>
           
           <TouchableOpacity 
             onPress={() => router.replace('/(app)')} 

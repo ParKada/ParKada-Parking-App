@@ -145,6 +145,21 @@ export interface Database {
           phone_number: string | null
           user_type: 'regular' | 'senior' | 'pwd' | 'driver'
           expo_push_token: string | null
+          discount_type: string | null
+          verification_status: string | null
+          preferred_name: string | null
+          profile_completed: boolean | null
+          discount_status: string | null
+          discount_id_number: string | null
+          discount_id_url: string | null
+          full_name: string | null
+          id_front_photo_url: string | null
+          id_back_photo_url: string | null
+          selfie_photo_url: string | null
+          valid_id_type: string | null
+          id_number: string | null
+          address: string | null
+          birthdate: string | null
           created_at: string
           updated_at: string
         }
@@ -156,6 +171,21 @@ export interface Database {
           phone_number?: string | null
           user_type?: 'regular' | 'senior' | 'pwd' | 'driver'
           expo_push_token?: string | null
+          discount_type?: string | null
+          verification_status?: string | null
+          preferred_name?: string | null
+          profile_completed?: boolean | null
+          discount_status?: string | null
+          discount_id_number?: string | null
+          discount_id_url?: string | null
+          full_name?: string | null
+          id_front_photo_url?: string | null
+          id_back_photo_url?: string | null
+          selfie_photo_url?: string | null
+          valid_id_type?: string | null
+          id_number?: string | null
+          address?: string | null
+          birthdate?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -167,6 +197,21 @@ export interface Database {
           phone_number?: string | null
           user_type?: 'regular' | 'senior' | 'pwd' | 'driver'
           expo_push_token?: string | null
+          discount_type?: string | null
+          verification_status?: string | null
+          preferred_name?: string | null
+          profile_completed?: boolean | null
+          discount_status?: string | null
+          discount_id_number?: string | null
+          discount_id_url?: string | null
+          full_name?: string | null
+          id_front_photo_url?: string | null
+          id_back_photo_url?: string | null
+          selfie_photo_url?: string | null
+          valid_id_type?: string | null
+          id_number?: string | null
+          address?: string | null
+          birthdate?: string | null
           created_at?: string
           updated_at?: string
         }
