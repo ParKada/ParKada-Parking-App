@@ -10,6 +10,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-native-qrcode-svg';
 import { supabase } from "../../lib/supabase";
+import ProfileAvatarUploader from "../../components/ProfileAvatarUploader";
 
 const getInitials = (name?: string) => {
   if (!name) return "JD";
@@ -26,6 +27,8 @@ const maskNumber = (num?: string) => {
   const end = num.slice(-3);
   return `${start}••••${end}`;
 };
+
+type CaptureStep = 'front' | 'back' | 'selfie' | 'review';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -49,7 +52,10 @@ export default function ProfilePage() {
   // Form States - Discount Application
   const [discountType, setDiscountType] = useState<'pwd' | 'senior'>('pwd');
   const [idNumber, setIdNumber] = useState('');
-  const [idImage, setIdImage] = useState<string | null>(null);
+  const [idFrontImage, setIdFrontImage] = useState<string | null>(null);
+  const [idBackImage, setIdBackImage] = useState<string | null>(null);
+  const [selfieImage, setSelfieImage] = useState<string | null>(null);
+  const [captureStep, setCaptureStep] = useState<CaptureStep>('front');
   const [submittingDiscount, setSubmittingDiscount] = useState(false);
 
   // Form States - Linked e-Wallets
@@ -59,6 +65,7 @@ export default function ProfilePage() {
   const [savingWallet, setSavingWallet] = useState(false);
 
   const MAX_VEHICLES = 3;
+  const CAPTURE_STEPS: CaptureStep[] = ['front', 'back', 'selfie', 'review'];
 
   // AUTO-REFRESH DATA
   useFocusEffect(
@@ -116,25 +123,62 @@ export default function ProfilePage() {
     }
   };
 
-  const pickImage = async () => {
+  // ─── Image Pickers ───────────────────────────────────────────────────────────
+
+  const pickIdImage = async (side: 'front' | 'back') => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 0.7,
+      aspect: [16, 10],
+      quality: 0.8,
     });
-
     if (!result.canceled) {
-      setIdImage(result.assets[0].uri);
+      if (side === 'front') setIdFrontImage(result.assets[0].uri);
+      else setIdBackImage(result.assets[0].uri);
     }
   };
+
+  const takeSelfie = async () => {
+    const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+    if (camPerm.status === 'granted') {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        cameraType: ImagePicker.CameraType.front,
+      });
+      if (!result.canceled) setSelfieImage(result.assets[0].uri);
+    } else {
+      // Fallback to library if camera permission denied
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled) setSelfieImage(result.assets[0].uri);
+    }
+  };
+
+  const resetDiscountModal = () => {
+    setCaptureStep('front');
+    setIdFrontImage(null);
+    setIdBackImage(null);
+    setSelfieImage(null);
+    setIdNumber('');
+    setDiscountType('pwd');
+  };
+
+  // ─── Submit Discount ─────────────────────────────────────────────────────────
 
   const handleSubmitDiscount = async () => {
     if (!idNumber.trim()) {
       Alert.alert("Required", "Please enter your ID number.");
       return;
     }
-    if (!idImage) {
-      Alert.alert("Required", "Please upload a photo of your PWD or Senior ID.");
+    if (!idFrontImage || !idBackImage || !selfieImage) {
+      Alert.alert("Required", "Please complete all photo captures before submitting.");
       return;
     }
 
@@ -142,23 +186,24 @@ export default function ProfilePage() {
       setSubmittingDiscount(true);
       const user = userProfile;
 
-      const fileName = `${user.id}_${Date.now()}.jpg`;
-      const formData = new FormData();
-      formData.append('file', {
-        uri: idImage,
-        name: fileName,
-        type: 'image/jpeg',
-      } as any);
+      const uploadImage = async (uri: string, suffix: string): Promise<string> => {
+        const fileName = `${user.id}_${suffix}_${Date.now()}.jpg`;
+        const formData = new FormData();
+        formData.append('file', { uri, name: fileName, type: 'image/jpeg' } as any);
+        const { data, error } = await supabase.storage
+          .from('discount-ids')
+          .upload(fileName, formData);
+        if (!error && data) {
+          return supabase.storage.from('discount-ids').getPublicUrl(fileName).data.publicUrl;
+        }
+        return uri; // fallback to local uri on upload error
+      };
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('discount-ids')
-        .upload(fileName, formData);
-
-      let publicUrl = idImage;
-      if (!uploadError && uploadData) {
-        const { data: urlData } = supabase.storage.from('discount-ids').getPublicUrl(fileName);
-        publicUrl = urlData.publicUrl;
-      }
+      const [frontUrl, backUrl, selfieUrl] = await Promise.all([
+        uploadImage(idFrontImage, 'front'),
+        uploadImage(idBackImage, 'back'),
+        uploadImage(selfieImage, 'selfie'),
+      ]);
 
       const { error: updateError } = await supabase
         .from('profiles')
@@ -166,7 +211,9 @@ export default function ProfilePage() {
           discount_type: discountType,
           discount_status: 'pending',
           discount_id_number: idNumber,
-          discount_id_url: publicUrl
+          discount_id_url: frontUrl,
+          discount_id_back_url: backUrl,
+          discount_selfie_url: selfieUrl,
         })
         .eq('id', user.id);
 
@@ -174,6 +221,7 @@ export default function ProfilePage() {
 
       Alert.alert("Application Submitted", "Your discount request is under admin review.");
       setDiscountModalVisible(false);
+      resetDiscountModal();
       fetchRealData();
 
     } catch (error: any) {
@@ -182,6 +230,8 @@ export default function ProfilePage() {
       setSubmittingDiscount(false);
     }
   };
+
+  // ─── Save Wallet ─────────────────────────────────────────────────────────────
 
   const handleSaveWallet = async () => {
     if (!walletNumber.trim() || walletNumber.length < 10) {
@@ -212,20 +262,26 @@ export default function ProfilePage() {
     }
   };
 
+  // ─── Logout ──────────────────────────────────────────────────────────────────
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     Alert.alert("Logged out", "You have successfully logged out.");
     router.replace("/(auth)/login");
   };
 
+  // ─── Loading ─────────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#0A1D37" />
         <Text className="mt-4 font-bold text-slate-500">Loading Profile...</Text>
       </SafeAreaView>
     );
   }
+
+  // ─── Theme ───────────────────────────────────────────────────────────────────
 
   const isApproved = userProfile?.discount_status === 'approved';
   const isPending = userProfile?.discount_status === 'pending';
@@ -275,6 +331,10 @@ export default function ProfilePage() {
     ? `Linked: ${userProfile?.gcash_number ? 'GCash' : ''}${userProfile?.gcash_number && userProfile?.maya_number ? ' & ' : ''}${userProfile?.maya_number ? 'Maya' : ''}`
     : "Connect GCash or Maya for 1-tap payment";
 
+  const currentStepIndex = CAPTURE_STEPS.indexOf(captureStep);
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }} edges={['top', 'left', 'right']}>
       {/* Header */}
@@ -298,15 +358,19 @@ export default function ProfilePage() {
         <View className={`${userTheme.bg} rounded-3xl p-6 shadow-xl mb-4 relative overflow-hidden`}>
           
           <View className="flex-row gap-4 mb-5 items-center">
-            {/* LARGE PROFILE AVATAR (Exact 80px / h-20 w-20) */}
-            <View className="w-20 h-20 rounded-2xl bg-white/15 items-center justify-center border border-white/20 shrink-0 shadow-xs">
-              <Text className="text-3xl font-black text-white">{getInitials(userProfile?.full_name)}</Text>
+            <View className="w-20 h-20 shrink-0">
+              <ProfileAvatarUploader 
+                size={80} 
+                fallbackInitial={getInitials(userProfile?.full_name)} 
+                onChange={(url) => {
+                  setUserProfile((prev: any) => ({ ...prev, avatar_url: url }));
+                  fetchRealData();
+                }} 
+              />
             </View>
 
-            {/* DETAILS CONTAINER (Fixed h-20 / 80px + Justify Between para eksaktong pantay ang Top, Middle, Bottom) */}
             <View className="flex-1 h-20 justify-between">
               
-              {/* TOP: NAME (Pantay sa Top Edge ng Photo) */}
               <View className="flex-row items-center gap-1.5 pr-1">
                 <Text className="text-lg font-bold text-white tracking-tight leading-none" numberOfLines={1}>
                   {userProfile?.full_name}
@@ -314,7 +378,6 @@ export default function ProfilePage() {
                 {isApproved && <CheckCircle2 size={16} color="#4ade80" />}
               </View>
 
-              {/* MIDDLE: PHONE NUMBER (Mismong Gitna) */}
               <TouchableOpacity 
                 onPress={() => setShowFullPhone(!showFullPhone)}
                 className="flex-row items-center gap-2 bg-black/15 self-start px-2.5 py-0.5 rounded-full border border-white/10"
@@ -325,7 +388,6 @@ export default function ProfilePage() {
                 {showFullPhone ? <EyeOff size={11} color="#cbd5e1" /> : <Eye size={11} color="#cbd5e1" />}
               </TouchableOpacity>
               
-              {/* BOTTOM: USER TYPE BADGE & QR BUTTON (Pantay sa Bottom Edge ng Photo) */}
               <View className="flex-row items-center justify-between">
                 <View className={`px-2.5 py-0.5 rounded-full ${userTheme.badgeBg} border ${userTheme.badgeBorder}`}>
                   <Text className={`text-[9px] font-black uppercase tracking-widest ${userTheme.badgeText}`}>
@@ -411,7 +473,7 @@ export default function ProfilePage() {
             icon={<Star size={20} color="#0A1D37" />} 
             title="Favorite Spots" 
             label="Quick access to go-to locations" 
-            onClick={() => Alert.alert("Favorite Spots", "Saved locations feature coming soon!")} 
+            onClick={() => router.push("/(app)/favorites")} 
           />
           <ProfileMenuItem 
             icon={<Shield size={20} color="#0A1D37" />} 
@@ -443,7 +505,9 @@ export default function ProfilePage() {
 
       </ScrollView>
 
-      {/* MODAL 1: USER QR CODE */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 1: USER QR CODE                                                  */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
       <Modal visible={qrModalVisible} animationType="fade" transparent={true}>
         <View className="flex-1 justify-center items-center bg-black/60 px-6">
           <View className="bg-white rounded-3xl p-6 w-full items-center shadow-xl">
@@ -469,7 +533,9 @@ export default function ProfilePage() {
         </View>
       </Modal>
 
-      {/* MODAL 2: READ-ONLY ACCOUNT DETAILS & SECURITY */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 2: READ-ONLY ACCOUNT DETAILS & SECURITY                          */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
       <Modal visible={accountDetailsModalVisible} animationType="slide" transparent={true}>
         <View className="flex-1 justify-end bg-black/50">
           <View className="bg-white rounded-t-3xl p-6">
@@ -519,7 +585,9 @@ export default function ProfilePage() {
         </View>
       </Modal>
 
-      {/* MODAL 3: LINK E-WALLETS */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 3: LINK E-WALLETS                                                */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
       <Modal visible={walletModalVisible} animationType="slide" transparent={true}>
         <View className="flex-1 justify-end bg-black/50">
           <View className="bg-white rounded-t-3xl p-6">
@@ -589,68 +657,371 @@ export default function ProfilePage() {
         </View>
       </Modal>
 
-      {/* MODAL 4: DISCOUNT APPLICATION */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 4: DISCOUNT APPLICATION — 4-STEP CAPTURE FLOW                   */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
       <Modal visible={discountModalVisible} animationType="slide" transparent={true}>
         <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-3xl p-6 h-[85%]">
-            <View className="flex-row justify-between items-center mb-4">
+          <View className="bg-white rounded-t-3xl p-6" style={{ height: '92%' }}>
+
+            {/* ── Header ── */}
+            <View className="flex-row justify-between items-center mb-3">
               <Text className="text-xl font-bold text-slate-800">Apply for 20% Discount</Text>
-              <TouchableOpacity onPress={() => setDiscountModalVisible(false)} className="p-1">
+              <TouchableOpacity 
+                onPress={() => { 
+                  setDiscountModalVisible(false); 
+                  resetDiscountModal();
+                }} 
+                className="p-1"
+              >
                 <X size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text className="text-xs font-bold text-slate-500 uppercase mb-2">Discount Type</Text>
-              <View className="flex-row gap-3 mb-4">
-                <TouchableOpacity 
-                  onPress={() => setDiscountType('pwd')}
-                  className={`flex-1 p-3.5 rounded-2xl border items-center ${discountType === 'pwd' ? 'bg-emerald-50 border-emerald-500' : 'border-slate-200'}`}
-                >
-                  <Text className={`font-bold ${discountType === 'pwd' ? 'text-emerald-700' : 'text-slate-600'}`}>PWD Discount</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  onPress={() => setDiscountType('senior')}
-                  className={`flex-1 p-3.5 rounded-2xl border items-center ${discountType === 'senior' ? 'bg-amber-50 border-amber-500' : 'border-slate-200'}`}
-                >
-                  <Text className={`font-bold ${discountType === 'senior' ? 'text-amber-700' : 'text-slate-600'}`}>Senior Citizen</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text className="text-xs font-bold text-slate-500 uppercase mb-2">ID Number</Text>
-              <TextInput
-                value={idNumber}
-                onChangeText={setIdNumber}
-                placeholder="Enter PWD or Senior Citizen ID No."
-                className="w-full border border-slate-200 rounded-xl p-3.5 mb-4 text-sm bg-slate-50"
-              />
-
-              <Text className="text-xs font-bold text-slate-500 uppercase mb-2">Upload ID Photo</Text>
-              <TouchableOpacity 
-                onPress={pickImage}
-                className="w-full h-40 border-2 border-dashed border-slate-300 rounded-2xl items-center justify-center bg-slate-50 mb-6 overflow-hidden"
-              >
-                {idImage ? (
-                  <Image source={{ uri: idImage }} className="w-full h-full" resizeMode="cover" />
-                ) : (
-                  <View className="items-center">
-                    <Upload size={28} color="#94a3b8" />
-                    <Text className="text-xs font-medium text-slate-500 mt-2">Tap to upload front side of ID</Text>
+            {/* ── Step Progress Indicator ── */}
+            <View className="flex-row items-center justify-center mb-5">
+              {CAPTURE_STEPS.map((step, i) => (
+                <View key={step} className="flex-row items-center">
+                  <View className={`w-7 h-7 rounded-full items-center justify-center border-2 ${
+                    captureStep === step 
+                      ? 'bg-[#0A1D37] border-[#0A1D37]' 
+                      : i < currentStepIndex
+                        ? 'bg-sky-500 border-sky-500'
+                        : 'bg-slate-100 border-slate-300'
+                  }`}>
+                    {i < currentStepIndex ? (
+                      <CheckCircle2 size={14} color="white" />
+                    ) : (
+                      <Text className={`text-[10px] font-black ${
+                        captureStep === step ? 'text-white' : 'text-slate-400'
+                      }`}>{i + 1}</Text>
+                    )}
                   </View>
-                )}
-              </TouchableOpacity>
+                  {i < CAPTURE_STEPS.length - 1 && (
+                    <View className={`w-8 h-0.5 ${i < currentStepIndex ? 'bg-sky-500' : 'bg-slate-200'}`} />
+                  )}
+                </View>
+              ))}
+            </View>
 
-              <TouchableOpacity 
-                onPress={handleSubmitDiscount}
-                disabled={submittingDiscount}
-                className="bg-sky-600 py-4 rounded-xl items-center mb-6 shadow-sm"
-              >
-                {submittingDiscount ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-white font-bold text-base">Submit Application</Text>
-                )}
-              </TouchableOpacity>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {/* STEP 1 — ID FRONT                                             */}
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {captureStep === 'front' && (
+                <View>
+                  <View className="items-center mb-6">
+                    <View className="w-14 h-14 rounded-2xl bg-[#0A1D37]/10 items-center justify-center mb-3">
+                      <Upload size={26} color="#0A1D37" />
+                    </View>
+                    <Text className="text-lg font-black text-slate-800">Front of your ID</Text>
+                    <Text className="text-xs text-slate-500 mt-1 text-center px-4">
+                      Take a clear photo of the front side of your PWD or Senior Citizen ID
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity 
+                    onPress={() => pickIdImage('front')}
+                    className="w-full border-2 border-dashed border-slate-300 rounded-2xl items-center justify-center bg-slate-50 mb-5 overflow-hidden"
+                    style={{ height: 176 }}
+                  >
+                    {idFrontImage ? (
+                      <>
+                        <Image source={{ uri: idFrontImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        <View className="absolute bottom-2 right-2 bg-emerald-500 rounded-full p-1">
+                          <CheckCircle2 size={16} color="white" />
+                        </View>
+                        <View className="absolute top-2 right-2 bg-black/40 px-2 py-0.5 rounded-lg">
+                          <Text className="text-white text-[10px] font-bold">Tap to retake</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <View className="items-center">
+                        <Upload size={28} color="#94a3b8" />
+                        <Text className="text-xs font-medium text-slate-500 mt-2">Tap to upload front of ID</Text>
+                        <Text className="text-[10px] text-slate-400 mt-0.5">JPG, PNG • Ensure all text is readable</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (idFrontImage) {
+                        setCaptureStep('back');
+                      } else {
+                        Alert.alert("Required", "Please upload the front of your ID first.");
+                      }
+                    }}
+                    className={`py-4 rounded-xl items-center shadow-sm ${idFrontImage ? 'bg-[#0A1D37]' : 'bg-slate-200'}`}
+                  >
+                    <Text className={`font-bold text-base ${idFrontImage ? 'text-white' : 'text-slate-400'}`}>
+                      Next: Back of ID →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {/* STEP 2 — ID BACK                                              */}
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {captureStep === 'back' && (
+                <View>
+                  <View className="items-center mb-6">
+                    <View className="w-14 h-14 rounded-2xl bg-[#0A1D37]/10 items-center justify-center mb-3">
+                      <Upload size={26} color="#0A1D37" />
+                    </View>
+                    <Text className="text-lg font-black text-slate-800">Back of your ID</Text>
+                    <Text className="text-xs text-slate-500 mt-1 text-center px-4">
+                      Flip it over and capture the back side clearly
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity 
+                    onPress={() => pickIdImage('back')}
+                    className="w-full border-2 border-dashed border-slate-300 rounded-2xl items-center justify-center bg-slate-50 mb-5 overflow-hidden"
+                    style={{ height: 176 }}
+                  >
+                    {idBackImage ? (
+                      <>
+                        <Image source={{ uri: idBackImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        <View className="absolute bottom-2 right-2 bg-emerald-500 rounded-full p-1">
+                          <CheckCircle2 size={16} color="white" />
+                        </View>
+                        <View className="absolute top-2 right-2 bg-black/40 px-2 py-0.5 rounded-lg">
+                          <Text className="text-white text-[10px] font-bold">Tap to retake</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <View className="items-center">
+                        <Upload size={28} color="#94a3b8" />
+                        <Text className="text-xs font-medium text-slate-500 mt-2">Tap to upload back of ID</Text>
+                        <Text className="text-[10px] text-slate-400 mt-0.5">Ensure barcode or signature is visible</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  <View className="flex-row gap-3">
+                    <TouchableOpacity 
+                      onPress={() => setCaptureStep('front')}
+                      className="flex-1 py-4 rounded-xl items-center border border-slate-200 bg-white"
+                    >
+                      <Text className="font-bold text-slate-600">← Back</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={() => {
+                        if (idBackImage) {
+                          setCaptureStep('selfie');
+                        } else {
+                          Alert.alert("Required", "Please upload the back of your ID first.");
+                        }
+                      }}
+                      className={`flex-1 py-4 rounded-xl items-center shadow-sm ${idBackImage ? 'bg-[#0A1D37]' : 'bg-slate-200'}`}
+                    >
+                      <Text className={`font-bold text-base ${idBackImage ? 'text-white' : 'text-slate-400'}`}>
+                        Next: Selfie →
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {/* STEP 3 — SELFIE / FACE SCAN                                  */}
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {captureStep === 'selfie' && (
+                <View>
+                  <View className="items-center mb-5">
+                    <View className="w-14 h-14 rounded-2xl bg-sky-500/10 items-center justify-center mb-3">
+                      <Shield size={26} color="#0284c7" />
+                    </View>
+                    <Text className="text-lg font-black text-slate-800">Face Verification</Text>
+                    <Text className="text-xs text-slate-500 mt-1 text-center px-4">
+                      Take a selfie so our admin can verify your identity matches the ID
+                    </Text>
+                  </View>
+
+                  {/* Oval selfie preview */}
+                  <TouchableOpacity 
+                    onPress={takeSelfie}
+                    className="self-center mb-5"
+                    style={{ width: 160, height: 200 }}
+                  >
+                    <View 
+                      className="w-full h-full border-2 border-dashed border-slate-300 bg-slate-50 items-center justify-center overflow-hidden"
+                      style={{ borderRadius: 80 }}
+                    >
+                      {selfieImage ? (
+                        <>
+                          <Image source={{ uri: selfieImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          <View className="absolute bottom-4 right-4 bg-emerald-500 rounded-full p-1">
+                            <CheckCircle2 size={16} color="white" />
+                          </View>
+                        </>
+                      ) : (
+                        <View className="items-center px-4">
+                          <Text className="text-3xl mb-2">🤳</Text>
+                          <Text className="text-xs font-medium text-slate-500 text-center">Tap to open camera</Text>
+                          <Text className="text-[10px] text-slate-400 mt-0.5 text-center">Look straight, good lighting</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {selfieImage && (
+                    <TouchableOpacity onPress={takeSelfie} className="self-center mb-4">
+                      <Text className="text-sky-600 text-xs font-bold text-center">Tap photo to retake selfie</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <View className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 flex-row items-start gap-2">
+                    <Text className="text-amber-500 text-sm mt-0.5">💡</Text>
+                    <Text className="text-amber-800 text-[11px] flex-1 leading-4">
+                      Ensure your face is clearly visible, well-lit, and matches the photo on your ID. No sunglasses or masks.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row gap-3">
+                    <TouchableOpacity 
+                      onPress={() => setCaptureStep('back')}
+                      className="flex-1 py-4 rounded-xl items-center border border-slate-200 bg-white"
+                    >
+                      <Text className="font-bold text-slate-600">← Back</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={() => {
+                        if (selfieImage) {
+                          setCaptureStep('review');
+                        } else {
+                          Alert.alert("Required", "Please take a selfie first.");
+                        }
+                      }}
+                      className={`flex-1 py-4 rounded-xl items-center shadow-sm ${selfieImage ? 'bg-[#0A1D37]' : 'bg-slate-200'}`}
+                    >
+                      <Text className={`font-bold text-base ${selfieImage ? 'text-white' : 'text-slate-400'}`}>
+                        Review →
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {/* STEP 4 — REVIEW & SUBMIT                                      */}
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {captureStep === 'review' && (
+                <View>
+                  <View className="items-center mb-5">
+                    <Text className="text-lg font-black text-slate-800">Review & Submit</Text>
+                    <Text className="text-xs text-slate-500 mt-1 text-center">
+                      Double-check everything before submitting for admin review
+                    </Text>
+                  </View>
+
+                  {/* Discount Type */}
+                  <Text className="text-xs font-bold text-slate-500 uppercase mb-2">Discount Type</Text>
+                  <View className="flex-row gap-3 mb-4">
+                    <TouchableOpacity 
+                      onPress={() => setDiscountType('pwd')}
+                      className={`flex-1 p-3.5 rounded-2xl border items-center ${discountType === 'pwd' ? 'bg-emerald-50 border-emerald-500' : 'border-slate-200'}`}
+                    >
+                      <Text className={`font-bold text-sm ${discountType === 'pwd' ? 'text-emerald-700' : 'text-slate-500'}`}>
+                        PWD Discount
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={() => setDiscountType('senior')}
+                      className={`flex-1 p-3.5 rounded-2xl border items-center ${discountType === 'senior' ? 'bg-amber-50 border-amber-500' : 'border-slate-200'}`}
+                    >
+                      <Text className={`font-bold text-sm ${discountType === 'senior' ? 'text-amber-700' : 'text-slate-500'}`}>
+                        Senior Citizen
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* ID Number */}
+                  <Text className="text-xs font-bold text-slate-500 uppercase mb-2">ID Number</Text>
+                  <TextInput
+                    value={idNumber}
+                    onChangeText={setIdNumber}
+                    placeholder="Enter PWD or Senior Citizen ID No."
+                    className="w-full border border-slate-200 rounded-xl p-3.5 mb-5 text-sm bg-slate-50"
+                  />
+
+                  {/* Photo Preview Row — tap any thumbnail to redo that step */}
+                  <Text className="text-xs font-bold text-slate-500 uppercase mb-2">Captured Photos</Text>
+                  <View className="flex-row gap-2 mb-5">
+
+                    {/* Front ID thumbnail */}
+                    <TouchableOpacity onPress={() => setCaptureStep('front')} className="flex-1 items-center">
+                      <View className="w-full rounded-xl overflow-hidden border border-slate-200 mb-1" style={{ height: 72 }}>
+                        {idFrontImage 
+                          ? <Image source={{ uri: idFrontImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          : <View className="flex-1 bg-slate-100 items-center justify-center"><Text className="text-[10px] text-slate-400">No photo</Text></View>
+                        }
+                      </View>
+                      <Text className="text-[10px] font-bold text-slate-500">ID Front</Text>
+                      <Text className="text-[9px] text-sky-500 font-bold">Tap to redo</Text>
+                    </TouchableOpacity>
+
+                    {/* Back ID thumbnail */}
+                    <TouchableOpacity onPress={() => setCaptureStep('back')} className="flex-1 items-center">
+                      <View className="w-full rounded-xl overflow-hidden border border-slate-200 mb-1" style={{ height: 72 }}>
+                        {idBackImage 
+                          ? <Image source={{ uri: idBackImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          : <View className="flex-1 bg-slate-100 items-center justify-center"><Text className="text-[10px] text-slate-400">No photo</Text></View>
+                        }
+                      </View>
+                      <Text className="text-[10px] font-bold text-slate-500">ID Back</Text>
+                      <Text className="text-[9px] text-sky-500 font-bold">Tap to redo</Text>
+                    </TouchableOpacity>
+
+                    {/* Selfie thumbnail */}
+                    <TouchableOpacity onPress={() => setCaptureStep('selfie')} className="flex-1 items-center">
+                      <View 
+                        className="w-full overflow-hidden border border-slate-200 mb-1 self-center"
+                        style={{ height: 72, borderRadius: 36 }}
+                      >
+                        {selfieImage 
+                          ? <Image source={{ uri: selfieImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          : <View className="flex-1 bg-slate-100 items-center justify-center"><Text className="text-[10px] text-slate-400">No photo</Text></View>
+                        }
+                      </View>
+                      <Text className="text-[10px] font-bold text-slate-500">Selfie</Text>
+                      <Text className="text-[9px] text-sky-500 font-bold">Tap to redo</Text>
+                    </TouchableOpacity>
+
+                  </View>
+
+                  {/* Privacy notice */}
+                  <View className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-5 flex-row items-start gap-2">
+                    <Lock size={13} color="#94a3b8" style={{ marginTop: 1 }} />
+                    <Text className="text-slate-500 text-[10px] flex-1 leading-4">
+                      Your ID photos and selfie are encrypted and used solely for discount verification in compliance with the National Data Privacy Act of the Philippines.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row gap-3 mb-6">
+                    <TouchableOpacity 
+                      onPress={() => setCaptureStep('selfie')}
+                      className="flex-1 py-4 rounded-xl items-center border border-slate-200 bg-white"
+                    >
+                      <Text className="font-bold text-slate-600">← Back</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={handleSubmitDiscount}
+                      disabled={submittingDiscount}
+                      className="flex-1 bg-sky-600 py-4 rounded-xl items-center shadow-sm"
+                    >
+                      {submittingDiscount 
+                        ? <ActivityIndicator color="#fff" />
+                        : <Text className="text-white font-bold text-base">Submit →</Text>
+                      }
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
             </ScrollView>
           </View>
         </View>
@@ -659,6 +1030,8 @@ export default function ProfilePage() {
     </SafeAreaView>
   );
 }
+
+// ─── Profile Menu Item Component ─────────────────────────────────────────────
 
 function ProfileMenuItem({ icon, title, label, onClick, isLast }: any) {
   return (

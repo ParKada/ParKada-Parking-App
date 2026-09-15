@@ -7,6 +7,7 @@ import { Map, List, Search, Navigation, Route as RouteIcon, Crosshair, Star, Hea
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabase";
+import { useFavorites } from "../../hooks/useFavorites";
 
 const logoImage = require("../../assets/ParKadav2.png");
 
@@ -89,7 +90,7 @@ export default function ParkingMapPage() {
   const [routeCoords, setRouteCoords] = useState<{latitude: number, longitude: number}[] | null>(null);
   const [isFetchingRoute, setIsFetchingRoute] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [favorites, setFavorites] = useState<number[]>([]);
+  const { favoriteIds: favorites, toggleFavorite, isFavorite, loading: favsLoading } = useFavorites();
   const [selectedLot, setSelectedLot] = useState<any | null>(null);
   const [activeLot, setActiveLot] = useState<any | null>(null);
   const [lotReviews, setLotReviews] = useState<any[]>([]);
@@ -176,10 +177,6 @@ export default function ParkingMapPage() {
   ).current;
 
   useEffect(() => {
-    AsyncStorage.getItem("favoriteParkingLots").then(saved => {
-      if (saved) setFavorites(JSON.parse(saved));
-    });
-    
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
@@ -187,19 +184,6 @@ export default function ParkingMapPage() {
       setUserCoords({ lat: location.coords.latitude, lng: location.coords.longitude });
     })();
   }, []);
-
-  const toggleFavorite = async (lotId: number) => {
-    setFavorites(prev => {
-      const newFavs = prev.includes(lotId) 
-        ? prev.filter(id => id !== lotId) 
-        : [...prev, lotId];
-      
-      AsyncStorage.setItem("favoriteParkingLots", JSON.stringify(newFavs)).catch(err => 
-        console.error("Failed to save favorites:", err)
-      );
-      return newFavs;
-    });
-  };
 
   const centerToUser = () => {
     if (userCoords && mapRef.current) {
@@ -549,7 +533,7 @@ export default function ParkingMapPage() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible pb-2 flex-row px-4">
                 {filteredAndSorted.map(lot => {
                   const isClosed = lot.open_hours ? !isParkingOpen(lot.open_hours, currentTime) : lot.status === 'closed';
-                  const isFavorite = favorites.includes(lot.id);
+                  const isFav = isFavorite(lot.id);
                   const isAccredited = lot.is_accredited === true;
 
                   return (
@@ -569,7 +553,7 @@ export default function ParkingMapPage() {
                           className="p-1"
                           activeOpacity={0.7}
                         >
-                          <Heart size={18} color={isFavorite ? "#f43f5e" : "#cbd5e1"} fill={isFavorite ? "#f43f5e" : "transparent"} />
+                          <Heart size={18} color={isFav ? "#f43f5e" : "#cbd5e1"} fill={isFav ? "#f43f5e" : "transparent"} />
                         </TouchableOpacity>
                       </View>
                       
@@ -672,7 +656,7 @@ export default function ParkingMapPage() {
                       </View>
                     </View>
                     <TouchableOpacity onPress={() => toggleFavorite(activeLot.id)} className="p-2 bg-slate-50 rounded-full">
-                      <Heart size={22} color={favorites.includes(activeLot.id) ? "#f43f5e" : "#cbd5e1"} fill={favorites.includes(activeLot.id) ? "#f43f5e" : "transparent"} />
+                      <Heart size={22} color={isFavorite(activeLot.id) ? "#f43f5e" : "#cbd5e1"} fill={isFavorite(activeLot.id) ? "#f43f5e" : "transparent"} />
                     </TouchableOpacity>
                   </View>
 
@@ -796,7 +780,7 @@ export default function ParkingMapPage() {
         <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
           {filteredAndSorted.map(lot => {
             const isClosed = lot.open_hours ? !isParkingOpen(lot.open_hours, currentTime) : lot.status === 'closed';
-            const isFavorite = favorites.includes(lot.id);
+            const isFav = isFavorite(lot.id);
             const isAccredited = lot.is_accredited === true;
 
             return (
@@ -837,7 +821,7 @@ export default function ParkingMapPage() {
                     className="p-2 -mr-2 -mt-2"
                     activeOpacity={0.7}
                   >
-                    <Heart size={20} color={isFavorite ? "#f43f5e" : "#cbd5e1"} fill={isFavorite ? "#f43f5e" : "transparent"} />
+                    <Heart size={20} color={isFav ? "#f43f5e" : "#cbd5e1"} fill={isFav ? "#f43f5e" : "transparent"} />
                   </TouchableOpacity>
                 </View>
 

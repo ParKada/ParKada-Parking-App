@@ -159,6 +159,40 @@ export default function ReservationsTabScreen() {
     }
   };
 
+  const cancelBooking = async (reservation: any) => {
+    Alert.alert(
+      "Cancel Reservation?",
+      "Are you sure you want to cancel this booking? ParKada does not issue refunds once you paid for the reserved slot.",
+      [
+        { text: "Keep Booking", style: "cancel" },
+        { 
+          text: "Yes, Cancel", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("reservations")
+                .update({ status: "cancelled" })
+                .eq("id", reservation.id);
+              if (error) throw error;
+              
+              const { error: slotErr } = await supabase
+                .from("parking_slots")
+                .update({ status: "available" })
+                .eq("id", reservation.slot_id);
+              if (slotErr) throw slotErr;
+              
+              Alert.alert("Cancelled", "Your booking has been cancelled.");
+              fetchMyReservations();
+            } catch (e: any) {
+              Alert.alert("Error", e.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" }}>
@@ -288,6 +322,18 @@ export default function ReservationsTabScreen() {
                             <Star size={14} color="#94a3b8" fill="#94a3b8" />
                             <Text className="text-xs font-bold text-slate-400">Rated</Text>
                           </View>
+                        ) : null}
+                        {(isOngoing || isReserved) ? (
+                          <TouchableOpacity
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              cancelBooking(res);
+                            }}
+                            className="bg-rose-50 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
+                          >
+                            <X size={14} color="#e11d48" />
+                            <Text className="text-xs font-bold text-rose-700">Cancel</Text>
+                          </TouchableOpacity>
                         ) : null}
                       </View>
                     </TouchableOpacity>
