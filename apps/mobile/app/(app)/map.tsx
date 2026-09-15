@@ -465,7 +465,7 @@ export default function ParkingMapPage() {
                   key={`marker-${lot.id}`}
                   coordinate={{ latitude: Number(lot.latitude), longitude: Number(lot.longitude) }}
                   anchor={{ x: 0.5, y: 1 }}
-                  onPress={() => { if (isAccredited) router.push(`/(app)/lot/${lot.id}`); }}
+                  onPress={() => { if (isAccredited) handleSelectLot(lot); }}
                 >
                   <View style={{ alignItems: 'center', width: 150 }}>
                     <View
