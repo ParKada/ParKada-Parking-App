@@ -111,48 +111,6 @@ export default function AdminReports() {
       const { data: walkInData, error: walkError } = await walkInQuery;
       if (walkError) throw walkError;
 
-      let ocrQuery = supabase
-        .from('plate_validation_logs')
-        .select(`id, lot_id, camera_id, detected_plate, confidence_score, validation_status, created_at`)
-        .order('created_at', { ascending: false });
-      if (currentRole !== 'superadmin' && currentRole !== 'super_admin' && currentLotId) {
-        ocrQuery = ocrQuery.eq('lot_id', currentLotId);
-      }
-      const { data: ocrData, error: ocrError } = await ocrQuery;
-      
-      let combinedLogs = ocrData ? [...ocrData] : [];
-      
-      reservationsData?.forEach(r => {
-        if (r.plate_number) {
-          combinedLogs.push({
-            id: r.id,
-            lot_id: r.lot_id,
-            camera_id: "Online Booking",
-            detected_plate: r.plate_number,
-            confidence_score: 100,
-            validation_status: r.status,
-            created_at: r.created_at
-          });
-        }
-      });
-      
-      walkInData?.forEach(w => {
-        if (w.plate_number) {
-          combinedLogs.push({
-            id: w.id,
-            lot_id: w.lot_id,
-            camera_id: "Walk-in Entry",
-            detected_plate: w.plate_number,
-            confidence_score: 100,
-            validation_status: w.status || (w.exit_time ? 'completed' : 'active'),
-            created_at: w.entry_time
-          });
-        }
-      });
-      
-      combinedLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setOcrLogs(combinedLogs);
-
       let lotsQuery = supabase.from('parking_lots').select('operating_hours');
       if (currentRole !== 'superadmin' && currentRole !== 'super_admin' && currentLotId) {
         lotsQuery = lotsQuery.eq('id', currentLotId);
@@ -441,23 +399,79 @@ export default function AdminReports() {
     // Generate CSV data
     let exportData: any[] = [];
     let filename = "export.csv";
-    if (viewOption === "ocr") {
-      exportData = ocrLogs.map(log => ({
-        "Date": new Date(log.created_at).toLocaleString(),
-        "Detected Plate": log.detected_plate || "N/A",
-        "Confidence (%)": log.confidence_score || 0,
-        "Status": log.validation_status || "Pending",
-        "Camera": log.camera_id || "N/A"
-      }));
-      filename = "OCR_Validation_Report.csv";
-    } else {
-      exportData = lotStats.map(lot => ({
-        "Parking Lot": lot.name,
-        "Type": lot.type,
-        "Online Bookings": lot.onlineBookings,
-        "Total Revenue": lot.onlineRevenue
-      }));
-      filename = "Occupancy_Revenue_Report.csv";
+    
+    switch (viewOption) {
+      case "ocr":
+        exportData = ocrLogs.map(log => ({
+          "Date": new Date(log.created_at).toLocaleString(),
+          "Detected Plate": log.detected_plate || "N/A",
+          "Confidence (%)": log.confidence_score || 0,
+          "Status": log.validation_status || "Pending",
+          "Camera": log.camera_id || "N/A"
+        }));
+        filename = "OCR_Validation_Report.csv";
+        break;
+      case "composition":
+        exportData = composition.map(c => ({
+          "Lot Name": c.name,
+          "Revenue": c.value
+        }));
+        filename = "Revenue_Composition_Report.csv";
+        break;
+      case "daily":
+        exportData = dailyRevenue.map(d => ({
+          "Date": d.date,
+          "Total Revenue": d.total
+        }));
+        filename = "Daily_Revenue_Report.csv";
+        break;
+      case "toplots":
+        exportData = topLots.map(lot => ({
+          "Parking Lot": lot.name,
+          "Type": lot.type,
+          "Online Bookings": lot.onlineBookings,
+          "Online Revenue": lot.onlineRevenue,
+          "Walk-in Bookings": lot.walkinBookings,
+          "Walk-in Revenue": lot.walkinRevenue,
+          "Total Revenue": (lot.onlineRevenue || 0) + (lot.walkinRevenue || 0)
+        }));
+        filename = "Top_Lots_Report.csv";
+        break;
+      case "monthly":
+        exportData = stats.map(s => ({
+          "Month": s.month,
+          "Total Revenue": s.total
+        }));
+        filename = "Monthly_Revenue_Report.csv";
+        break;
+      case "weekly":
+        exportData = weeklyData.map(w => ({
+          "Day": w.day,
+          "Occupancy (%)": w.occupancy
+        }));
+        filename = "Weekly_Occupancy_Report.csv";
+        break;
+      case "hourly":
+        exportData = hourlyData.map(h => ({
+          "Hour": h.hour,
+          "Pattern (%)": h.pattern
+        }));
+        filename = "Hourly_Pattern_Report.csv";
+        break;
+      case "lot":
+      case "all":
+      default:
+        exportData = lotStats.map(lot => ({
+          "Parking Lot": lot.name,
+          "Type": lot.type,
+          "Online Bookings": lot.onlineBookings,
+          "Online Revenue": lot.onlineRevenue,
+          "Walk-in Bookings": lot.walkinBookings,
+          "Walk-in Revenue": lot.walkinRevenue,
+          "Total Revenue": (lot.onlineRevenue || 0) + (lot.walkinRevenue || 0)
+        }));
+        filename = "Lot_Performance_Report.csv";
+        break;
     }
     
     let csvContentStr = "";
@@ -790,62 +804,7 @@ export default function AdminReports() {
             </div>
           </div>
         )}
-
-        {/* OCR Validation Logs Table */}
-        {showSection("ocr") && (
-          <div ref={ocrRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-            <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
-              <Camera size={20} className="text-primary" />
-              OCR Validation Logs
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-[10px] text-muted-foreground uppercase font-black tracking-widest border-b border-slate-100">
-                    <th className="text-left pb-4">Date/Time</th>
-                    <th className="text-left pb-4">Detected Plate</th>
-                    <th className="text-center pb-4">Confidence</th>
-                    <th className="text-center pb-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {ocrLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-muted-foreground font-medium">
-                        No OCR validation data available.
-                      </td>
-                    </tr>
-                  ) : (
-                    ocrLogs.map((log: any) => (
-                      <tr key={log.id} className="group hover:bg-slate-50 transition-colors">
-                        <td className="py-4 text-sm font-medium text-slate-700">
-                          {new Date(log.created_at).toLocaleString()}
-                        </td>
-                        <td className="py-4 font-bold text-slate-900">
-                          {log.detected_plate || "UNREADABLE"}
-                        </td>
-                        <td className="py-4 text-center">
-                          <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded-md">
-                            {log.confidence_score ? `${log.confidence_score}%` : "N/A"}
-                          </span>
-                        </td>
-                        <td className="py-4 text-center">
-                          <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase ${
-                            log.validation_status === 'matched' ? 'bg-emerald-100 text-emerald-700' :
-                            log.validation_status === 'mismatched' ? 'bg-rose-100 text-rose-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            {log.validation_status || "pending"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* No OCR Section */}
       </div>
     </AdminLayout>
   );

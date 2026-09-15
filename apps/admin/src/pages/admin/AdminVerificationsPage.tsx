@@ -29,12 +29,12 @@ export default function AdminVerifications() {
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
         (payload) => {
-          if (payload.eventType === "INSERT" && payload.new.verification_status === "pending") {
+          if (payload.eventType === "INSERT" && (payload.new.verification_status === "pending" || payload.new.discount_status === "pending")) {
             // May bagong nag-apply, tahimik na i-refresh ang listahan
             fetchPendingVerifications(true);
           } 
           else if (payload.eventType === "UPDATE") {
-            if (payload.new.verification_status === "pending") {
+            if (payload.new.verification_status === "pending" || payload.new.discount_status === "pending") {
               fetchPendingVerifications(true);
             } else if (!animatingRef.current.has(payload.new.id)) {
               // Kung may ibang admin na nag-approve/reject, alisin sa table (basta hindi ikaw ang nag-click)
@@ -56,8 +56,8 @@ export default function AdminVerifications() {
       if (!isSilent) setLoading(true);
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, phone_number, id_front_photo_url, id_back_photo_url, selfie_photo_url, user_type, valid_id_type, id_number, address, birthdate")
-        .eq("verification_status", "pending")
+        .select("id, full_name, email, phone_number, id_front_photo_url, id_back_photo_url, selfie_photo_url, user_type, valid_id_type, id_number, address, birthdate, verification_status, discount_status, discount_type, discount_id_number, discount_id_url")
+        .or("verification_status.eq.pending,discount_status.eq.pending")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -77,41 +77,57 @@ export default function AdminVerifications() {
     return data.publicUrl;
   };
 
-  const handleApprove = async (userId: string, userName: string) => {
+  const handleApprove = async (user: any) => {
     try {
-      setActionLoading(userId);
+      setActionLoading(user.id);
       
       // 1. Show Success Indication agad bago mag-update sa database
-      animatingRef.current.add(userId);
-      setProcessedStatus((prev) => ({ ...prev, [userId]: "approved" }));
+      animatingRef.current.add(user.id);
+      setProcessedStatus((prev) => ({ ...prev, [user.id]: "approved" }));
+
+      const updates: any = {};
+      let msg = "";
+
+      if (user.verification_status === "pending") {
+        updates.verification_status = "verified";
+        msg = `${user.full_name || 'User'}'s identity verified!`;
+      }
+      
+      if (user.discount_status === "pending") {
+        updates.discount_status = "approved";
+        if (user.discount_type) {
+           updates.user_type = user.discount_type;
+        }
+        msg = msg ? `${msg} Discount approved!` : `${user.full_name || 'User'}'s discount application approved!`;
+      }
 
       // 2. Official DB Update
       const { error } = await supabase
         .from("profiles")
-        .update({ verification_status: "verified" })
-        .eq("id", userId);
+        .update(updates)
+        .eq("id", user.id);
 
       if (error) throw error;
-      toast.success(t(`${userName} has been officially verified!`, `${userName} has been officially verified!`));
+      toast.success(t(msg, msg));
 
       // TC-16: Send Push Notification asynchronously
       supabase.functions.invoke('send-push', {
         body: {
-          user_id: userId,
+          user_id: user.id,
           title: "Account Verified! 🚗",
-          message: "Congratulations! Your identity has been verified. You can now use all ParKada features.",
+          message: "Congratulations! Your identity/discount has been verified. You can now use all ParKada features.",
         }
       }).catch(console.error);
 
       // 3. Tanggalin ang row after 1.5 seconds para makita ng admin yung success effect
       setTimeout(() => {
-        setPendingUsers((prev) => prev.filter((user) => user.id !== userId));
+        setPendingUsers((prev) => prev.filter((u) => u.id !== user.id));
         setProcessedStatus((prev) => {
           const newState = { ...prev };
-          delete newState[userId];
+          delete newState[user.id];
           return newState;
         });
-        animatingRef.current.delete(userId);
+        animatingRef.current.delete(user.id);
       }, 1500);
 
     } catch (error: any) {
@@ -120,45 +136,51 @@ export default function AdminVerifications() {
       // I-revert kung pumalya
       setProcessedStatus((prev) => {
         const newState = { ...prev };
-        delete newState[userId];
+        delete newState[user.id];
         return newState;
       });
-      animatingRef.current.delete(userId);
+      animatingRef.current.delete(user.id);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleReject = async (userId: string, userName: string) => {
-    if (!window.confirm(`Are you sure you want to reject ${userName}'s verification request?`)) return;
+  const handleReject = async (user: any) => {
+    if (!window.confirm(`Are you sure you want to reject ${user.full_name || 'this user'}'s request?`)) return;
 
     try {
-      setActionLoading(userId);
+      setActionLoading(user.id);
       
       // 1. Show Reject Indication
-      animatingRef.current.add(userId);
-      setProcessedStatus((prev) => ({ ...prev, [userId]: "rejected" }));
+      animatingRef.current.add(user.id);
+      setProcessedStatus((prev) => ({ ...prev, [user.id]: "rejected" }));
 
-      // 2. Official DB Update - Changed to 'rejected' and retained photo URLs for record purposes
+      const updates: any = {};
+      if (user.verification_status === "pending") {
+        updates.verification_status = "rejected";
+      }
+      if (user.discount_status === "pending") {
+        updates.discount_status = "rejected";
+      }
+
+      // 2. Official DB Update
       const { error } = await supabase
         .from("profiles")
-        .update({ 
-          verification_status: "rejected"
-        })
-        .eq("id", userId);
+        .update(updates)
+        .eq("id", user.id);
 
       if (error) throw error;
-      toast.info(t(`${userName}'s verification was rejected.`, `${userName}'s verification was rejected.`));
+      toast.info(t(`${user.full_name || 'User'}'s request was rejected.`, `${user.full_name || 'User'}'s request was rejected.`));
 
       // 3. Tanggalin ang row after 1.5 seconds delay
       setTimeout(() => {
-        setPendingUsers((prev) => prev.filter((user) => user.id !== userId));
+        setPendingUsers((prev) => prev.filter((u) => u.id !== user.id));
         setProcessedStatus((prev) => {
           const newState = { ...prev };
-          delete newState[userId];
+          delete newState[user.id];
           return newState;
         });
-        animatingRef.current.delete(userId);
+        animatingRef.current.delete(user.id);
       }, 1500);
 
     } catch (error: any) {
@@ -166,10 +188,10 @@ export default function AdminVerifications() {
       toast.error(t("Failed to reject user.", "Nabigong reject user."));
       setProcessedStatus((prev) => {
         const newState = { ...prev };
-        delete newState[userId];
+        delete newState[user.id];
         return newState;
       });
-      animatingRef.current.delete(userId);
+      animatingRef.current.delete(user.id);
     } finally {
       setActionLoading(null);
     }
@@ -279,7 +301,11 @@ export default function AdminVerifications() {
                         {/* Account & ID Info */}
                         <td className="p-4 align-top">
                           <div className="space-y-2">
-                            {user.user_type ? (
+                            {user.discount_status === 'pending' ? (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                {user.discount_type === 'pwd' ? 'PWD APPLICANT' : 'SENIOR APPLICANT'}
+                              </span>
+                            ) : user.user_type ? (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 border border-amber-200">
                                 {user.user_type}
                               </span>
@@ -288,8 +314,14 @@ export default function AdminVerifications() {
                             )}
                             
                             <div className="text-xs text-slate-500 space-y-0.5 mt-2 bg-white/60 p-2 rounded border border-slate-100">
-                              <p className="font-semibold text-slate-700">{user.valid_id_type || "No ID Type"}</p>
-                              <p className="font-mono text-slate-600">ID#: {user.id_number || "N/A"}</p>
+                              <p className="font-semibold text-slate-700">
+                                {user.discount_status === 'pending' 
+                                  ? (user.discount_type === 'pwd' ? 'PWD ID' : 'Senior Citizen ID') 
+                                  : (user.valid_id_type || "No ID Type")}
+                              </p>
+                              <p className="font-mono text-slate-600">
+                                ID#: {user.discount_status === 'pending' ? user.discount_id_number : (user.id_number || "N/A")}
+                              </p>
                             </div>
                           </div>
                         </td>
@@ -297,48 +329,73 @@ export default function AdminVerifications() {
                         {/* ID Documents (Front and Back) */}
                         <td className="p-4 align-middle text-center">
                           <div className="flex items-center justify-center gap-2">
-                            {/* Front ID */}
-                            {user.id_front_photo_url ? (
-                              <a 
-                                href={getImageUrl(user.id_front_photo_url)} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className="inline-block relative group/img"
-                                title="Front ID"
-                              >
-                                <div className="h-14 w-20 bg-slate-100 rounded border border-slate-300 overflow-hidden flex items-center justify-center shadow-sm transition-all group-hover/img:ring-2 ring-blue-600 ring-offset-1">
-                                  <img src={getImageUrl(user.id_front_photo_url)} alt="Front ID" className="w-full h-full object-cover" />
+                            {user.discount_status === 'pending' ? (
+                              user.discount_id_url ? (
+                                <a 
+                                  href={getImageUrl(user.discount_id_url)} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-block relative group/img"
+                                  title="Discount ID"
+                                >
+                                  <div className="h-14 w-20 bg-slate-100 rounded border border-slate-300 overflow-hidden flex items-center justify-center shadow-sm transition-all group-hover/img:ring-2 ring-blue-600 ring-offset-1">
+                                    <img src={getImageUrl(user.discount_id_url)} alt="Discount ID" className="w-full h-full object-cover" />
+                                  </div>
+                                  <div className="absolute -top-2 -right-2 bg-blue-600 text-white p-1 rounded-full shadow-md opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                    <ExternalLink size={12} />
+                                  </div>
+                                </a>
+                              ) : (
+                                <div className="h-14 w-20 bg-slate-50 rounded border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                                  <ImageIcon size={16} />
                                 </div>
-                                <div className="absolute -top-2 -right-2 bg-blue-600 text-white p-1 rounded-full shadow-md opacity-0 group-hover/img:opacity-100 transition-opacity">
-                                  <ExternalLink size={12} />
-                                </div>
-                              </a>
+                              )
                             ) : (
-                              <div className="h-14 w-20 bg-slate-50 rounded border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
-                                <ImageIcon size={16} />
-                              </div>
-                            )}
+                              <>
+                                {/* Front ID */}
+                                {user.id_front_photo_url ? (
+                                  <a 
+                                    href={getImageUrl(user.id_front_photo_url)} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="inline-block relative group/img"
+                                    title="Front ID"
+                                  >
+                                    <div className="h-14 w-20 bg-slate-100 rounded border border-slate-300 overflow-hidden flex items-center justify-center shadow-sm transition-all group-hover/img:ring-2 ring-blue-600 ring-offset-1">
+                                      <img src={getImageUrl(user.id_front_photo_url)} alt="Front ID" className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="absolute -top-2 -right-2 bg-blue-600 text-white p-1 rounded-full shadow-md opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                      <ExternalLink size={12} />
+                                    </div>
+                                  </a>
+                                ) : (
+                                  <div className="h-14 w-20 bg-slate-50 rounded border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                                    <ImageIcon size={16} />
+                                  </div>
+                                )}
 
-                            {/* Back ID */}
-                            {user.id_back_photo_url ? (
-                              <a 
-                                href={getImageUrl(user.id_back_photo_url)} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className="inline-block relative group/img"
-                                title="Back ID"
-                              >
-                                <div className="h-14 w-20 bg-slate-100 rounded border border-slate-300 overflow-hidden flex items-center justify-center shadow-sm transition-all group-hover/img:ring-2 ring-blue-600 ring-offset-1">
-                                  <img src={getImageUrl(user.id_back_photo_url)} alt="Back ID" className="w-full h-full object-cover" />
-                                </div>
-                                <div className="absolute -top-2 -right-2 bg-blue-600 text-white p-1 rounded-full shadow-md opacity-0 group-hover/img:opacity-100 transition-opacity">
-                                  <ExternalLink size={12} />
-                                </div>
-                              </a>
-                            ) : (
-                              <div className="h-14 w-20 bg-slate-50 rounded border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
-                                <ImageIcon size={16} />
-                              </div>
+                                {/* Back ID */}
+                                {user.id_back_photo_url ? (
+                                  <a 
+                                    href={getImageUrl(user.id_back_photo_url)} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="inline-block relative group/img"
+                                    title="Back ID"
+                                  >
+                                    <div className="h-14 w-20 bg-slate-100 rounded border border-slate-300 overflow-hidden flex items-center justify-center shadow-sm transition-all group-hover/img:ring-2 ring-blue-600 ring-offset-1">
+                                      <img src={getImageUrl(user.id_back_photo_url)} alt="Back ID" className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="absolute -top-2 -right-2 bg-blue-600 text-white p-1 rounded-full shadow-md opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                      <ExternalLink size={12} />
+                                    </div>
+                                  </a>
+                                ) : (
+                                  <div className="h-14 w-20 bg-slate-50 rounded border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                                    <ImageIcon size={16} />
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </td>
@@ -366,36 +423,35 @@ export default function AdminVerifications() {
                           )}
                         </td>
 
-                        {/* Actions & Live Indicators */}
+                        {/* Official Actions */}
                         <td className="p-4 pr-6 align-middle text-right">
                           {isApproved ? (
-                            <div className="flex items-center justify-end gap-1.5 text-emerald-700 font-bold bg-emerald-100 py-1.5 px-3 rounded-lg shadow-sm border border-emerald-200">
-                              <CheckCircle2 size={16} className="animate-bounce" /> Verified!
+                            <div className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+                              <CheckCircle2 size={16} />
+                              Verified
                             </div>
                           ) : isRejected ? (
-                            <div className="flex items-center justify-end gap-1.5 text-rose-700 font-bold bg-rose-100 py-1.5 px-3 rounded-lg shadow-sm border border-rose-200">
-                              <XCircle size={16} className="animate-pulse" /> Rejected
+                            <div className="inline-flex items-center gap-1 text-rose-600 font-bold bg-rose-50 px-3 py-1.5 rounded-full border border-rose-200">
+                              <XCircle size={16} />
+                              Rejected
                             </div>
                           ) : (
                             <div className="flex items-center justify-end gap-2">
                               <button
-                                onClick={() => handleReject(user.id, user.full_name)}
+                                onClick={() => handleReject(user)}
                                 disabled={actionLoading === user.id}
-                                className="px-3 py-2 rounded-lg border border-rose-200 text-rose-600 font-bold text-xs flex items-center gap-1.5 hover:bg-rose-50 hover:border-rose-300 disabled:opacity-50 transition-all"
+                                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-rose-200 text-rose-600 font-bold text-xs hover:bg-rose-50 transition-colors disabled:opacity-50"
                               >
-                                <ShieldClose size={14} />
+                                {actionLoading === user.id ? <Loader2 size={14} className="animate-spin" /> : <ShieldClose size={14} />}
                                 Deny
                               </button>
+                              
                               <button
-                                onClick={() => handleApprove(user.id, user.full_name)}
+                                onClick={() => handleApprove(user)}
                                 disabled={actionLoading === user.id}
-                                className="px-4 py-2 rounded-lg bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 hover:bg-blue-800 shadow-sm disabled:opacity-50 transition-all"
+                                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
                               >
-                                {actionLoading === user.id ? (
-                                  <Loader2 size={14} className="animate-spin" />
-                                ) : (
-                                  <UserCheck size={14} />
-                                )}
+                                {actionLoading === user.id ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
                                 Verify
                               </button>
                             </div>

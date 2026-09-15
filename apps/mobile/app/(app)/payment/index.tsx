@@ -257,11 +257,20 @@ export default function PaymentPage() {
           </View>
         </View>
 
-        <View className="flex-row items-start gap-2 px-2 opacity-60 mb-8 mt-auto">
-           <Info size={16} color="#64748B" style={{ marginTop: 2 }} />
-           <Text className="flex-1 text-[10px] font-medium text-slate-500 leading-relaxed">
-             By clicking "Pay Now", you authorize ParKada to deduct ₱{params.total} from your {params.pay} account. This transaction is encrypted and secured.
-           </Text>
+        <View className="mt-auto mb-8 gap-3">
+          <View className="flex-row items-start gap-2 px-2">
+            <Info size={16} color="#ef4444" style={{ marginTop: 2 }} />
+            <Text className="flex-1 text-[10px] font-bold text-red-500 leading-relaxed">
+              Note: ParKada does not issue refunds once you have paid for the reserved slot.
+            </Text>
+          </View>
+
+          <View className="flex-row items-start gap-2 px-2 opacity-60">
+            <Info size={16} color="#64748B" style={{ marginTop: 2 }} />
+            <Text className="flex-1 text-[10px] font-medium text-slate-500 leading-relaxed">
+              By clicking "Pay Now", you authorize ParKada to deduct ₱{params.total} from your {params.pay} account. This transaction is encrypted and secured.
+            </Text>
+          </View>
         </View>
 
         <TouchableOpacity 

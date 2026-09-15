@@ -292,6 +292,7 @@ export default function DriverHome() {
             grace_period_minutes: lotData?.grace_period_minutes || 15,
             allow_extensions: lotData?.allow_extensions ?? true,
             extension_rate_per_hour: lotData?.extension_rate_per_hour ?? lotData?.rate_per_hour ?? 30,
+            pricing_scheme: lotData?.pricing_scheme || 'hourly',
           };
         });
         formatted.sort((a, b) => new Date(a.end_time).getTime() - new Date(b.end_time).getTime());

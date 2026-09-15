@@ -178,11 +178,14 @@ export default function ReservationPage() {
   let subtotal = 0;
   let baseRateDisplay = 0;
   let extendedFee = 0;
+  let waitingTimeFee = 0;
 
   if (lot) {
     if (lot.pricing_scheme === 'fixed') {
-      subtotal = Number(lot.fixed_rate) || 150;
-      baseRateDisplay = Number(lot.fixed_rate) || 150;
+      baseRateDisplay = Number(lot.fixed_rate) || 60;
+      waitingTimeFee = Number(lot.extension_fee) || 10;
+      extendedFee = duration > 1 ? (duration - 1) * waitingTimeFee : 0;
+      subtotal = baseRateDisplay + extendedFee;
     } else {
       baseRateDisplay = Number(lot.base_rate) || 50;
       const hourlyRate = Number(lot.rate_per_hour) || 20;
@@ -365,11 +368,13 @@ export default function ReservationPage() {
             </ScrollView>
           </View>
 
-          {/* Select Duration */}
+          {/* Select Duration / Arrival Allowance */}
           <View className={`mb-4 ${isBlocked ? "opacity-50" : ""}`}>
             <View className="flex-row items-center gap-1.5 mb-2 px-1">
               <Timer size={14} color="#64748b" />
-              <Text className="text-[11px] font-black uppercase text-slate-500">Duration</Text>
+              <Text className="text-[11px] font-black uppercase text-slate-500">
+                {lot?.pricing_scheme === 'fixed' ? 'Arrival Time Allowance' : 'Duration'}
+              </Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
               {durationOptions.map(h => (
@@ -401,7 +406,9 @@ export default function ReservationPage() {
               <View className="w-10 h-0.5 bg-slate-300 rounded-full mx-2" />
               
               <View className="items-center flex-1">
-                <Text className="text-[10px] font-bold uppercase text-slate-400 mb-1">End</Text>
+                <Text className="text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  {lot?.pricing_scheme === 'fixed' ? 'Must Arrive By' : 'End'}
+                </Text>
                 <Text className="text-xl font-black text-slate-800">{endTimeFormatted}</Text>
                 <Text className="text-[9px] text-slate-400 font-bold mt-1 uppercase">Estimated</Text>
               </View>

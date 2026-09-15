@@ -467,7 +467,7 @@ export default function ParkingMapPage() {
                   anchor={{ x: 0.5, y: 1 }}
                   onPress={() => { if (isAccredited) handleSelectLot(lot); }}
                 >
-                  <View style={{ alignItems: 'center', width: 150 }}>
+                  <View pointerEvents="none" style={{ alignItems: 'center', width: 150 }}>
                     <View
                       style={{
                         backgroundColor: pinColor,
@@ -614,16 +614,7 @@ export default function ParkingMapPage() {
                           <Navigation size={12} color="white" />
                           <Text className="text-[9px] font-black text-white">WAZE</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            openMaps(Number(lot.latitude), Number(lot.longitude), "waze");
-                          }} 
-                          className="flex-1 bg-[#33CCFF] py-2 rounded-lg items-center flex-row justify-center gap-1"
-                        >
-                          <Navigation size={12} color="white" />
-                          <Text className="text-[10px] font-black text-white">WAZE</Text>
-                        </TouchableOpacity>
+
                       </View>
                     </TouchableOpacity>
                   );
@@ -821,7 +812,18 @@ export default function ParkingMapPage() {
                 <View className="flex-row justify-between items-start mb-2">
                   <View className="flex-1 pr-4">
                     <Text className="text-base font-black text-slate-800">{lot.name}</Text>
-                    {isAccredited && lot.average_rating > 0 && renderStars(lot.average_rating)}
+                    {isAccredited ? (
+                      (lot.average_rating && lot.average_rating > 0) ? (
+                        <View className="flex-row items-center mt-0.5">
+                          {renderStars(lot.average_rating)}
+                          <Text className="text-[10px] font-bold text-slate-400 ml-1">({Number(lot.average_rating).toFixed(1)})</Text>
+                        </View>
+                      ) : (
+                        <View className="mt-0.5">
+                          <Text className="text-[10px] font-bold text-slate-400">No ratings yet</Text>
+                        </View>
+                      )
+                    ) : null}
                     <View className="flex-row items-center gap-1.5 mt-2">
                       <MapPin size={12} color="#94a3b8" />
                       <Text className="text-[11px] text-slate-500">{lot.address}</Text>

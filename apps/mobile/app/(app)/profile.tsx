@@ -277,6 +277,17 @@ export default function ProfilePage() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }} edges={['top', 'left', 'right']}>
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-slate-100 z-10">
+        <View className="flex-row items-center gap-2">
+          <Image source={require("../../assets/ParKadav2.png")} className="w-10 h-10 rounded-md" resizeMode="contain" />
+          <Text className="font-black text-xl">
+            <Text className="text-[#0A1D37]">Par</Text>
+            <Text className="text-amber-400">Kada</Text>
+          </Text>
+        </View>
+      </View>
+
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         className="flex-1 px-4 pt-4"

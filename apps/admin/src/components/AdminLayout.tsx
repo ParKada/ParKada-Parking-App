@@ -18,7 +18,7 @@ interface AdminLayoutProps {
 }
 
 const allNavItems = [
-  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] },
+  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["super_admin", "superadmin", "admin", "admin", "staff"] },
   { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["super_admin", "superadmin"] },
   { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["super_admin", "superadmin", "admin", "admin", "guard", "staff"] },
   { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["admin", "admin", "guard", "staff"] },
@@ -27,9 +27,10 @@ const allNavItems = [
   { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["super_admin", "superadmin"] }, 
   { path: "/admin/walkin", icon: DollarSign, label: "Walk-ins", allowedRoles: ["admin", "admin", "guard", "staff"] },
   { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["super_admin", "superadmin", "admin", "admin", "staff"] },
+  { path: "/admin/records", icon: FileText, label: "Records", allowedRoles: ["super_admin", "superadmin", "admin", "admin", "staff"] },
   { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] },
   { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["admin", "admin"] },
-  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "superadmin", "admin", "admin"] }, 
+  { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["super_admin", "superadmin", "admin", "admin", "staff"] }, 
 ];
 
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
@@ -322,7 +323,6 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             {filteredNavItems.map(({ path, icon: Icon, label }) => {
               const isActive = location === path;
               const isSuperAdmin = adminRole === "superadmin" || adminRole === "super_admin";
-              const displayLabel = path === "/admin/reservations" ? (isSuperAdmin ? "Records" : "Reservations") : label;
               return (
                   <button
                     key={path}
@@ -335,7 +335,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                     )}
                   >
                   <Icon size={18} />
-                  {displayLabel}
+                  {label}
                 </button>
               );
             })}

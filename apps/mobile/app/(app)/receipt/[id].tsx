@@ -193,11 +193,25 @@ export default function DigitalReceiptPage() {
               <View className="w-1/2 flex-row items-start gap-3 pl-2">
                 <CircleCheck size={20} color="#059669" />
                 <View className="flex-1">
-                  <Text className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Payment</Text>
+                  <Text className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Total Paid</Text>
                   <Text className="text-xs font-bold uppercase text-emerald-600">₱{res.total_amount} ({res.payment_method})</Text>
                 </View>
               </View>
             </View>
+
+            {(res.extension_fee > 0 || res.extension_count > 0) && (
+              <View className="mt-4 pt-4 border-t border-slate-100">
+                <Text className="text-[10px] font-black text-slate-400 uppercase mb-2">Extension Breakdown</Text>
+                <View className="flex-row justify-between mb-1">
+                  <Text className="text-xs text-slate-500 font-medium">Base Parking Fee</Text>
+                  <Text className="text-xs text-slate-700 font-bold">₱{Number(res.total_amount) - (res.extension_fee || 0)}</Text>
+                </View>
+                <View className="flex-row justify-between mb-1">
+                  <Text className="text-xs text-slate-500 font-medium">Extension Fee ({res.extension_count || 1}x)</Text>
+                  <Text className="text-xs text-slate-700 font-bold">₱{res.extension_fee}</Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
 

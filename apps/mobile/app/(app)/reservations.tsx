@@ -1,6 +1,6 @@
 import { Modal } from '../../components/SafeModal';
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Clock, Car, Calendar, CheckCircle2, BookmarkCheck, Star, X } from "lucide-react-native";
@@ -51,68 +51,66 @@ export default function ReservationsTabScreen() {
   const [reviewText, setReviewText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchMyReservations = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("reservations")
+        .select(`
+          *,
+          parking_slots (
+            label,
+            parking_lots (id, name, address)
+          )
+        `)
+        .eq("profile_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const { data: reviews } = await supabase
+        .from("parking_reviews")
+        .select("reservation_id")
+        .eq("profile_id", user.id);
+
+      const ratedReservationIds = new Set(reviews?.map(r => r.reservation_id) || []);
+
+      const enriched = (data || []).map((rawRes: any) => {
+        const slotData = Array.isArray(rawRes.parking_slots) ? rawRes.parking_slots[0] : rawRes.parking_slots;
+        const lotData = slotData?.parking_lots ? (Array.isArray(slotData.parking_lots) ? slotData.parking_lots[0] : slotData.parking_lots) : null;
+        return {
+          ...rawRes,
+          parking_slots: {
+            ...slotData,
+            parking_lots: lotData
+          },
+          duration: String(rawRes.duration || 0),
+          total_amount: String(rawRes.total_amount || 0),
+          plate_number: String(rawRes.plate_number || "N/A"),
+          hasRated: ratedReservationIds.has(rawRes.id)
+        };
+      });
+      setReservations(enriched);
+    } catch (error) {
+      console.error("Error fetching reservations:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchMyReservations = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // 1. Fetch user's reservations.
-        // NOTE: previously used `parking_slots!inner (...)`, which performs
-        // an INNER join — any reservation whose slot join didn't resolve
-        // (null slot_id, deleted slot, orphaned FK, etc.) was silently
-        // dropped from the results entirely, with no error. That's why
-        // reserved/active/pending bookings were invisible on this screen.
-        // Switched to a normal (left) join so every reservation the user
-        // owns always shows up, even if its slot data is missing — the UI
-        // already falls back to "--" for a missing label.
-        const { data, error } = await supabase
-          .from("reservations")
-          .select(`
-            *,
-            parking_slots (
-              label,
-              parking_lots (id, name, address)
-            )
-          `)
-          .eq("profile_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
-        // 2. Fetch user's existing reviews
-        const { data: reviews } = await supabase
-          .from("parking_reviews")
-          .select("reservation_id")
-          .eq("profile_id", user.id);
-
-        const ratedReservationIds = new Set(reviews?.map(r => r.reservation_id) || []);
-
-        const enriched = (data || []).map((rawRes: any) => {
-          const slotData = Array.isArray(rawRes.parking_slots) ? rawRes.parking_slots[0] : rawRes.parking_slots;
-          const lotData = slotData?.parking_lots ? (Array.isArray(slotData.parking_lots) ? slotData.parking_lots[0] : slotData.parking_lots) : null;
-          return {
-            ...rawRes,
-            parking_slots: {
-              ...slotData,
-              parking_lots: lotData
-            },
-            duration: String(rawRes.duration || 0),
-            total_amount: String(rawRes.total_amount || 0),
-            plate_number: String(rawRes.plate_number || "N/A"),
-            hasRated: ratedReservationIds.has(rawRes.id)
-          };
-        });
-        setReservations(enriched);
-      } catch (error) {
-        console.error("Error fetching reservations:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchMyReservations();
   }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchMyReservations();
+  };
 
   const filteredReservations = reservations.filter((res) => {
     if (!res) return false;
@@ -172,9 +170,15 @@ export default function ReservationsTabScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}>
-        <Image source={logoImage} style={{ width: 40, height: 40, borderRadius: 6 }} resizeMode="contain" />
-        <Text className="text-xl font-black text-[#0A1D37]">My Bookings</Text>
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-slate-100 z-10">
+        <View className="flex-row items-center gap-2">
+          <Image source={require("../../assets/ParKadav2.png")} className="w-10 h-10 rounded-md" resizeMode="contain" />
+          <Text className="font-black text-xl">
+            <Text className="text-[#0A1D37]">Par</Text>
+            <Text className="text-amber-400">Kada</Text>
+          </Text>
+        </View>
       </View>
 
       <View className="p-4 flex-1">
@@ -207,7 +211,13 @@ export default function ReservationsTabScreen() {
             ) : null}
           </View>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            className="flex-1"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0A1D37" colors={["#0A1D37"]} />
+            }
+          >
             <View className="pb-20 space-y-4">
               {filteredReservations.map(res => {
                 if (!res) return null;

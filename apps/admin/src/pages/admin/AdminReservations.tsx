@@ -10,7 +10,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@parkada/shared";
 import { createClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
-import { RefreshCw, CheckCircle, XCircle, Clock, Search, CalendarDays, AlertTriangle, Coins, Printer, Plus, Eye, Receipt, User, Car } from "lucide-react";
+import { RefreshCw, CheckCircle, XCircle, Clock, Search, CalendarDays, AlertTriangle, Coins, Printer, Plus, Eye, Receipt, User, Car, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -345,6 +345,16 @@ export default function AdminReservations() {
   const activeCount = reservations.filter(r => r.status === 'active').length;
   const overstayCount = reservations.filter(r => checkIsOverstaying(r)).length;
 
+  const getDateRangeText = () => {
+    if (dateFilter === "today") return "Today";
+    if (dateFilter === "week") return "Last 7 days";
+    if (dateFilter === "month") return "Last 30 days";
+    if (dateFilter === "custom" && customStart && customEnd) {
+      return `${customStart} to ${customEnd}`;
+    }
+    return "All time";
+  };
+
   const handlePrint = async () => {
     try {
       let query = getBaseQuery();
@@ -455,13 +465,7 @@ export default function AdminReservations() {
     );
   }
 
-  if (userRole === "superadmin" || userRole === "super_admin") {
-    return (
-      <AdminLayout title="Records">
-        <SuperAdminRecords />
-      </AdminLayout>
-    );
-  }
+  // SuperAdmin intercept removed since they have a separate Records route now
 
   return (
     <AdminLayout title="Reservations">
@@ -490,103 +494,124 @@ export default function AdminReservations() {
           </div>
         </div>
 
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            {recordType === "active" ? (
+              <><Clock className="text-amber-600" size={24} /> Active Reservations ({getDateRangeText()})</>
+            ) : recordType === "completed" ? (
+              <><CheckCircle className="text-emerald-600" size={24} /> Completed Records ({getDateRangeText()})</>
+            ) : (
+              <><List className="text-blue-600" size={24} /> All Records ({getDateRangeText()})</>
+            )}
+          </h3>
+        </div>
+
         {/* Unified Filter Row matching Walk-ins layout */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Record Type Tabs (with Walk-ins colors and small sizing) */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setRecordType("all")}
-                className={cn(
-                  "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
-                  recordType === "all" ? "bg-blue-600 text-white shadow-md" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                )}
-              >
-                All Records
-              </button>
-              <button
-                onClick={() => setRecordType("active")}
-                className={cn(
-                  "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
-                  recordType === "active" ? "bg-amber-500 text-white shadow-md" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                )}
-              >
-                Active Reservations
-              </button>
-              <button
-                onClick={() => setRecordType("completed")}
-                className={cn(
-                  "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
-                  recordType === "completed" ? "bg-emerald-600 text-white shadow-md" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                )}
-              >
-                Completed
-              </button>
-            </div>
-
-            <div className="w-px h-6 bg-slate-200 hidden md:block" />
-
-            {/* Date Filters */}
-            <div className="relative flex items-center">
-              <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
-                {["today", "week", "month", "custom"].map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setDateFilter(f as any)}
-                    className={cn(
-                      "px-3 py-1.5 text-xs font-bold rounded-full capitalize",
-                      dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
-                    )}
-                  >
-                    {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
-                  </button>
-                ))}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border mb-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Record Type Tabs */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRecordType("all")}
+                  className={cn(
+                    "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
+                    recordType === "all" ? "bg-blue-600 text-white shadow-md" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  )}
+                >
+                  All Records
+                </button>
+                <button
+                  onClick={() => setRecordType("active")}
+                  className={cn(
+                    "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
+                    recordType === "active" ? "bg-amber-500 text-white shadow-md" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                  )}
+                >
+                  Active Reservations
+                </button>
+                <button
+                  onClick={() => setRecordType("completed")}
+                  className={cn(
+                    "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
+                    recordType === "completed" ? "bg-emerald-600 text-white shadow-md" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  )}
+                >
+                  Completed
+                </button>
               </div>
-              
-              {dateFilter === "custom" && (
-                <div className="absolute top-[120%] right-0 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl p-4 flex flex-row items-center gap-4 z-[60] animate-in fade-in slide-in-from-top-2 w-max">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase px-1">Start Date</span>
-                    <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-[140px] h-9 text-sm" />
-                  </div>
-                  <div className="text-slate-300 mt-5">–</div>
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase px-1">End Date</span>
-                    <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-[140px] h-9 text-sm" />
-                  </div>
+
+              <div className="w-px h-6 bg-slate-200 hidden md:block" />
+
+              {/* Date Filters */}
+              <div className="relative flex items-center">
+                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
+                  {["today", "week", "month", "custom"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setDateFilter(f as any)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-bold rounded-full capitalize transition-colors",
+                        dateFilter === f ? "bg-primary text-white" : "text-muted-foreground hover:bg-slate-200"
+                      )}
+                    >
+                      {f === "today" ? "Today" : f === "week" ? "Last 7 days" : f === "month" ? "Last 30 days" : "Custom"}
+                    </button>
+                  ))}
                 </div>
+                
+                {dateFilter === "custom" && (
+                  <div className="absolute top-[120%] right-0 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl p-4 flex flex-row items-center gap-4 z-[60] animate-in fade-in slide-in-from-top-2 w-max">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase px-1">Start Date</span>
+                      <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-[140px] h-9 text-sm" />
+                    </div>
+                    <div className="text-slate-300 mt-5">–</div>
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase px-1">End Date</span>
+                      <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-[140px] h-9 text-sm" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button onClick={handlePrint} variant="outline" size="sm" className="rounded-xl gap-2 h-8 text-xs">
+                <Printer size={14} /> Export
+              </Button>
+              {(userRole === "admin" || userRole === "superadmin" || userRole === "super_admin") && (
+                <Button onClick={() => setShowForm(true)} className="bg-primary text-white rounded-xl gap-1 font-bold h-8 text-xs">
+                  <Plus size={14} /> New
+                </Button>
               )}
             </div>
           </div>
-          
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative mr-2">
+
+          <div className="h-px w-full bg-slate-100" />
+
+          {/* Bottom Row: Search & Refresh */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
               <input 
                 type="text" 
-                placeholder="Search..." 
+                placeholder="Search by ID, plate number, etc..." 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
-                className="pl-8 pr-3 py-1.5 bg-muted/30 border rounded-xl text-xs w-full md:w-36" 
+                className="pl-8 pr-3 py-2 bg-slate-50 border rounded-xl text-sm w-full shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
               />
             </div>
-            <Button onClick={handlePrint} variant="outline" size="sm" className="rounded-xl gap-2 h-8 text-xs">
-              <Printer size={14} /> Export
+            <Button variant="outline" size="sm" onClick={manualRefresh} disabled={isRefreshing} className="rounded-xl h-9 bg-slate-50">
+              <RefreshCw size={14} className={cn("mr-2", isRefreshing && "animate-spin")} />
+              Refresh List
             </Button>
-            <Button variant="outline" size="sm" onClick={manualRefresh} disabled={isRefreshing} className="rounded-xl h-8 text-xs hidden sm:flex">
-              <RefreshCw size={14} className={cn("mr-1", isRefreshing && "animate-spin")} />
-              Refresh
-            </Button>
-            {(userRole === "admin" || userRole === "superadmin" || userRole === "super_admin") && (
-              <Button onClick={() => setShowForm(true)} className="bg-primary text-white rounded-xl gap-1 font-bold h-8 text-xs">
-                <Plus size={14} /> New
-              </Button>
-            )}
           </div>
         </div>
 
-        {/* Main table section */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border mt-4">
+      {/* Main table section */}
+      <div className="mb-8">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border">
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -849,6 +874,7 @@ export default function AdminReservations() {
           </div>
         </div>
       )}
+      </div>
     </AdminLayout>
   );
 }

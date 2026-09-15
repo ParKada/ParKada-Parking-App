@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BellOff, CheckCircle2, Clock, AlertCircle, Info, CheckCheck } from "lucide-react-native";
 import { supabase } from "../../lib/supabase";
@@ -132,12 +132,16 @@ export default function NotificationsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       {/* Header */}
-      <View className="px-5 py-4 bg-white border-b border-slate-200 flex-row justify-between items-center z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-slate-100 z-10">
         <View className="flex-row items-center gap-2">
-          <Text className="text-2xl font-black text-[#0A1D37] tracking-tight">Alerts</Text>
+          <Image source={require("../../assets/ParKadav2.png")} className="w-10 h-10 rounded-md" resizeMode="contain" />
+          <Text className="font-black text-xl">
+            <Text className="text-[#0A1D37]">Par</Text>
+            <Text className="text-amber-400">Kada</Text>
+          </Text>
           {unreadCount > 0 && (
-            <View className="bg-rose-500 px-2 py-0.5 rounded-full items-center justify-center">
-              <Text className="text-[10px] font-black text-white">{unreadCount}</Text>
+            <View className="bg-rose-500 px-2 py-0.5 rounded-full items-center justify-center ml-2">
+              <Text className="text-[10px] font-black text-white">{unreadCount} New</Text>
             </View>
           )}
         </View>
@@ -145,7 +149,7 @@ export default function NotificationsScreen() {
         {unreadCount > 0 && (
           <TouchableOpacity onPress={markAllAsRead} className="flex-row items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 active:bg-slate-100">
             <CheckCheck size={14} color="#64748b" />
-            <Text className="text-[11px] font-bold text-slate-500">Mark all read</Text>
+            <Text className="text-[11px] font-bold text-slate-500">Read All</Text>
           </TouchableOpacity>
         )}
       </View>

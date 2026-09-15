@@ -241,7 +241,7 @@ export default function PartnerAdminDashboard() {
 
       const formattedRes = (recentResData.data || []).map((res: any) => ({
         id: res.id.substring(0, 8),
-        slotLabel: res.parking_slots?.label || "N/A",
+        slotLabel: res.parking_slots?.label || "-",
         date: new Date(res.created_at),
         dateStr: res.created_at ? new Date(res.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
         amount: res.total_amount || 0,
@@ -250,7 +250,7 @@ export default function PartnerAdminDashboard() {
 
       const formattedWalkIns = (recentWalkInData.data || []).map((w: any) => ({
         id: w.id.substring(0, 8),
-        slotLabel: "Walk In",
+        slotLabel: w.parking_slots?.label || "-",
         date: new Date(w.entry_time),
         dateStr: w.entry_time ? new Date(w.entry_time).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "No Date",
         amount: w.amount_paid || 0,
@@ -382,7 +382,7 @@ export default function PartnerAdminDashboard() {
     statCards.push({ label: "Today's Bookings", value: stats.todayReservations, icon: BookOpen, color: "bg-amber-100 text-amber-700", path: "/admin/reservations" });
   }
   if (isSuperAdmin) {
-    statCards.push({ label: "Total Admins", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
+    statCards.push({ label: "Total Accredited Partners", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", path: "/admin/personnel" });
   }
 
   if (isLoading) {
@@ -477,6 +477,7 @@ export default function PartnerAdminDashboard() {
         </div>
 
         {/* Weekly Occupancy Rate */}
+        {userRole !== "staff" && (
         <div
           className="bg-white rounded-2xl p-4 sm:p-5 card-elevated cursor-pointer hover:shadow-md transition w-full"
           onClick={() => setLocation("/admin/reports")}
@@ -496,14 +497,17 @@ export default function PartnerAdminDashboard() {
               <Bar dataKey="occupancy" fill="#0f172a" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>        {/* Recent Records Table */}
+        </div>
+        )}
+        {/* Recent Logs Table */}
         {!isPublicLot && (
         <div className="bg-white rounded-2xl p-4 sm:p-5 card-elevated">
-          <h3 className="text-sm font-bold text-foreground mb-4">Recent Records</h3>
+          <h3 className="text-sm font-bold text-foreground mb-4">Recent Logs</h3>
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <table className="w-full text-sm min-w-125">
+            <table className="w-full text-sm min-w-[500px]">
               <thead>
                 <tr className="text-xs text-muted-foreground border-b border-border">
+                  <th className="text-left pb-2 font-semibold">ID</th>
                   <th className="text-left pb-2 font-semibold">Slot</th>
                   <th className="text-left pb-2 font-semibold">Date</th>
                   <th className="text-left pb-2 font-semibold">Amount</th>
@@ -513,8 +517,8 @@ export default function PartnerAdminDashboard() {
               <tbody className="divide-y divide-border">
                 {recentReservations.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="text-center py-4 text-muted-foreground text-xs">
-                      No recent records found.
+                    <td colSpan={5} className="text-center py-4 text-muted-foreground text-xs">
+                      No recent logs found.
                     </td>
                   </tr>
                 ) : (
@@ -524,11 +528,12 @@ export default function PartnerAdminDashboard() {
                       onClick={() => setLocation("/admin/reservations")} 
                       className="hover:bg-muted/30 transition-colors cursor-pointer"
                     >
-                      <td className="py-2.5 font-bold">{res.slotLabel}</td>
-                      <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.dateStr}</td>
-                      <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
-                      <td className="py-2.5">
-                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
+                      <td className="py-3 text-muted-foreground text-xs font-mono">{res.id}</td>
+                      <td className="py-3 font-bold">{res.slotLabel}</td>
+                      <td className="py-3 text-muted-foreground text-xs whitespace-nowrap">{res.dateStr}</td>
+                      <td className="py-3 font-bold text-foreground">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
+                      <td className="py-3">
+                        <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
                           {res.status}
                         </span>
                       </td>

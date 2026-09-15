@@ -26,6 +26,8 @@ interface ActiveReservationTimerProps {
     allow_extensions: boolean;
     total_amount: number;
     slot_label?: string;
+    pricing_scheme?: string;
+    status?: string;
   };
   onUpdate: () => void;
 }
@@ -38,12 +40,9 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [extending, setExtending] = useState(false);
   const [fineAmount, setFineAmount] = useState(0);
-  const [gracePeriodEnd, setGracePeriodEnd] = useState<Date | null>(null);
   const [settings, setSettings] = useState({
     extension_fee: 10,
-    fine_penalty: 50,
-    overtime_rate: 30,
-    grace_period_minutes: 15,
+    overtime_fee_per_hour: 50,
     allow_extensions: true
   });
 
@@ -64,7 +63,7 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
       if (!reservation.lot_id) return;
       const { data } = await supabase
         .from('parking_lots')
-        .select('extension_fee, fine_penalty, overtime_rate, grace_period_minutes, allow_extensions')
+        .select('extension_fee, overtime_fee_per_hour, allow_extensions')
         .eq('id', reservation.lot_id)
         .single();
       if (data) setSettings(prev => ({ ...prev, ...data }));
@@ -78,18 +77,27 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
   }, [reservation.end_time, settings]);
 
   const updateTimer = () => {
+    if (reservation.pricing_scheme === 'fixed') {
+      if (reservation.status === 'active') {
+        setTimeLeft('Parked (Whole Day)');
+        return;
+      }
+    }
+
     const now = new Date();
     const end = new Date(reservation.end_time);
     const diff = end.getTime() - now.getTime();
 
     if (diff <= 0) {
-      const graceEnd = new Date(end.getTime() + settings.grace_period_minutes * 60 * 1000);
-      if (!gracePeriodEnd) setGracePeriodEnd(graceEnd);
+      if (reservation.pricing_scheme === 'fixed') {
+        setTimeLeft('Arrival Time Expired');
+        return;
+      }
 
-      if (now >= graceEnd && !reservation.fine_paid) {
-        const overtimeMinutes = Math.floor((now.getTime() - graceEnd.getTime()) / (1000 * 60));
+      if (!reservation.fine_paid) {
+        const overtimeMinutes = Math.floor((now.getTime() - end.getTime()) / (1000 * 60));
         const overtimeHours = Math.ceil(overtimeMinutes / 60);
-        const fine = settings.fine_penalty + (overtimeHours * settings.overtime_rate);
+        const fine = overtimeHours * (settings.overtime_fee_per_hour || 50);
         setFineAmount(fine);
         setIsOvertime(true);
         setTimeLeft(`Overtime: ${overtimeMinutes} min`);
@@ -106,15 +114,20 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
 
     if (diff < 30 * 60 * 1000 && !isExpiringSoon) {
       setIsExpiringSoon(true);
-      sendExpiringNotification();
+      sendExpiringNotification(reservation.pricing_scheme === 'fixed');
     }
   };
 
-  const sendExpiringNotification = async () => {
+  const sendExpiringNotification = async (isFixed: boolean) => {
+    const title = isFixed ? 'Arrival Allowance Expiring Soon' : 'Parking Session Expiring Soon';
+    const message = isFixed 
+      ? `You have 30 minutes left to arrive at your reserved slot. Your reservation will be canceled if you do not arrive.`
+      : `Your parking ends in 30 minutes. Extend now to avoid penalty.`;
+      
     await supabase.from('notifications').insert({
       user_id: reservation.user_id,
-      title: 'Parking Session Expiring Soon',
-      message: `Your parking ends in 30 minutes. Extend now to avoid penalty.`,
+      title,
+      message,
       type: 'expiring_soon'
     });
   };
@@ -164,7 +177,10 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
             <Text className={`text-[10px] font-bold uppercase tracking-widest ${
               isOvertime ? "text-rose-400" : isExpiringSoon ? "text-amber-400" : "text-slate-400"
             }`}>
-              {isOvertime ? "OVERTIME" : isExpiringSoon ? "ENDING SOON" : "TIME REMAINING"}
+              {reservation.pricing_scheme === 'fixed' 
+                ? (reservation.status === 'active' ? 'PARKED' : 'ARRIVAL ALLOWANCE')
+                : (isOvertime ? "OVERTIME" : isExpiringSoon ? "ENDING SOON" : "TIME REMAINING")
+              }
             </Text>
           </View>
           {reservation.slot_label && (
@@ -173,7 +189,7 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
               <Text className="text-[10px] font-black text-slate-200">Slot {reservation.slot_label}</Text>
             </View>
           )}
-          {!reservation.slot_label && !isOvertime && !isExpiringSoon && (
+          {!reservation.slot_label && !isOvertime && !isExpiringSoon && reservation.status !== 'active' && (
             <Text className="text-[10px] font-bold text-slate-500">{Math.floor(progress)}%</Text>
           )}
         </View>
@@ -186,7 +202,7 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
           </Text>
         </View>
 
-        {!isOvertime && (
+        {!isOvertime && !(reservation.pricing_scheme === 'fixed' && reservation.status === 'active') && (
           <View className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-4">
             <View 
               className={`h-full rounded-full ${isExpiringSoon ? "bg-amber-500" : "bg-emerald-500"}`}
@@ -195,7 +211,7 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
           </View>
         )}
 
-        {isExpiringSoon && !isOvertime && settings.allow_extensions && (
+        {isExpiringSoon && !isOvertime && settings.allow_extensions && reservation.pricing_scheme !== 'fixed' && (
           <TouchableOpacity
             onPress={() => setShowExtendModal(true)}
             className="w-full h-12 bg-amber-500 rounded-xl items-center justify-center shadow-lg mt-2"
