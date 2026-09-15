@@ -5,7 +5,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url"; // Added for ESM path resolution
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
-import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 // =============================================================================
 // ESM Directory Path Resolution
@@ -158,11 +157,9 @@ function vitePluginManusDebugCollector(): Plugin {
 }
 
 const plugins = [
-  react(), 
-  tailwindcss(), 
-  jsxLocPlugin(), 
-  vitePluginManusRuntime(), 
-  vitePluginManusDebugCollector()
+  react(),
+  tailwindcss(),
+  ...(process.env.NODE_ENV !== 'production' ? [jsxLocPlugin(), vitePluginManusDebugCollector()] : []),
 ];
 
 export default defineConfig({
