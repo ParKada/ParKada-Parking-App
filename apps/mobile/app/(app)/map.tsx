@@ -634,6 +634,7 @@ export default function ParkingMapPage() {
 
           {/* Animated Place Details Bottom Sheet */}
           <Animated.View 
+            pointerEvents={activeLot ? "auto" : "none"}
             style={{ transform: [{ translateY }] }}
             className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-3xl pt-0 pb-6 shadow-[0_-10px_40px_rgba(0,0,0,0.2)]"
           >

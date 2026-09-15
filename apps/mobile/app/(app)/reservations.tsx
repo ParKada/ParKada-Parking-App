@@ -100,7 +100,7 @@ export default function ReservationsTabScreen() {
             duration: String(rawRes.duration || 0),
             total_amount: String(rawRes.total_amount || 0),
             plate_number: String(rawRes.plate_number || "N/A"),
-            hasRated: false
+            hasRated: ratedReservationIds.has(rawRes.id)
           };
         });
         setReservations(enriched);
@@ -145,7 +145,7 @@ export default function ReservationsTabScreen() {
           profile_id: user.id,
           reservation_id: selectedReservation.id,
           rating,
-          comment: reviewText.trim() || null
+          review: reviewText.trim() || null
         });
         
       if (error) throw error;
