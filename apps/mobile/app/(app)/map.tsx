@@ -409,12 +409,19 @@ export default function ParkingMapPage() {
         </View>
       </View>
 
-      {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#0A1D37" />
-          <Text className="mt-4 text-slate-500 font-bold">Loading Map Data...</Text>
+      {/* Loading Overlay (Seamless Transition from Home) */}
+      {loading && (
+        <View style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, backgroundColor: "#0A1D37", alignItems: "center", justifyContent: "center" }]}>
+          <Image
+            source={logoImage}
+            style={{ width: 64, height: 64 }}
+            resizeMode="contain"
+          />
+          <Text className="text-white/60 text-xs font-bold mt-3">Opening map…</Text>
         </View>
-      ) : view === "map" ? (
+      )}
+
+      {view === "map" ? (
         <View style={{ flex: 1 }}>
           <MapView
             ref={mapRef}
