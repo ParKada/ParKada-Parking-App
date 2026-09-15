@@ -12,9 +12,18 @@ index eba25ece1cf3fe3170cd55134df6b70c7aabd70e..05f61ac8432a317d2eca4d83f5da8947
  function stringify(object) {
      const seen = new WeakSet();
 diff --git a/src/runtime/native/render-component.tsx b/src/runtime/native/render-component.tsx
-index cfb9a9e1b5fa4b2cbdcfe0a96257ae900fdfd72a..367fe7396849ab67bbc267ea068578614f7ec593 100644
+index cfb9a9e1b5fa4b2cbdcfe0a96257ae900fdfd72a..52c2fa67f4eeebabf2036c6f0d740a3b7d97fad4 100644
 --- a/src/runtime/native/render-component.tsx
 +++ b/src/runtime/native/render-component.tsx
+@@ -218,7 +218,7 @@ function createAnimatedComponent(Component: ComponentType<any>): any {
+   const AnimatedComponent = Animated.createAnimatedComponent(
+     Component as React.ComponentClass,
+   );
+-  AnimatedComponent.displayName = `Animated.${Component.displayName || Component.name || "Unknown"}`;
++  (AnimatedComponent as any).displayName = `Animated.${(Component as any).displayName || Component.name || "Unknown"}`;
+ 
+   animatedCache.set(Component, AnimatedComponent);
+ 
 @@ -230,7 +230,7 @@ function printUpgradeWarning(
    originalProps: Record<string, any> | null | undefined,
  ) {
