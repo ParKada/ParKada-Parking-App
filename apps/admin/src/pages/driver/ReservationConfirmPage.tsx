@@ -68,9 +68,7 @@ export default function ReservationConfirmPage() {
       {
         user_id: userId,
         title: "Congratulations! 🎉",
-        message: `Reservation confirmed for Slot ${slotLabel}.`,
-        type: "reservation",
-        read: false
+        message: `Reservation confirmed for Slot ${slotLabel}.`
       }
     ]);
     if (error) console.error("Notification trigger failed:", error.message);

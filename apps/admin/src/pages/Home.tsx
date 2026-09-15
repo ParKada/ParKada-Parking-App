@@ -85,9 +85,7 @@ export default function Home() {
     await supabase.from("notifications").insert([{
       user_id: activeBooking.user_id,
       title: "Hurry up! ⏳",
-      message: `Your reservation for Slot ${activeBooking.parking_slots?.label} expires in 10 minutes.`,
-      type: "alert",
-      read: false
+      message: `Your reservation for Slot ${activeBooking.parking_slots?.label} expires in 10 minutes.`
     }]);
     console.log("10-minute warning sent to DB.");
   };

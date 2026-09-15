@@ -149,9 +149,7 @@ export default function VehiclesPage() {
       await supabase.from("notifications").insert([{
         user_id: user.id,
         title: "Vehicle Registered 🚗",
-        message: `Your ${fullModel} (${sanitizedPlate}) has been added to your garage.`,
-        type: "system",
-        read: false
+        message: `Your ${fullModel} (${sanitizedPlate}) has been added to your garage.`
       }]);
 
       toast.success(t("Vehicle added!", "Vehicle added!"));

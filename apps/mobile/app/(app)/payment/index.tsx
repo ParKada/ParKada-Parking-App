@@ -55,8 +55,7 @@ export default function PaymentPage() {
       {
         user_id: userId,
         title: "Congratulations! 🎉",
-        message: `Reservation confirmed for Slot ${slotLabel}.`,
-        type: "reservation"
+        message: `Reservation confirmed for Slot ${slotLabel}.`
       }
     ]);
     if (error) console.error("Notification trigger failed:", error.message);

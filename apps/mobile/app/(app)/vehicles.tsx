@@ -164,9 +164,7 @@ export default function VehiclesPage() {
       await supabase.from("notifications").insert([{
         user_id: user.id,
         title: "Vehicle Registered",
-        message: `Your ${fullBrandName} (${sanitizedPlate}) has been successfully added to your garage.`,
-        type: "system",
-        read: false
+        message: `Your ${fullBrandName} (${sanitizedPlate}) has been successfully added to your garage.`
       }]);
 
       Alert.alert("Success", "Your vehicle has been registered successfully!");
