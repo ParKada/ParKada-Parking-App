@@ -234,13 +234,7 @@ export default function AdminReservations() {
     setIsFetchingDetails(true);
 
     try {
-      const adminSupabase = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_SERVICE_KEY,
-        { auth: { persistSession: false, autoRefreshToken: false } }
-      );
-
-      const { data: rawRes, error: resError } = await adminSupabase
+      const { data: rawRes, error: resError } = await supabase
         .from('reservations')
         .select('*')
         .eq('id', res.id)
@@ -250,7 +244,7 @@ export default function AdminReservations() {
 
       let user = null;
       if (rawRes?.profile_id) {
-         const { data: profile } = await adminSupabase.from('profiles').select('id, first_name, last_name, phone_number').eq('id', rawRes.profile_id).maybeSingle();
+         const { data: profile } = await supabase.from('profiles').select('id, first_name, last_name, phone_number').eq('id', rawRes.profile_id).maybeSingle();
          if (profile) {
            user = {
              ...profile,
@@ -258,7 +252,7 @@ export default function AdminReservations() {
            };
          }
       } else if (rawRes?.user_id) {
-         const { data: profile } = await adminSupabase.from('profiles').select('id, first_name, last_name, phone_number').eq('id', rawRes.user_id).maybeSingle();
+         const { data: profile } = await supabase.from('profiles').select('id, first_name, last_name, phone_number').eq('id', rawRes.user_id).maybeSingle();
          if (profile) {
            user = {
              ...profile,
@@ -267,7 +261,7 @@ export default function AdminReservations() {
          }
       }
       
-      const { data: receipts } = await adminSupabase.from('receipts').select('*').eq('reservation_id', res.id);
+      const { data: receipts } = await supabase.from('receipts').select('*').eq('reservation_id', res.id);
       
       setReservationDetails({
          ...rawRes,
