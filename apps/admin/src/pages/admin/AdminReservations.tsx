@@ -261,21 +261,7 @@ export default function AdminReservations() {
          }
       }
       
-      let receipts = null;
-      try {
-        const adminSupabase = createClient(
-          import.meta.env.VITE_SUPABASE_URL,
-          import.meta.env.VITE_SUPABASE_SERVICE_KEY,
-          { auth: { persistSession: false, autoRefreshToken: false } }
-        );
-        const { data } = await adminSupabase.from('receipts').select('*').eq('reservation_id', res.id);
-        receipts = data;
-      } catch (err) {
-        // Fallback if Service Key is missing (dev server not restarted)
-        console.warn("Could not fetch receipts via admin client, trying regular client...");
-        const { data } = await supabase.from('receipts').select('*').eq('reservation_id', res.id);
-        receipts = data;
-      }
+      const { data: receipts } = await supabase.from('receipts').select('*').eq('reservation_id', res.id);
       
       setReservationDetails({
          ...rawRes,
