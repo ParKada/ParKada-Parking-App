@@ -33,11 +33,13 @@ export default function Navbar() {
       
       const target = document.getElementById(href.replace('#', ''));
       if (target) {
-        // Adjust for navbar height (84px) + a little extra padding if desired
+        // Adjust for navbar height (84px) and scroll into the 96px section padding (64px)
+        // so the header lands exactly below the navbar as requested
         const navbarHeight = 84;
+        const extraOffset = 64; 
         const targetPosition = target.getBoundingClientRect().top + window.scrollY;
         window.scrollTo({
-          top: targetPosition - navbarHeight,
+          top: targetPosition - navbarHeight + extraOffset,
           behavior: 'smooth'
         });
       }
