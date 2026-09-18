@@ -51,6 +51,7 @@ export default function AdminWalkInRecords() {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [checkoutConfirm, setCheckoutConfirm] = useState<WalkInRecord | null>(null);
   const [editingNoteRecord, setEditingNoteRecord] = useState<WalkInRecord | null>(null);
@@ -424,8 +425,13 @@ export default function AdminWalkInRecords() {
   };
 
   const renderTable = (data: WalkInRecord[], emptyMsg: string) => {
+    const ITEMS_PER_PAGE = 10;
+    const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
+    const paginatedData = data.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
     const colCount = recordType === "active" ? 5 : 8;
     return (
+    <>
     <Table>
       <TableHeader>
         <TableRow className="bg-slate-50">
@@ -445,7 +451,7 @@ export default function AdminWalkInRecords() {
         ) : data.length === 0 ? (
           <TableRow><TableCell colSpan={colCount} className="text-center py-8 text-muted-foreground">{emptyMsg}</TableCell></TableRow>
         ) : (
-          data.map((rec) => {
+          paginatedData.map((rec) => {
             const slotLabel = rec.parking_slots?.label || "—";
             const lotName = rec.parking_slots?.parking_lots?.name || "—";
             const overtime = rec.overtime_fee || 0;
@@ -518,6 +524,18 @@ export default function AdminWalkInRecords() {
         )}
       </TableBody>
     </Table>
+    {data.length > 0 && (
+      <div className="flex items-center justify-between mt-4 px-2 pb-4">
+        <div className="text-sm text-slate-500 font-medium">
+          Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, data.length)} of {data.length} records
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages || totalPages === 0}>Next</Button>
+        </div>
+      </div>
+    )}
+    </>
   );
   };
 
@@ -531,6 +549,10 @@ export default function AdminWalkInRecords() {
   useEffect(() => {
     fetchRecords();
   }, [dateFilter, customStart, customEnd]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateFilter, customStart, customEnd, recordType]);
 
   // ================= RENDER =================
   return (

@@ -671,8 +671,8 @@ export default function AdminReports() {
         {/* KPI Cards (always visible) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <KPICard label="Total Revenue" value={`₱${totalRevenue.toLocaleString()}`} change={revenueChange} up={isRevenueUp} />
-          <KPICard label="Completed Bookings" value={totalBookings.toString()} change={bookingsChange} up={isBookingsUp} />
-          <KPICard label="Avg per Booking" value={`₱${totalBookings > 0 ? (totalRevenue / totalBookings).toFixed(0) : 0}`} change={avgChange} up={isAvgUp} />
+          <KPICard label={isPublicOnly ? "Completed Walk-ins" : "Completed Bookings"} value={totalBookings.toString()} change={bookingsChange} up={isBookingsUp} />
+          <KPICard label={isPublicOnly ? "Avg per Walk-in" : "Avg per Booking"} value={`₱${totalBookings > 0 ? (totalRevenue / totalBookings).toFixed(0) : 0}`} change={avgChange} up={isAvgUp} />
         </div>
 
         {/* Revenue Composition */}
@@ -764,7 +764,7 @@ export default function AdminReports() {
             <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
               <Calendar size={16} className="text-primary" /> Weekly Occupancy (%)
             </h3>
-            <p className="text-[10px] text-muted-foreground mb-6">Based on online reservations</p>
+            <p className="text-[10px] text-muted-foreground mb-6">{isPublicOnly ? "Based on walk-ins" : "Based on online reservations & walk-ins"}</p>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={weeklyData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -783,7 +783,7 @@ export default function AdminReports() {
             <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
               <Clock size={16} className="text-emerald-500" /> Hourly Occupancy Pattern
             </h3>
-            <p className="text-[10px] text-muted-foreground mb-6">Based on online reservations & walk-ins</p>
+            <p className="text-[10px] text-muted-foreground mb-6">{isPublicOnly ? "Based on walk-ins" : "Based on online reservations & walk-ins"}</p>
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={hourlyData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />

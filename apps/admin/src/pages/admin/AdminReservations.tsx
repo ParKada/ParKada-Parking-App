@@ -50,6 +50,7 @@ export default function AdminReservations() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "custom">("month");
@@ -333,6 +334,10 @@ export default function AdminReservations() {
     setIsSubmitting(false);
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateFilter, customStart, customEnd, recordType]);
+
   const filteredReservations = reservations.filter(res => {
     const matchesSearch = res.shortId.toLowerCase().includes(searchTerm.toLowerCase()) || res.lotName.toLowerCase().includes(searchTerm.toLowerCase()) || (res.plate_number && res.plate_number.toLowerCase().includes(searchTerm.toLowerCase()));
     let matchesTab = true;
@@ -344,6 +349,10 @@ export default function AdminReservations() {
   const pendingCount = reservations.filter(r => r.status === 'pending').length;
   const activeCount = reservations.filter(r => r.status === 'active').length;
   const overstayCount = reservations.filter(r => checkIsOverstaying(r)).length;
+
+  const ITEMS_PER_PAGE = 10;
+  const totalPages = Math.ceil(filteredReservations.length / ITEMS_PER_PAGE);
+  const paginatedReservations = filteredReservations.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const getDateRangeText = () => {
     if (dateFilter === "today") return "Today";
@@ -634,7 +643,7 @@ export default function AdminReservations() {
                     </td>
                   </tr>
                 ) : (
-                  filteredReservations.map((res) => {
+                  paginatedReservations.map((res) => {
                     const fine = calculateFine(res);
                   const isOverstaying = fine > 0;
                   const startTimeFormatted = format12HourTime(res.startTime);
@@ -694,11 +703,21 @@ export default function AdminReservations() {
             </table>
           </div>
 
+          {filteredReservations.length > 0 && (
+            <div className="flex items-center justify-between mt-4 px-2">
+              <div className="text-sm text-slate-500 font-medium">
+                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredReservations.length)} of {filteredReservations.length} records
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages || totalPages === 0}>Next</Button>
+              </div>
+            </div>
+          )}
           {hasMore && (
             <div className="flex justify-center mt-6">
-              <Button variant="outline" onClick={loadMore} disabled={isLoadingMore || isRefreshing} className="rounded-xl">
-                {isLoadingMore && <RefreshCw size={14} className="mr-2 animate-spin" />}
-                {isLoadingMore ? "Loading..." : "Load More"}
+              <Button variant="ghost" size="sm" onClick={loadMore} disabled={isLoadingMore || isRefreshing} className="text-xs text-muted-foreground">
+                {isLoadingMore ? "Loading more from server..." : "Fetch older records from server"}
               </Button>
             </div>
           )}

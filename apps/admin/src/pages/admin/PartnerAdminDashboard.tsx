@@ -439,15 +439,17 @@ export default function PartnerAdminDashboard() {
             <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Today's Revenue</h3>
             <p className="text-4xl sm:text-5xl font-black text-slate-900 mb-6">₱{stats.todayRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             
-            <div className="w-full grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+            <div className={`w-full grid ${isPublicLot ? 'grid-cols-1' : 'grid-cols-2'} gap-4 border-t border-slate-100 pt-4`}>
               <div className="text-center">
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Walk-ins</p>
                 <p className="text-lg font-bold text-slate-700">₱{stats.walkInRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
-              <div className="text-center border-l border-slate-100">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Reservations</p>
-                <p className="text-lg font-bold text-slate-700">₱{stats.reservationRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
+              {!isPublicLot && (
+                <div className="text-center border-l border-slate-100">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Reservations</p>
+                  <p className="text-lg font-bold text-slate-700">₱{stats.reservationRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+              )}
             </div>
           </div>
 
