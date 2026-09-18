@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "updates": {
-      "enabled": false
+      "enabled": false,
+      "url": "https://u.expo.dev/2b235d62-32e8-407a-9876-3d4926f63bbc"
     },
     "ios": {
       "supportsTablet": true,
@@ -51,8 +52,13 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "793af5a3-4b8c-4cb9-bcc7-a44964e20070"
-      }
+        "projectId": "2b235d62-32e8-407a-9876-3d4926f63bbc"
+      },
+      "router": {}
+    },
+    "owner": "rivioops",
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

@@ -337,7 +337,7 @@ export default function ParkingLotPage() {
                 ) : (
                   <>
                     <Text className="text-2xl font-black text-[#0A1D37]">{lot.base_rate === 0 ? "Free" : `₱${lot.base_rate}`}</Text>
-                    {lot.base_rate > 0 && <Text className="text-[10px] font-bold text-slate-400">first 3 hours</Text>}
+                    {lot.base_rate > 0 && <Text className="text-[10px] font-bold text-slate-400">first {lot.base_rate_hours || 3} hours</Text>}
                   </>
                 )}
               </View>

@@ -189,7 +189,8 @@ export default function ReservationPage() {
     } else {
       baseRateDisplay = Number(lot.base_rate) || 50;
       const hourlyRate = Number(lot.rate_per_hour) || 20;
-      extendedFee = duration > 3 ? (duration - 3) * hourlyRate : 0;
+      const baseHrs = Number(lot.base_rate_hours) || 3;
+      extendedFee = duration > baseHrs ? (duration - baseHrs) * hourlyRate : 0;
       subtotal = baseRateDisplay + extendedFee;
     }
   }

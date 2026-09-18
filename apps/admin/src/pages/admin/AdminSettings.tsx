@@ -31,6 +31,7 @@ export default function AdminSettings() {
   // 1. Standard Rates (Admin)
   const [pricingScheme, setPricingScheme] = useState<"hourly" | "fixed">("hourly");
   const [baseRate, setBaseRate] = useState("50");
+  const [baseRateHours, setBaseRateHours] = useState("3");
   const [hourlyRate, setHourlyRate] = useState("20");
   const [fixedRate, setFixedRate] = useState("150");
   const [overnightRate, setOvernightRate] = useState("250");
@@ -129,6 +130,7 @@ export default function AdminSettings() {
     if (data) {
       setPricingScheme(data.pricing_scheme || "hourly");
       setBaseRate(data.base_rate?.toString() || "50");
+      setBaseRateHours(data.base_rate_hours?.toString() || "3");
       setHourlyRate(data.rate_per_hour?.toString() || "20");
       setFixedRate(data.fixed_rate?.toString() || "150");
       setOvernightRate(data.overnight_rate?.toString() || "250");
@@ -206,10 +208,34 @@ export default function AdminSettings() {
     }
 
     try {
+      let totalOperatingHours = 24;
+      if (!isOpen24Hours) {
+        const [startH, startM] = openTime.split(":").map(Number);
+        const [endH, endM] = closeTime.split(":").map(Number);
+        const startMins = startH * 60 + startM;
+        let endMins = endH * 60 + endM;
+        if (endMins <= startMins) endMins += 24 * 60; // overnight
+        totalOperatingHours = (endMins - startMins) / 60;
+      }
+      const baseHrs = parseInt(baseRateHours);
+      if (pricingScheme === 'hourly') {
+        if (isNaN(baseHrs) || baseHrs <= 0) {
+          toast.error(t("Base rate duration must be at least 1 hour.", "Dapat hindi bababa sa 1 oras ang base rate duration."));
+          setIsSaving(false);
+          return;
+        }
+        if (baseHrs >= totalOperatingHours) {
+          toast.error(t(`Base rate duration must be less than operating hours (${Math.round(totalOperatingHours)}h).`, `Dapat mas mababa sa operating hours (${Math.round(totalOperatingHours)}h) ang base rate duration.`));
+          setIsSaving(false);
+          return;
+        }
+      }
+
       const operatingHoursStr = isOpen24Hours ? "24 Hours" : `${formatTimeTo12Hour(openTime)} - ${formatTimeTo12Hour(closeTime)}`;
       const { error } = await supabase.from('parking_lots').update({
         pricing_scheme: pricingScheme,
         base_rate: parseFloat(baseRate),
+        base_rate_hours: baseHrs,
         rate_per_hour: parseFloat(hourlyRate),
         fixed_rate: parseFloat(fixedRate),
         overnight_rate: parseFloat(overnightRate),
@@ -342,8 +368,9 @@ export default function AdminSettings() {
                 
                 {pricingScheme === "hourly" ? (
                   <div className="grid grid-cols-2 gap-4">
-                    <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Base Rate (1st 3 Hrs)</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold pl-8", isStaff && "text-slate-400 bg-slate-50")} value={baseRate} onChange={(e) => setBaseRate(e.target.value)} required /></div></div>
-                    <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Hourly Succeeding</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold pl-8", isStaff && "text-slate-400 bg-slate-50")} value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} required /></div></div>
+                    <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Base Rate Price</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold pl-8", isStaff && "text-slate-400 bg-slate-50")} value={baseRate} onChange={(e) => setBaseRate(e.target.value)} required /></div></div>
+                    <div><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Base Rate Duration</Label><div className="relative mt-1"><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold text-center pr-12", isStaff && "text-slate-400 bg-slate-50")} value={baseRateHours} onChange={(e) => setBaseRateHours(e.target.value)} required /><span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">HRS</span></div></div>
+                    <div className="col-span-2 border-t pt-4 mt-2"><Label className={cn("text-[10px] font-bold uppercase", isStaff && "text-slate-400")}>Hourly Succeeding Rate</Label><div className="relative mt-1"><span className="absolute left-4 top-1/2 -translate-y-1/2">₱</span><Input type="number" disabled={isStaff} className={cn("h-12 rounded-xl text-lg font-bold pl-8", isStaff && "text-slate-400 bg-slate-50")} value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} required /></div></div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
