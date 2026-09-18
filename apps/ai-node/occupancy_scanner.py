@@ -134,6 +134,32 @@ SCAN_COOLDOWN = 60
 recently_scanned = {}
 recently_scanned_lock = threading.Lock()
 
+def log_plate_validation(detected_plate, confidence_score, camera_id):
+    """Log a detected plate into plate_validation_logs so it shows up in the
+    OCR Validation Logs tab on the Admin web. validation_status (matched /
+    mismatched / manual_review)is computed by the validate_plate_on_insert
+    database trigger."""
+    def api_call():
+        try:
+            log_data = {
+                "lot_id": TARGET_LOT_ID,
+                "camera_id": camera_id,
+                "detected_plate": detected_plate,
+                "confidence_score": round(float(confidence_score),2),
+            }
+            url = f"{VITE_SUPABASE_URL}/rest/v1/plate_validation_logs"
+            req = urllib.request.Request(url, data=json.dumps(log_data).encode("utf-8"), method="POST")
+            req.add_header("apikey", VITE_SUPABASE_SERVICE_KEY)
+            req.add_header("Authorization", f"Bearer {VITE_SUPABASE_SERVICE_KEY}")
+            req.add_header("Content-Type", "application/json")
+            req.add_header("Prefer", "return=minimal")
+            with urllib.request.urlopen(req, timeout=10):
+                print(f"[OCR] [OK] Plate validation logged: {detected_plate} ({confidence_score:.1f}%)")
+        except Exception as e:
+            print(f"[OCR] [FAIL] Error logging plate validation: {e}")
+
+    threading.Thread(target=api_call, daemon=True).start()
+
 def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, display_shape):
     def _task():
         if not plate_model or not reader:
@@ -174,6 +200,7 @@ def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, displ
                                 recently_scanned[clean_text] = current_time
 
                             print(f"[OCR] Plate Detected: {clean_text} ({prob*100:.1f}%) in slot {slot_id[:8]}")
+                            log_plate_validation(clean_text, prob * 100, camera_id)
                             
                             if is_reservable:
                                 slot_label = slot_id[:8]
