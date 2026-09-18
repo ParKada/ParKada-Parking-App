@@ -885,10 +885,10 @@ export default function AdminReports() {
                           <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase ${
                             log.validation_status === 'matched' ? 'bg-emerald-100 text-emerald-700' :
                             log.validation_status === 'mismatched' ? 'bg-rose-100 text-rose-700' :
-                            log.validation_status === 'manual_review' ? 'bg-blue-100 text-blue-700' :
+                            log.validation_status === 'detected' ? 'bg-blue-100 text-blue-700' :
                             'bg-amber-100 text-amber-700'
                           }`}>
-                            {log.validation_status === 'manual_review' ? 'DETECTED' : (log.validation_status || "pending")}
+                            {log.validation_status ? log.validation_status.replace('_', ' ') : "pending"}
                           </span>
                         </td>
                       </tr>
