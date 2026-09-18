@@ -651,7 +651,7 @@ export default function AdminReports() {
               className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="all">All Reports</option>
-              <option value="composition">Revenue Composition</option>
+              {isSuperAdminState && <option value="composition">Revenue Composition</option>}
               <option value="daily">Daily Revenue</option>
               {isSuperAdminState && <option value="toplots">Top 5 Lots</option>}
               <option value="monthly">Monthly Revenue</option>
@@ -676,7 +676,7 @@ export default function AdminReports() {
         </div>
 
         {/* Revenue Composition */}
-        {showSection("composition") && (
+        {isSuperAdminState && showSection("composition") && (
           <div ref={compositionRef} className="bg-white rounded-2xl p-5 border shadow-sm">
             <h3 className="text-lg font-black mb-2">Revenue Composition</h3>
             {composition.length === 0 ? (
