@@ -92,6 +92,9 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           if (profile.avatar_url) {
             setAvatarUrl(profile.avatar_url);
             localStorage.setItem('admin_avatar_cache', profile.avatar_url);
+          } else {
+            setAvatarUrl(null);
+            localStorage.removeItem('admin_avatar_cache');
           }
           if (profile.full_name) {
             setFullName(profile.full_name);
