@@ -20,8 +20,13 @@ const team: Member[] = [
     handle: '@rivioops',
     github: 'https://github.com/rivioops',
     linkedin: 'https://www.linkedin.com/in/regina-angeli-cadelina/',
-    role: 'Project Leader & Systems Engineer',
-    contributions: ['Project Management', 'Full-Stack Development', 'AI & IoT Integration', 'Cloud Solutions'],
+    role: 'Product Manager & Solutions Engineer',
+    contributions: [
+      'Product Strategy & Management',
+      'Solutions Engineering & Client Relations',
+      'Full-Stack Development & UI/UX',
+      'AI, OCR & Cloud Solutions'
+    ],
     initials: 'RC',
     color: '#2563EB',
     colorBg: 'rgba(37,99,235,0.1)',
@@ -32,8 +37,13 @@ const team: Member[] = [
     handle: '@jmkalcantara',
     github: 'https://github.com/jmikhaela',
     linkedin: 'https://www.linkedin.com/in/janna-mikhaela-alcantara-028886369/',
-    role: 'Business Analyst & QA Engineer',
-    contributions: ['Business Analysis', 'Quality Assurance', 'Client Relations'],
+    role: 'Business Analyst & Technical Writer',
+    contributions: [
+      'Business Analysis & Requirements',
+      'Data Analysis & Visualization',
+      'User Research & Interviews',
+      'Technical Writing & Documentation'
+    ],
     initials: 'JA',
     color: '#059669',
     colorBg: 'rgba(5,150,105,0.1)',
@@ -45,7 +55,12 @@ const team: Member[] = [
     github: 'https://github.com/jeclique444',
     linkedin: 'https://www.linkedin.com/in/jeric-lique-02b2b4417/',
     role: 'Full-Stack & Infrastructure Engineer',
-    contributions: ['Full-Stack Development', 'Database Architecture', 'DevOps & Deployment'],
+    contributions: [
+      'Full-Stack Development',
+      'Database Architecture',
+      'DevOps & Infrastructure',
+      'Client Engagements'
+    ],
     initials: 'JL',
     color: '#7C3AED',
     colorBg: 'rgba(124,58,237,0.1)',
@@ -56,8 +71,13 @@ const team: Member[] = [
     handle: '@wyethirish',
     github: 'https://github.com/wyethirishmendez',
     linkedin: 'https://www.linkedin.com/in/wyeth-irish-mendez-76475933b/',
-    role: 'System Analyst & QA Engineer',
-    contributions: ['System Architecture', 'Quality Assurance', 'Technical Documentation'],
+    role: 'Systems Analyst & QA Engineer',
+    contributions: [
+      'Systems Analysis',
+      'Quality Assurance',
+      'Technical Documentation',
+      'Data Analysis & Visualization'
+    ],
     initials: 'WM',
     color: '#B45309',
     colorBg: 'rgba(180,83,9,0.1)',
@@ -182,6 +202,7 @@ export default function Team() {
                 color: 'rgba(255,255,255,0.9)',
                 marginBottom: '14px',
                 lineHeight: 1.35,
+                minHeight: '40px',
               }}>
                 {member.role}
               </div>
