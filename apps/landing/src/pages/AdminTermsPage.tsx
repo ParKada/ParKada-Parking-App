@@ -10,38 +10,46 @@ export default function AdminTermsPage() {
   const [, navigate] = useLocation();
 
   return (
-    <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', justifyContent: 'center', fontFamily: 'var(--font-body)' }}>
-      {/* Mobile Container */}
-      <div style={{ width: '100%', maxWidth: '448px', backgroundColor: '#ffffff', minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+    <div style={{ 
+      backgroundColor: '#ffffff', 
+      minHeight: '100vh', 
+      fontFamily: 'var(--font-body)',
+      color: '#334155',
+    }}>
+      {/* Document Container */}
+      <div style={{ 
+        width: '100%', 
+        maxWidth: '800px', 
+        margin: '0 auto', 
+        padding: '64px 24px',
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '24px' 
+      }}>
         
-        {/* Sticky Header - GCash Style */}
-        <div style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button 
-            onClick={() => window.history.back()}
-            style={{ padding: '8px', marginLeft: '-8px', borderRadius: '9999px', transition: 'background-color 0.2s', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            <ArrowLeft size={24} color="#1e293b" />
-          </button>
-          <h1 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0 }}>
+        {/* Header */}
+        <div style={{ marginBottom: '16px' }}>
+          <h1 style={{ 
+            fontSize: '2rem', 
+            fontWeight: 700, 
+            color: '#0f172a', 
+            fontFamily: 'var(--font-heading)', 
+            margin: '0 0 16px 0' 
+          }}>
             Admin Terms & Privacy Policy
           </h1>
+          <p style={{ 
+            fontSize: '0.875rem', 
+            color: '#64748b', 
+            margin: 0 
+          }}>
+            Last Updated: August 2026
+          </p>
         </div>
 
-        {/* Scrollable Content */}
-        <div style={{ padding: '24px', overflowY: 'auto', paddingBottom: '80px', color: '#334155', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          <div style={{ marginBottom: '8px' }}>
-            <p style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '0 0 4px 0' }}>Last Updated</p>
-            <p style={{ fontSize: '0.875rem', fontWeight: 500, margin: 0 }}>August 2026</p>
-          </div>
-
-          <p style={{ fontSize: '0.875rem', lineHeight: 1.625, margin: 0 }}>
-            Welcome to <strong>ParKada Admin Portal</strong>. These Terms and Conditions govern your use of the parking management system as an administrator, manager, or staff member. By logging in, you agree to comply with and be bound by the following terms.
-          </p>
-
-          <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: 0 }} />
+        <p style={{ fontSize: '0.9375rem', lineHeight: 1.7, margin: 0 }}>
+          Welcome to <strong>ParKada Admin Portal</strong>. These Terms and Conditions govern your use of the parking management system as an administrator, manager, or staff member. By logging in, you agree to comply with and be bound by the following terms.
+        </p>
 
           {/* ========== TERMS AND CONDITIONS ========== */}
 
@@ -300,7 +308,6 @@ export default function AdminTermsPage() {
             <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>© 2026 ParKada. All rights reserved.</p>
           </div>
 
-        </div>
       </div>
     </div>
   );

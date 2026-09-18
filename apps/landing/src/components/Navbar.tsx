@@ -33,13 +33,16 @@ export default function Navbar() {
       
       const target = document.getElementById(href.replace('#', ''));
       if (target) {
-        // Adjust for navbar height (84px) and scroll into the 96px section padding (64px)
-        // so the header lands exactly below the navbar as requested
+        // Find the section label (e.g. "THE TEAM" or "HOW IT WORKS") to align perfectly
+        const label = target.querySelector('.section-label');
+        const elementToAlign = label || target;
+        
         const navbarHeight = 84;
-        const extraOffset = 64; 
-        const targetPosition = target.getBoundingClientRect().top + window.scrollY;
+        const topPadding = 24; // A nice small gap below the navbar
+        const targetPosition = elementToAlign.getBoundingClientRect().top + window.scrollY;
+        
         window.scrollTo({
-          top: targetPosition - navbarHeight + extraOffset,
+          top: targetPosition - navbarHeight - topPadding,
           behavior: 'smooth'
         });
       }
