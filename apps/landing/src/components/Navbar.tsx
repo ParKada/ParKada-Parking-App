@@ -5,15 +5,14 @@ import DarkVeil from './DarkVeil'
 
 const navLinks = [
   { label: 'Features', href: '#features' },
-  { label: 'Team', href: '#team' },
-  { label: 'Download', href: '#download' },
+  { label: 'Meet the Team', href: '#team' },
+  { label: 'Download', href: '#home' },
 ]
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const [adminHovered, setAdminHovered] = useState(false)
   const navRefs = useRef<(HTMLAnchorElement | null)[]>([])
 
   useEffect(() => {
@@ -21,6 +20,34 @@ export default function Navbar() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      setOpen(false);
+      
+      if (href === '#home') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      
+      const target = document.getElementById(href.replace('#', ''));
+      if (target) {
+        // Find the section label (e.g. "THE TEAM" or "HOW IT WORKS") to align perfectly
+        const label = target.querySelector('.section-label');
+        const elementToAlign = label || target;
+        
+        const navbarHeight = 84;
+        const topPadding = 24; // A nice small gap below the navbar
+        const targetPosition = elementToAlign.getBoundingClientRect().top + window.scrollY;
+        
+        window.scrollTo({
+          top: targetPosition - navbarHeight - topPadding,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }
 
   return (
     <header
@@ -60,7 +87,7 @@ export default function Navbar() {
 
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '84px', position: 'relative' }}>
         {/* Logo */}
-        <a href="#" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+        <a href="#" onClick={(e) => handleNavClick(e, '#home')} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
           <div style={{
             width: '36px', height: '36px',
             background: 'var(--primary)',
@@ -112,12 +139,7 @@ export default function Navbar() {
               key={link.href}
               href={link.href}
               ref={el => { navRefs.current[i] = el; }}
-              onClick={(e) => {
-                if (link.href.startsWith('#')) {
-                  e.preventDefault();
-                  document.getElementById(link.href.replace('#', ''))?.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
+              onClick={(e) => handleNavClick(e, link.href)}
               style={{
                 fontFamily: 'var(--font-body)',
                 fontWeight: 500,
@@ -133,33 +155,6 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
-
-          <a
-            href="https://admin.parkada.site"
-            target="_blank"
-            rel="noopener noreferrer"
-            id="nav-admin-portal"
-            style={{
-              marginLeft: '8px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontFamily: 'var(--font-body)',
-              fontWeight: 500,
-              fontSize: '0.9375rem',
-              color: adminHovered ? '#ffffff' : 'rgba(255,255,255,0.72)',
-              background: adminHovered ? '#2563EB' : 'transparent',
-              textDecoration: 'none',
-              padding: '7px 14px',
-              borderRadius: '8px',
-              transition: 'color 0.15s, background 0.15s',
-            }}
-            onMouseEnter={() => setAdminHovered(true)}
-            onMouseLeave={() => setAdminHovered(false)}
-          >
-            Admin Portal
-            <ExternalLink size={13} strokeWidth={2.2}/>
-          </a>
         </nav>
 
         {/* Mobile hamburger */}
@@ -193,13 +188,7 @@ export default function Navbar() {
             <a
               key={link.href}
               href={link.href}
-              onClick={(e) => {
-                setOpen(false);
-                if (link.href.startsWith('#')) {
-                  e.preventDefault();
-                  document.getElementById(link.href.replace('#', ''))?.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
+              onClick={(e) => handleNavClick(e, link.href)}
               style={{
                 display: 'block',
                 padding: '12px 0',
@@ -213,22 +202,6 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
-          <a
-            href="https://admin.parkada.site"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'block',
-              marginTop: '16px',
-              padding: '12px 0',
-              fontFamily: 'var(--font-body)',
-              fontWeight: 600,
-              color: 'var(--primary)',
-              textDecoration: 'none',
-            }}
-          >
-            Admin Portal →
-          </a>
         </div>
       )}
 

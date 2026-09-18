@@ -67,8 +67,8 @@ export default function ApplicationForm() {
     }
   };
 
-  const saveDraft = async (dataToSave: any) => {
-    if (!applicationId) return;
+  const saveDraft = async (dataToSave: any): Promise<boolean> => {
+    if (!applicationId) return false;
     try {
       const { error } = await supabase
         .from('partner_applications')
@@ -77,13 +77,15 @@ export default function ApplicationForm() {
         
       if (error) throw error;
       toast.success('Draft saved automatically');
+      return true;
     } catch (err) {
       console.error('Failed to save draft', err);
       toast.error('Failed to save draft');
+      return false;
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // Validate email if on step 1
     if (currentStep === 1) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -99,7 +101,9 @@ export default function ApplicationForm() {
       return;
     }
 
-    saveDraft(formData);
+    const saved = await saveDraft(formData);
+    if (!saved) return;
+
     setCurrentStep((prev) => Math.min(prev + 1, 4));
     window.scrollTo(0, 0);
   };

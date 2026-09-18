@@ -64,6 +64,7 @@ export default function AdminReports() {
       .channel('reports-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => fetchReportData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'walk_in_records' }, () => fetchReportData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plate_validation_logs' }, () => fetchReportData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
@@ -116,6 +117,18 @@ export default function AdminReports() {
         lotsQuery = lotsQuery.eq('id', currentLotId);
       }
       const { data: lotsData } = await lotsQuery;
+
+      let ocrQuery = supabase
+        .from('plate_validation_logs')
+        .select('id, lot_id, camera_id, detected_plate, confidence_score, validation_status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (currentRole !== 'superadmin' && currentRole !== 'super_admin' && currentLotId) {
+        ocrQuery = ocrQuery.eq('lot_id', currentLotId);
+      }
+      const { data: ocrData, error: ocrError } = await ocrQuery;
+      if (ocrError) throw ocrError;
+      setOcrLogs(ocrData || []);
 
       processStats(reservationsData || [], walkInData || [], lotsData || []);
     } catch (error) {
@@ -828,7 +841,68 @@ export default function AdminReports() {
             </div>
           </div>
         )}
-        {/* No OCR Section */}
+                {/* OCR Validation Report */}
+        {showSection("ocr") && (
+          <div ref={ocrRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+            <h3 className="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
+              <Camera size={20} className="text-primary" /> OCR Validation Report
+            </h3>
+            <p className="text-[10px] text-muted-foreground mb-4">
+              Plates detected by the camera feed, validated against active reservations by the database trigger.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-[10px] text-muted-foreground uppercase font-black tracking-widest border-b border-slate-100">
+                    <th className="text-left pb-4">Date &amp; Time</th>
+                    <th className="text-left pb-4">Detected Plate</th>
+                    <th className="text-center pb-4">Camera</th>
+                    <th className="text-center pb-4">Confidence</th>
+                    <th className="text-center pb-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {ocrLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-muted-foreground font-medium">
+                        No OCR validation data available.
+                      </td>
+                    </tr>
+                  ) : (
+                    ocrLogs.slice(0, 20).map((log: any) => (
+                      <tr key={log.id} className="group hover:bg-slate-50 transition-colors">
+                        <td className="py-3 text-[12px] text-slate-500 font-medium">
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                        <td className="py-3 font-bold text-slate-900 font-mono">{log.detected_plate || "UNREADABLE"}</td>
+                        <td className="py-3 text-center text-xs font-medium text-slate-500">{log.camera_id || "N/A"}</td>
+                        <td className="py-3 text-center">
+                          <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded-md">
+                            {log.confidence_score ? `${log.confidence_score}%` : "N/A"}
+                          </span>
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase ${
+                            log.validation_status === 'matched' ? 'bg-emerald-100 text-emerald-700' :
+                            log.validation_status === 'mismatched' ? 'bg-rose-100 text-rose-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {log.validation_status || "pending"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {ocrLogs.length > 20 && (
+              <p className="mt-3 text-[10px] text-muted-foreground">
+                Showing latest 20 of {ocrLogs.length} scans. Use Records / OCR Validation Logs for the full list.
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

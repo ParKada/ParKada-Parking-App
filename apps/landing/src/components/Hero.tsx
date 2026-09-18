@@ -116,7 +116,7 @@ export default function Hero() {
             }}>
               ParKada eliminates parking guesswork using AI-powered real-time slot
               detection, instant mobile reservations, and QR code entry — all
-              designed for De La Salle Lipa.
+              designed for Lipa City, Downtown.
             </p>
 
             {/* CTA badges */}
@@ -168,7 +168,7 @@ export default function Hero() {
             {/* Glow ring behind phone */}
             <div aria-hidden="true" style={{
               position: 'absolute',
-              width: '340px', height: '340px',
+              width: '440px', height: '440px',
               borderRadius: '50%',
               background: 'radial-gradient(circle, rgba(37,99,235,0.12) 0%, transparent 70%)',
               filter: 'blur(24px)',
@@ -178,7 +178,7 @@ export default function Hero() {
               alt="ParKada app showing real-time parking slot availability on a map"
               className="animate-float"
               style={{
-                maxHeight: '520px',
+                maxHeight: '700px',
                 width: 'auto',
                 position: 'relative',
                 zIndex: 1,

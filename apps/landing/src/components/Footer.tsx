@@ -59,7 +59,7 @@ export default function Footer() {
               color: 'rgba(255,255,255,0.45)',
               maxWidth: '240px',
             }}>
-              AI-powered smart parking for De La Salle Lipa. 
+              AI-powered smart parking for Lipa City, Downtown. 
               Real-time detection, instant reservations, QR entry.
             </p>
           </div>
@@ -104,9 +104,7 @@ export default function Footer() {
                 </a>
               ))}
               <a
-                href="https://portal.parkada.site"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/admin/terms"
                 style={{
                   fontFamily: 'var(--font-body)',
                   fontSize: '0.9375rem',
@@ -122,7 +120,7 @@ export default function Footer() {
                 For Establishments →
               </a>
               <a
-                href="https://admin.parkada.site"
+                href="https://portal.parkada.site"
                 target="_blank"
                 rel="noopener noreferrer"
                 id="footer-admin-link"

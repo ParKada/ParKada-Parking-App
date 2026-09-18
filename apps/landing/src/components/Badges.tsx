@@ -4,8 +4,7 @@ export function AppStoreBadge({ id }: { id?: string }) {
   return (
     <a
       id={id ?? 'badge-appstore'}
-      href="#download"
-      onClick={(e) => e.preventDefault()}
+      href="/ios-test"
       aria-label="Download on the App Store"
       style={{
         display: 'inline-block',
@@ -35,8 +34,9 @@ export function PlayStoreBadge({ id }: { id?: string }) {
   return (
     <a
       id={id ?? 'badge-playstore'}
-      href="#download"
-      onClick={(e) => e.preventDefault()}
+      href="https://expo.dev/artifacts/eas/SP7DXnYenGq8IKCR1t0_4hGuB5RBxgf5l_1HvlGaadc.apk"
+      target="_blank"
+      rel="noopener noreferrer"
       aria-label="Get it on Google Play"
       style={{
         display: 'inline-block',
