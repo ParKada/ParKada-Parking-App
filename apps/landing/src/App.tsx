@@ -6,6 +6,7 @@ import PartnerCTA from './components/PartnerCTA'
 import Team from './components/Team'
 import Footer from './components/Footer'
 import AdminTermsPage from './pages/AdminTermsPage'
+import IosTestPage from './pages/IosTestPage'
 
 function AppHome() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
     <Switch>
       <Route path="/" component={AppHome} />
       <Route path="/admin/terms" component={AdminTermsPage} />
+      <Route path="/ios-test" component={IosTestPage} />
       <Route component={AppHome} />
     </Switch>
   )
