@@ -135,6 +135,13 @@ export default function ParkingLotPage() {
     return () => { supabase.removeChannel(channel); };
   }, [id]);
 
+  const activeFloors = useMemo(() => {
+    if (!lot?.floors) return [];
+    return lot.floors
+      .map((name: string, index: number) => ({ name, originalIndex: index }))
+      .filter((f: any) => slots.some(s => (s.floor_index || 0) === f.originalIndex));
+  }, [lot?.floors, slots]);
+
   const fetchReviews = async () => {
     setLoadingReviews(true);
     try {
@@ -247,13 +254,6 @@ export default function ParkingLotPage() {
 
   const selectedIsWalkIn = isSlotWalkInOnly(selectedSlot);
   const isPublic = lot?.type === 'public';
-
-  const activeFloors = useMemo(() => {
-    if (!lot?.floors) return [];
-    return lot.floors
-      .map((name: string, index: number) => ({ name, originalIndex: index }))
-      .filter((f: any) => slots.some(s => (s.floor_index || 0) === f.originalIndex));
-  }, [lot?.floors, slots]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
