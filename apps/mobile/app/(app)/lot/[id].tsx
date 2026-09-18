@@ -378,7 +378,7 @@ export default function ParkingLotPage() {
                   <Text className="text-slate-500 font-bold ml-1 text-sm uppercase">Select Floor</Text>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-                  {activeFloors.map((floor, idx) => (
+                  {activeFloors.map((floor: { name: string, originalIndex: number }, idx: number) => (
                     <TouchableOpacity
                       key={floor.originalIndex}
                       onPress={() => {
