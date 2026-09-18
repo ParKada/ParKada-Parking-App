@@ -5,7 +5,7 @@ import DarkVeil from './DarkVeil'
 
 const navLinks = [
   { label: 'Features', href: '#features' },
-  { label: 'Team', href: '#team' },
+  { label: 'Meet the Team', href: '#team' },
   { label: 'Download', href: '#home' },
 ]
 
