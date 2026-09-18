@@ -658,7 +658,6 @@ export default function AdminReports() {
               <option value="weekly">Weekly Occupancy</option>
               <option value="hourly">Hourly Pattern</option>
               <option value="lot">Lot Performance</option>
-              <option value="ocr">OCR Validation Report</option>
             </select>
           </div>
           <div className="flex gap-2">
@@ -839,69 +838,6 @@ export default function AdminReports() {
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
-                {/* OCR Validation Report */}
-        {showSection("ocr") && (
-          <div ref={ocrRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-            <h3 className="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
-              <Camera size={20} className="text-primary" /> OCR Validation Report
-            </h3>
-            <p className="text-[10px] text-muted-foreground mb-4">
-              Plates detected by the camera feed, validated against active reservations by the database trigger.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-[10px] text-muted-foreground uppercase font-black tracking-widest border-b border-slate-100">
-                    <th className="text-left pb-4">Date &amp; Time</th>
-                    <th className="text-left pb-4">Detected Plate</th>
-                    <th className="text-center pb-4">Camera</th>
-                    <th className="text-center pb-4">Confidence</th>
-                    <th className="text-center pb-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {ocrLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-muted-foreground font-medium">
-                        No OCR validation data available.
-                      </td>
-                    </tr>
-                  ) : (
-                    ocrLogs.slice(0, 20).map((log: any) => (
-                      <tr key={log.id} className="group hover:bg-slate-50 transition-colors">
-                        <td className="py-3 text-[12px] text-slate-500 font-medium">
-                          {new Date(log.created_at).toLocaleString()}
-                        </td>
-                        <td className="py-3 font-bold text-slate-900 font-mono">{log.detected_plate || "UNREADABLE"}</td>
-                        <td className="py-3 text-center text-xs font-medium text-slate-500">{log.camera_id || "N/A"}</td>
-                        <td className="py-3 text-center">
-                          <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded-md">
-                            {log.confidence_score ? `${log.confidence_score}%` : "N/A"}
-                          </span>
-                        </td>
-                        <td className="py-3 text-center">
-                          <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase ${
-                            log.validation_status === 'matched' ? 'bg-emerald-100 text-emerald-700' :
-                            log.validation_status === 'mismatched' ? 'bg-rose-100 text-rose-700' :
-                            log.validation_status === 'detected' ? 'bg-blue-100 text-blue-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            {log.validation_status ? log.validation_status.replace('_', ' ') : "pending"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {ocrLogs.length > 20 && (
-              <p className="mt-3 text-[10px] text-muted-foreground">
-                Showing latest 20 of {ocrLogs.length} scans. Use Records / OCR Validation Logs for the full list.
-              </p>
-            )}
           </div>
         )}
       </div>
