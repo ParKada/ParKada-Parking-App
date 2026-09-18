@@ -567,7 +567,7 @@ export default function ParkingMapPage() {
                       <View className="flex-row items-center gap-2 mb-3">
                         <View className="border border-slate-200 px-1.5 py-0.5 rounded-md"><Text className="text-[8px] font-bold text-slate-500 uppercase">{lot.type}</Text></View>
                         <Text className="text-[10px] font-bold text-slate-500">
-                          {isClosed ? "Closed" : isAccredited ? `₱${lot.rate_per_hour}/hr` : "Walk-In Only"}
+                          {isClosed ? "Closed" : isAccredited ? (lot.pricing_scheme === 'fixed' ? `₱${lot.fixed_rate} Whole Day` : `₱${lot.base_rate} First ${lot.base_rate_hours || 3}Hrs`) : "Walk-In Only"}
                         </Text>
                         {lot.currentDistance !== null && (
                           <Text className="text-[10px] font-black text-blue-600 ml-auto">{lot.currentDistance.toFixed(1)} km</Text>
@@ -680,8 +680,8 @@ export default function ParkingMapPage() {
                         <Star size={16} color="#10b981" />
                       </View>
                       <View>
-                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Rate</Text>
-                        <Text className="text-sm font-black text-slate-700">{activeLot.rate_per_hour ? `₱${activeLot.rate_per_hour}/hr` : "Free"}</Text>
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{activeLot.pricing_scheme === 'fixed' ? 'Whole Day' : `First ${activeLot.base_rate_hours || 3} Hrs`}</Text>
+                        <Text className="text-sm font-black text-slate-700">{activeLot.pricing_scheme === 'fixed' ? (activeLot.fixed_rate ? `₱${activeLot.fixed_rate}` : "Free") : (activeLot.base_rate ? `₱${activeLot.base_rate}` : "Free")}</Text>
                       </View>
                     </View>
                     
@@ -839,7 +839,7 @@ export default function ParkingMapPage() {
                       {isClosed ? "Closed" : isAccredited ? `${lot.available_slots} / ${lot.total_slots} slots` : "Walk-in Only"}
                     </Text>
                   </View>
-                  {isAccredited && !isClosed && <Text className="font-black text-blue-600">₱{lot.rate_per_hour}<Text className="text-xs text-slate-400 font-medium">/hr</Text></Text>}
+                  {isAccredited && !isClosed && <Text className="font-black text-blue-600">{lot.pricing_scheme === 'fixed' ? `₱${lot.fixed_rate}` : `₱${lot.base_rate}`}<Text className="text-[9px] text-slate-400 font-medium ml-1">{lot.pricing_scheme === 'fixed' ? 'Whole Day' : `first ${lot.base_rate_hours || 3}h`}</Text></Text>}
                 </View>
 
                 <View className="flex-row gap-2 mt-2">
