@@ -332,9 +332,9 @@ export default function ApplicationForm() {
                     className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-semibold">Operating Hours *</label>
-                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex items-center gap-2 w-full">
                       <input 
                         type="time" 

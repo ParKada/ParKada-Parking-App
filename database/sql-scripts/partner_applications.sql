@@ -28,6 +28,7 @@ CREATE TABLE public.partner_applications (
   business_registration_number TEXT,
   tin TEXT,
   business_type TEXT,
+  registration_type TEXT,
   year_established INTEGER,
 
   -- Step 4: Document URLs (stored in Supabase Storage)
