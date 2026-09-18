@@ -329,8 +329,17 @@ export default function ParkingLotPage() {
                 )}
               </View>
               <View className="items-end">
-                <Text className="text-2xl font-black text-[#0A1D37]">{lot.rate_per_hour === 0 ? "Free" : `₱${lot.rate_per_hour}`}</Text>
-                {lot.rate_per_hour > 0 && <Text className="text-[10px] font-bold text-slate-400">per hour</Text>}
+                {lot.pricing_scheme === 'fixed' ? (
+                  <>
+                    <Text className="text-2xl font-black text-[#0A1D37]">{lot.fixed_rate === 0 ? "Free" : `₱${lot.fixed_rate}`}</Text>
+                    {lot.fixed_rate > 0 && <Text className="text-[10px] font-bold text-slate-400">whole day</Text>}
+                  </>
+                ) : (
+                  <>
+                    <Text className="text-2xl font-black text-[#0A1D37]">{lot.base_rate === 0 ? "Free" : `₱${lot.base_rate}`}</Text>
+                    {lot.base_rate > 0 && <Text className="text-[10px] font-bold text-slate-400">first 3 hours</Text>}
+                  </>
+                )}
               </View>
             </View>
 

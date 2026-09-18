@@ -898,10 +898,14 @@ export default function DriverHome() {
                             </TouchableOpacity>
 
                             {isAccredited && (
-                              <Text className="text-[15px] font-black text-blue-700">
-                                ₱{lot.rate_per_hour}
-                                <Text className="text-xs font-bold text-blue-400">/hr</Text>
-                              </Text>
+                              <View className="items-end">
+                                <Text className="text-[15px] font-black text-blue-700">
+                                  ₱{lot.pricing_scheme === 'fixed' ? (lot.fixed_rate || 0) : (lot.base_rate || 0)}
+                                </Text>
+                                <Text className="text-[9px] font-bold text-blue-400 uppercase -mt-0.5">
+                                  {lot.pricing_scheme === 'fixed' ? 'Whole Day' : 'First 3 Hrs'}
+                                </Text>
+                              </View>
                             )}
                           </View>
                         </View>
