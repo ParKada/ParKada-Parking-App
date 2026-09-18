@@ -1,9 +1,11 @@
-import { Github } from 'lucide-react'
+import { Github, Linkedin } from 'lucide-react'
 
 interface Member {
   id: string
   name: string
   handle: string
+  github: string
+  linkedin: string
   role: string
   contributions: string[]
   initials: string
@@ -16,6 +18,8 @@ const team: Member[] = [
     id: 'team-regina',
     name: 'Regina Angeli Cadeliña',
     handle: '@rivioops',
+    github: 'https://github.com/rivioops',
+    linkedin: 'https://www.linkedin.com/in/regina-angeli-cadelina/',
     role: 'Project Leader & Systems Engineer',
     contributions: ['Project Management', 'Full-Stack Development', 'AI & IoT Integration', 'Cloud Solutions'],
     initials: 'RC',
@@ -26,6 +30,8 @@ const team: Member[] = [
     id: 'team-janna',
     name: 'Janna Mikhaela Alcantara',
     handle: '@jmkalcantara',
+    github: 'https://github.com/jmikhaela',
+    linkedin: 'https://www.linkedin.com/in/janna-mikhaela-alcantara-028886369/',
     role: 'Business Analyst & QA Engineer',
     contributions: ['Business Analysis', 'Quality Assurance', 'Client Relations'],
     initials: 'JA',
@@ -36,6 +42,8 @@ const team: Member[] = [
     id: 'team-jeric',
     name: 'Jeric Lique',
     handle: '@jeric444',
+    github: 'https://github.com/jeclique444',
+    linkedin: 'https://www.linkedin.com/in/jeric-lique-02b2b4417/',
     role: 'Full-Stack & Infrastructure Engineer',
     contributions: ['Full-Stack Development', 'Database Architecture', 'DevOps & Deployment'],
     initials: 'JL',
@@ -46,6 +54,8 @@ const team: Member[] = [
     id: 'team-wyeth',
     name: 'Wyeth Irish Mendez',
     handle: '@wyethirish',
+    github: 'https://github.com/wyethirishmendez',
+    linkedin: 'https://www.linkedin.com/in/wyeth-irish-mendez-76475933b/',
     role: 'System Analyst & QA Engineer',
     contributions: ['System Architecture', 'Quality Assurance', 'Technical Documentation'],
     initials: 'WM',
@@ -147,15 +157,22 @@ export default function Team() {
               }}>
                 {member.name}
               </h3>
-              <div style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.8125rem',
-                color: member.color,
-                fontWeight: 500,
-                marginBottom: '8px',
-              }}>
+              <a
+                href={member.github}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.8125rem',
+                  color: member.color,
+                  fontWeight: 500,
+                  marginBottom: '8px',
+                  display: 'inline-block',
+                  textDecoration: 'none',
+                }}
+              >
                 {member.handle}
-              </div>
+              </a>
 
               {/* Role */}
               <div style={{
@@ -197,7 +214,7 @@ export default function Team() {
           ))}
         </div>
 
-        {/* GitHub links row */}
+        {/* LinkedIn links row */}
         <div style={{
           display: 'flex', justifyContent: 'center',
           gap: '16px', flexWrap: 'wrap',
@@ -205,11 +222,11 @@ export default function Team() {
         }}>
           {team.map(m => (
             <a
-              key={m.id + '-gh'}
-              href={`https://github.com/${m.handle.replace('@', '')}`}
+              key={m.id + '-in'}
+              href={m.linkedin}
               target="_blank"
               rel="noopener noreferrer"
-              id={`${m.id}-github`}
+              id={`${m.id}-linkedin`}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
                 fontFamily: 'var(--font-body)',
@@ -236,7 +253,7 @@ export default function Team() {
                 el.style.background = 'rgba(255,255,255,0.03)'
               }}
             >
-              <Github size={13} strokeWidth={2}/>
+              <Linkedin size={13} strokeWidth={2}/>
               {m.handle}
             </a>
           ))}

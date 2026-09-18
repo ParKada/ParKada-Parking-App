@@ -13,7 +13,6 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const [adminHovered, setAdminHovered] = useState(false)
   const navRefs = useRef<(HTMLAnchorElement | null)[]>([])
 
   useEffect(() => {
@@ -133,33 +132,6 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
-
-          <a
-            href="https://admin.parkada.site"
-            target="_blank"
-            rel="noopener noreferrer"
-            id="nav-admin-portal"
-            style={{
-              marginLeft: '8px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontFamily: 'var(--font-body)',
-              fontWeight: 500,
-              fontSize: '0.9375rem',
-              color: adminHovered ? '#ffffff' : 'rgba(255,255,255,0.72)',
-              background: adminHovered ? '#2563EB' : 'transparent',
-              textDecoration: 'none',
-              padding: '7px 14px',
-              borderRadius: '8px',
-              transition: 'color 0.15s, background 0.15s',
-            }}
-            onMouseEnter={() => setAdminHovered(true)}
-            onMouseLeave={() => setAdminHovered(false)}
-          >
-            Admin Portal
-            <ExternalLink size={13} strokeWidth={2.2}/>
-          </a>
         </nav>
 
         {/* Mobile hamburger */}
@@ -213,22 +185,6 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
-          <a
-            href="https://admin.parkada.site"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'block',
-              marginTop: '16px',
-              padding: '12px 0',
-              fontFamily: 'var(--font-body)',
-              fontWeight: 600,
-              color: 'var(--primary)',
-              textDecoration: 'none',
-            }}
-          >
-            Admin Portal →
-          </a>
         </div>
       )}
 
