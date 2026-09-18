@@ -240,7 +240,7 @@ export default function AdminReservations() {
         { auth: { persistSession: false, autoRefreshToken: false } }
       );
 
-      const { data: rawRes, error: resError } = await supabase
+      const { data: rawRes, error: resError } = await adminSupabase
         .from('reservations')
         .select('*')
         .eq('id', res.id)
@@ -275,9 +275,9 @@ export default function AdminReservations() {
          receipt: receipts && receipts.length > 0 ? receipts[0] : null
       });
 
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error(t("Failed to fetch detailed info", "Nabigong fetch detailed info"));
+      toast.error(err?.message || "Nabigong fetch detailed info");
       setReservationDetails({ error: true });
     } finally {
       setIsFetchingDetails(false);
