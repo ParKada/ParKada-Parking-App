@@ -1,11 +1,13 @@
+import { Route, Switch } from "wouter"
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import Features from './components/Features'
 import PartnerCTA from './components/PartnerCTA'
 import Team from './components/Team'
 import Footer from './components/Footer'
+import AdminTermsPage from './pages/AdminTermsPage'
 
-export default function App() {
+function AppHome() {
   return (
     <>
       <Navbar />
@@ -19,5 +21,15 @@ export default function App() {
         </div>
       </main>
     </>
+  )
+}
+
+export default function App() {
+  return (
+    <Switch>
+      <Route path="/" component={AppHome} />
+      <Route path="/admin/terms" component={AdminTermsPage} />
+      <Route component={AppHome} />
+    </Switch>
   )
 }
