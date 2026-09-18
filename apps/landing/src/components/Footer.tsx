@@ -59,7 +59,7 @@ export default function Footer() {
               color: 'rgba(255,255,255,0.45)',
               maxWidth: '240px',
             }}>
-              AI-powered smart parking for De La Salle Lipa. 
+              AI-powered smart parking for Lipa City, Downtown. 
               Real-time detection, instant reservations, QR entry.
             </p>
           </div>
