@@ -6,7 +6,7 @@ import DarkVeil from './DarkVeil'
 const navLinks = [
   { label: 'Features', href: '#features' },
   { label: 'Team', href: '#team' },
-  { label: 'Download', href: '#download' },
+  { label: 'Download', href: '#home' },
 ]
 
 export default function Navbar() {
@@ -20,6 +20,29 @@ export default function Navbar() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      setOpen(false);
+      
+      if (href === '#home') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      
+      const target = document.getElementById(href.replace('#', ''));
+      if (target) {
+        // Adjust for navbar height (84px) + a little extra padding if desired
+        const navbarHeight = 84;
+        const targetPosition = target.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({
+          top: targetPosition - navbarHeight,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }
 
   return (
     <header
@@ -59,7 +82,7 @@ export default function Navbar() {
 
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '84px', position: 'relative' }}>
         {/* Logo */}
-        <a href="#" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+        <a href="#" onClick={(e) => handleNavClick(e, '#home')} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
           <div style={{
             width: '36px', height: '36px',
             background: 'var(--primary)',
@@ -111,12 +134,7 @@ export default function Navbar() {
               key={link.href}
               href={link.href}
               ref={el => { navRefs.current[i] = el; }}
-              onClick={(e) => {
-                if (link.href.startsWith('#')) {
-                  e.preventDefault();
-                  document.getElementById(link.href.replace('#', ''))?.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
+              onClick={(e) => handleNavClick(e, link.href)}
               style={{
                 fontFamily: 'var(--font-body)',
                 fontWeight: 500,
@@ -165,13 +183,7 @@ export default function Navbar() {
             <a
               key={link.href}
               href={link.href}
-              onClick={(e) => {
-                setOpen(false);
-                if (link.href.startsWith('#')) {
-                  e.preventDefault();
-                  document.getElementById(link.href.replace('#', ''))?.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
+              onClick={(e) => handleNavClick(e, link.href)}
               style={{
                 display: 'block',
                 padding: '12px 0',
