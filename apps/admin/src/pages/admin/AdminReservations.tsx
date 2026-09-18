@@ -250,7 +250,7 @@ export default function AdminReservations() {
 
       let user = null;
       if (rawRes?.profile_id) {
-         const { data: profile } = await adminSupabase.from('profiles').select('id, first_name, last_name, phone_number').eq('id', rawRes.profile_id).single();
+         const { data: profile } = await adminSupabase.from('profiles').select('id, first_name, last_name, phone_number').eq('id', rawRes.profile_id).maybeSingle();
          if (profile) {
            user = {
              ...profile,
@@ -258,7 +258,7 @@ export default function AdminReservations() {
            };
          }
       } else if (rawRes?.user_id) {
-         const { data: profile } = await adminSupabase.from('profiles').select('id, first_name, last_name, phone_number').eq('id', rawRes.user_id).single();
+         const { data: profile } = await adminSupabase.from('profiles').select('id, first_name, last_name, phone_number').eq('id', rawRes.user_id).maybeSingle();
          if (profile) {
            user = {
              ...profile,
@@ -630,7 +630,6 @@ export default function AdminReservations() {
                   <th className="text-left pb-3">Vehicle & Slot</th>
                   <th className="text-left pb-3">Date</th>
                   <th className="text-left pb-3">Time</th>
-                  <th className="text-left pb-3 text-rose-600">Fine</th>
                   <th className="text-left pb-3">Status</th>
                   <th className="text-right pb-3">Actions</th>
                 </tr>
@@ -638,7 +637,7 @@ export default function AdminReservations() {
               <tbody className="divide-y">
                 {filteredReservations.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-muted-foreground font-medium">
+                    <td colSpan={6} className="py-8 text-center text-muted-foreground font-medium">
                       No records found.
                     </td>
                   </tr>
@@ -655,7 +654,7 @@ export default function AdminReservations() {
                   }) : "N/A";
 
                   return (
-                    <tr key={res.id} className={cn("hover:bg-muted/30 transition-colors", isOverstaying && "bg-rose-50/50")}>
+                    <tr key={res.id} className="hover:bg-muted/30 transition-colors">
                       <td className="py-4 font-mono text-xs">#{res.shortId}</td>
                       <td className="py-4">
                         <p className="font-bold">{res.plate_number || 'N/A'}</p>
@@ -663,12 +662,11 @@ export default function AdminReservations() {
                       </td>
                       <td className="py-4 text-xs font-semibold text-slate-700">{dateFormatted}</td>
                       <td className="py-4 text-xs whitespace-nowrap">
-                        {startTimeFormatted} <span className={cn("font-bold", isOverstaying ? "text-rose-600" : "text-muted-foreground")}>to {endTimeFormatted}</span>
+                        {startTimeFormatted} <span className="font-bold text-muted-foreground">to {endTimeFormatted}</span>
                       </td>
-                      <td className="py-4 font-bold">{fine > 0 ? <span className="text-rose-600">+₱{fine}</span> : "-"}</td>
                       <td className="py-4">
-                        <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-full uppercase border", isOverstaying ? "bg-rose-600 text-white" : statusStyles[res.status])}>
-                          {isOverstaying ? "OVERSTAYING" : res.status}
+                        <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-full uppercase border", statusStyles[res.status])}>
+                          {res.status}
                         </span>
                       </td>
                       <td className="py-4 text-right">
@@ -688,9 +686,9 @@ export default function AdminReservations() {
                             </Button>
                           )}
                           {res.status === 'active' && (
-                            <Button size="sm" className={cn("h-8 rounded-lg text-white font-bold", isOverstaying ? "bg-rose-600" : "bg-emerald-600")} onClick={() => updateReservationStatus(res, 'completed')}>
-                              {isOverstaying ? <Coins size={14} className="mr-1" /> : <CheckCircle size={14} className="mr-1" />}
-                              {isOverstaying ? "Collect & Complete" : "Complete"}
+                            <Button size="sm" className="h-8 rounded-lg text-white font-bold bg-emerald-600" onClick={() => updateReservationStatus(res, 'completed')}>
+                              <CheckCircle size={14} className="mr-1" />
+                              Complete
                             </Button>
                           )}
                         </div>
