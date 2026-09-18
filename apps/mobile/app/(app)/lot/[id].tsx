@@ -1,5 +1,5 @@
 import { Modal } from '../../../components/SafeModal';
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, FlatList, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -248,6 +248,13 @@ export default function ParkingLotPage() {
   const selectedIsWalkIn = isSlotWalkInOnly(selectedSlot);
   const isPublic = lot?.type === 'public';
 
+  const activeFloors = useMemo(() => {
+    if (!lot?.floors) return [];
+    return lot.floors
+      .map((name: string, index: number) => ({ name, originalIndex: index }))
+      .filter((f: any) => slots.some(s => (s.floor_index || 0) === f.originalIndex));
+  }, [lot?.floors, slots]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }}>
       {/* Header */}
@@ -364,16 +371,16 @@ export default function ParkingLotPage() {
             )}
 
             {/* Floor Tabs */}
-            {lot?.floors && lot.floors.length > 1 && (
+            {activeFloors.length > 1 && (
               <View className="mb-2">
                 <View className="flex-row items-center mb-2">
                   <Layers size={16} color="#64748b" />
                   <Text className="text-slate-500 font-bold ml-1 text-sm uppercase">Select Floor</Text>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-                  {lot.floors.map((floorName: string, idx: number) => (
+                  {activeFloors.map((floor, idx) => (
                     <TouchableOpacity
-                      key={idx}
+                      key={floor.originalIndex}
                       onPress={() => {
                         setSelectedFloorIndex(idx);
                         // @ts-ignore
@@ -381,7 +388,7 @@ export default function ParkingLotPage() {
                       }}
                       className={`mr-2 px-4 py-2 rounded-full border ${selectedFloorIndex === idx ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-200'}`}
                     >
-                      <Text className={`font-bold ${selectedFloorIndex === idx ? 'text-white' : 'text-slate-600'}`}>{floorName}</Text>
+                      <Text className={`font-bold ${selectedFloorIndex === idx ? 'text-white' : 'text-slate-600'}`}>{floor.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -389,7 +396,7 @@ export default function ParkingLotPage() {
             )}
 
             {/* Dynamic 2D Map Swiping */}
-            {lot?.floors && lot.floors.length > 0 ? (
+            {activeFloors.length > 0 ? (
               <FlatList
                 ref={(ref) => {
                   // @ts-ignore
@@ -400,18 +407,18 @@ export default function ParkingLotPage() {
                 decelerationRate="fast"
                 contentContainerStyle={{ paddingRight: 16 }}
                 showsHorizontalScrollIndicator={false}
-                data={lot.floors}
-                keyExtractor={(item, index) => String(index)}
+                data={activeFloors}
+                keyExtractor={(item) => String(item.originalIndex)}
                 onMomentumScrollEnd={(e) => {
                   const newIndex = Math.round(e.nativeEvent.contentOffset.x / (Dimensions.get('window').width - 72 + 16));
-                  if (newIndex !== selectedFloorIndex) {
+                  if (newIndex !== selectedFloorIndex && newIndex < activeFloors.length) {
                     setSelectedFloorIndex(newIndex);
                   }
                 }}
                 renderItem={({ item, index }) => (
                   <View style={{ width: Dimensions.get('window').width - 72, marginRight: 16 }}>
                     <MapViewer
-                      slots={slots.filter(s => (s.floor_index || 0) === index)}
+                      slots={slots.filter(s => (s.floor_index || 0) === item.originalIndex)}
                       onSelectSlot={handleSelectSlot}
                       selectedSlotId={selectedSlot?.id}
                       isClosed={isClosed}
