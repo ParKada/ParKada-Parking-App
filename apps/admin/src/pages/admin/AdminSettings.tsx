@@ -27,6 +27,7 @@ export default function AdminSettings() {
   const [localLanguage, setLocalLanguage] = useState(language);
   const [isSaving, setIsSaving] = useState(false);
   const [adminLotId, setAdminLotId] = useState<string | null>(null);
+  const [lotType, setLotType] = useState<string>("private");
   
   // 1. Standard Rates (Admin)
   const [pricingScheme, setPricingScheme] = useState<"hourly" | "fixed">("hourly");
@@ -128,6 +129,7 @@ export default function AdminSettings() {
       return;
     }
     if (data) {
+      setLotType(data.type || "private");
       setPricingScheme(data.pricing_scheme || "hourly");
       setBaseRate(data.base_rate?.toString() || "50");
       setBaseRateHours(data.base_rate_hours?.toString() || "3");
@@ -467,12 +469,12 @@ export default function AdminSettings() {
                   <div className={`transition-opacity ${pricingScheme === 'fixed' ? 'opacity-50' : 'opacity-100'}`}>
                     {/* Duration limits */}
                     <div className="flex items-center justify-between">
-                      <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Max Duration (Hours)</p><p className="text-[10px] text-muted-foreground">Per reservation</p></div>
-                      <div className="w-24"><Input type="number" min="1" disabled={isStaff || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center", isStaff && "text-slate-400 bg-slate-50")} value={maxReservationHours} onChange={(e) => setMaxReservationHours(e.target.value)} required /></div>
+                      <div><p className={cn("text-sm font-bold", (isStaff || lotType === 'public') && "text-slate-400")}>Max Duration (Hours)</p><p className="text-[10px] text-muted-foreground">Per reservation</p></div>
+                      <div className="w-24"><Input type="number" min="1" disabled={isStaff || lotType === 'public' || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center", (isStaff || lotType === 'public') && "text-slate-400 bg-slate-50")} value={maxReservationHours} onChange={(e) => setMaxReservationHours(e.target.value)} required /></div>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-b pb-4 mt-2">
-                      <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Minimum Duration (Hours)</p><p className="text-[10px] text-muted-foreground">Lowest allowed</p></div>
-                      <div className="w-24"><Input type="number" min="1" disabled={isStaff || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center", isStaff && "text-slate-400 bg-slate-50")} value={minReservationHours} onChange={(e) => {
+                      <div><p className={cn("text-sm font-bold", (isStaff || lotType === 'public') && "text-slate-400")}>Minimum Duration (Hours)</p><p className="text-[10px] text-muted-foreground">Lowest allowed</p></div>
+                      <div className="w-24"><Input type="number" min="1" disabled={isStaff || lotType === 'public' || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center", (isStaff || lotType === 'public') && "text-slate-400 bg-slate-50")} value={minReservationHours} onChange={(e) => {
                         const val = parseInt(e.target.value);
                         if (val < 1) setMinReservationHours("1");
                         else setMinReservationHours(e.target.value);
@@ -481,15 +483,15 @@ export default function AdminSettings() {
 
                     {/* Fees & cleanup */}
                     <div className="flex items-center justify-between pt-4 pb-4 border-b">
-                      <div><p className={cn("text-sm font-bold", isStaff && "text-slate-400")}>Overtime Fee (per hour)</p><p className="text-[10px] text-muted-foreground">After booked duration</p></div>
-                      <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" min="0" disabled={isStaff || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center pl-6", isStaff && "text-slate-400 bg-slate-50")} value={overtimeFeePerHour} onChange={(e) => setOvertimeFeePerHour(e.target.value)} required /></div>
+                      <div><p className={cn("text-sm font-bold", (isStaff || lotType === 'public') && "text-slate-400")}>Overtime Fee (per hour)</p><p className="text-[10px] text-muted-foreground">After booked duration</p></div>
+                      <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" min="0" disabled={isStaff || lotType === 'public' || pricingScheme === 'fixed'} className={cn("h-12 rounded-xl text-center pl-6", (isStaff || lotType === 'public') && "text-slate-400 bg-slate-50")} value={overtimeFeePerHour} onChange={(e) => setOvertimeFeePerHour(e.target.value)} required /></div>
                     </div>
                   </div>
 
                   {/* Additional Waiting Time Fee */}
                   <div className={`flex items-center justify-between pt-2 transition-opacity ${pricingScheme === 'hourly' ? 'opacity-50' : 'opacity-100'}`}>
-                    <div><p className={cn("text-sm font-bold", isStaff ? "text-slate-400" : "text-blue-700")}>Additional Waiting Time Fee (per hr)</p><p className={cn("text-[10px]", isStaff ? "text-slate-400/80" : "text-blue-600/80")}>Fee added if they arrive late (Fixed Rate Only)</p></div>
-                    <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" min="0" disabled={isStaff || pricingScheme === 'hourly'} className={cn("h-12 rounded-xl text-center pl-6", isStaff ? "text-slate-400 bg-slate-50 border-slate-200" : "border-blue-200")} value={waitingTimeFee} onChange={(e) => setWaitingTimeFee(e.target.value)} required /></div>
+                    <div><p className={cn("text-sm font-bold", (isStaff || lotType === 'public') ? "text-slate-400" : "text-blue-700")}>Additional Waiting Time Fee (per hr)</p><p className={cn("text-[10px]", (isStaff || lotType === 'public') ? "text-slate-400/80" : "text-blue-600/80")}>Fee added if they arrive late (Fixed Rate Only)</p></div>
+                    <div className="relative w-24"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">₱</span><Input type="number" min="0" disabled={isStaff || lotType === 'public' || pricingScheme === 'hourly'} className={cn("h-12 rounded-xl text-center pl-6", (isStaff || lotType === 'public') ? "text-slate-400 bg-slate-50 border-slate-200" : "border-blue-200")} value={waitingTimeFee} onChange={(e) => setWaitingTimeFee(e.target.value)} required /></div>
                   </div>
 
                   <div className="bg-slate-50 p-3 rounded-xl text-xs text-slate-600 mt-4">
