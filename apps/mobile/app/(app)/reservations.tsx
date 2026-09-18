@@ -56,7 +56,11 @@ export default function ReservationsTabScreen() {
   const fetchMyReservations = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from("reservations")

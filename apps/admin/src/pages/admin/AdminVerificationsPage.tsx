@@ -58,7 +58,10 @@ type DocImage = {
   shape: "card" | "circle";
 };
 
-type FilterKey = "all" | "identity" | "discount";
+type FilterKey = "all" | "identity" | "pwd" | "senior";
+
+/** The two discount tracks the mobile app lets a driver apply under. */
+type DiscountTrack = "pwd" | "senior";
 
 /* -------------------------------------------------------------------------- */
 /*  PURE HELPERS                                                               */
@@ -119,6 +122,17 @@ function getFallbackLabel(profile: Profile): string {
   const phone = clean(profile?.phone_number);
   if (phone) return phone;
   return "";
+}
+
+/**
+ * A pending discount application only belongs to one track, so PWD and Senior
+ * requests can be queued, counted and reviewed independently.
+ */
+function isPendingDiscount(profile: Profile, track: DiscountTrack): boolean {
+  return (
+    profile?.discount_status === "pending" &&
+    clean(profile?.discount_type).toLowerCase() === track
+  );
 }
 
 function getInitials(name: string): string {
@@ -875,6 +889,14 @@ export default function AdminVerifications() {
     () => pendingUsers.filter((u) => u.discount_status === "pending").length,
     [pendingUsers],
   );
+  const pwdCount = useMemo(
+    () => pendingUsers.filter((u) => isPendingDiscount(u, "pwd")).length,
+    [pendingUsers],
+  );
+  const seniorCount = useMemo(
+    () => pendingUsers.filter((u) => isPendingDiscount(u, "senior")).length,
+    [pendingUsers],
+  );
   const missingNameCount = useMemo(
     () => pendingUsers.filter((u) => !getDisplayName(u)).length,
     [pendingUsers],
@@ -884,7 +906,8 @@ export default function AdminVerifications() {
     const needle = query.trim().toLowerCase();
     return pendingUsers.filter((user) => {
       if (filter === "identity" && user.verification_status !== "pending") return false;
-      if (filter === "discount" && user.discount_status !== "pending") return false;
+      if (filter === "pwd" && !isPendingDiscount(user, "pwd")) return false;
+      if (filter === "senior" && !isPendingDiscount(user, "senior")) return false;
       if (!needle) return true;
       const haystack = [
         getDisplayName(user),
@@ -906,19 +929,27 @@ export default function AdminVerifications() {
   const filterTabs: { key: FilterKey; label: string; count: number }[] = [
     { key: "all", label: "All", count: pendingUsers.length },
     { key: "identity", label: "Identity", count: identityCount },
-    { key: "discount", label: "Discount", count: discountCount },
+    { key: "pwd", label: "PWD", count: pwdCount },
+    { key: "senior", label: "Senior", count: seniorCount },
   ];
 
   return (
     <AdminLayout title="Identity Verifications">
       <div className="space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {/* Discount reviews are queued separately per track so PWD requests
+            never share a count or a list with Senior Citizen requests. */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
-            icon={<ShieldAlert size={22} className="text-blue-700" />}
-            value={pendingUsers.length}
-            label="Pending approvals"
+            icon={<Percent size={22} className="text-blue-700" />}
+            value={pwdCount}
+            label="PWD applications"
             accent="border-l-blue-600"
+          />
+          <StatCard
+            icon={<Percent size={22} className="text-emerald-700" />}
+            value={seniorCount}
+            label="Senior applications"
+            accent="border-l-emerald-500"
           />
           <StatCard
             icon={<BadgeCheck size={22} className="text-indigo-700" />}
@@ -927,10 +958,10 @@ export default function AdminVerifications() {
             accent="border-l-indigo-500"
           />
           <StatCard
-            icon={<Percent size={22} className="text-emerald-700" />}
-            value={discountCount}
-            label="Discount applications"
-            accent="border-l-emerald-500"
+            icon={<ShieldAlert size={22} className="text-amber-700" />}
+            value={discountCount + identityCount}
+            label="Total in queue"
+            accent="border-l-amber-500"
           />
         </div>
 
