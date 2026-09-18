@@ -299,7 +299,6 @@ export default function AdminWalkInRecords() {
         </table>
         <div class="report-summary">
           <p>Total Active: ${activeCount} &nbsp;|&nbsp; Total Completed: ${completedCount}</p>
-          <p>Total Revenue: ₱${totalRevenue.toFixed(2)}</p>
         </div>
         <div class="report-footer">
           ParKada Parking Management System – Official Walk‑in Record
@@ -559,18 +558,7 @@ export default function AdminWalkInRecords() {
     <AdminLayout title="Walk‑in Records">
       <div className="space-y-6">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-2xl p-5 shadow-sm border flex items-center gap-4">
-            <div className="bg-emerald-100 p-3 rounded-full text-emerald-700">
-              <DollarSign size={24} />
-            </div>
-            <div>
-              <p className="text-2xl font-black">₱{totalRevenue.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground uppercase font-bold">
-                {userRole === "admin" || userRole === "superadmin" || userRole === "super_admin" ? "Total Revenue" : "Today's Revenue"}
-              </p>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl p-5 shadow-sm border flex items-center gap-4">
             <div className="bg-blue-100 p-3 rounded-full text-blue-700">
               <Car size={24} />
