@@ -253,7 +253,7 @@ export default function Team() {
                 el.style.background = 'rgba(255,255,255,0.03)'
               }}
             >
-              <Linkedin size={13} strokeWidth={2}/>
+              <Linkedin size={13} strokeWidth={0} fill="currentColor"/>
               {m.handle}
             </a>
           ))}
