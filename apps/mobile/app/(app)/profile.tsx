@@ -1,11 +1,12 @@
 import { Modal } from '../../components/SafeModal';
 import { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, TextInput, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, TextInput, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { 
   Car, Wallet, Star, Shield, HelpCircle, LogOut, CheckCircle2, 
-  BadgePercent, Upload, X, Clock, Smartphone, Eye, EyeOff, QrCode, Lock, Mail
+  BadgePercent, Upload, X, Clock, Smartphone, Eye, EyeOff, QrCode, Lock,
+  Accessibility, Heart
 } from "lucide-react-native";
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-native-qrcode-svg';
@@ -28,7 +29,7 @@ const maskNumber = (num?: string) => {
   return `${start}••••${end}`;
 };
 
-type CaptureStep = 'front' | 'back' | 'selfie' | 'review';
+type CaptureStep = 'type' | 'front' | 'back' | 'selfie' | 'review';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -49,6 +50,15 @@ export default function ProfilePage() {
   const [discountModalVisible, setDiscountModalVisible] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
 
+  // The discount banner can be dismissed, but the option stays reachable from
+  // "Account Details & Security" so a driver who changes their mind can apply later.
+  const [discountBannerDismissed, setDiscountBannerDismissed] = useState(false);
+
+  // Editable copies of the fields shown inside the Account Details modal.
+  const [displayName, setDisplayName] = useState(userProfile?.full_name || '');
+  const [phoneNumber, setPhoneNumber] = useState(userProfile?.phone_number || '');
+  const [savingDetails, setSavingDetails] = useState(false);
+
   // Form States - Discount Application
   const [discountType, setDiscountType] = useState<'pwd' | 'senior'>('pwd');
   const [idNumber, setIdNumber] = useState('');
@@ -65,7 +75,7 @@ export default function ProfilePage() {
   const [savingWallet, setSavingWallet] = useState(false);
 
   const MAX_VEHICLES = 3;
-  const CAPTURE_STEPS: CaptureStep[] = ['front', 'back', 'selfie', 'review'];
+  const CAPTURE_STEPS: CaptureStep[] = ['type', 'front', 'back', 'selfie', 'review'];
 
   // AUTO-REFRESH DATA
   useFocusEffect(
@@ -162,7 +172,7 @@ export default function ProfilePage() {
   };
 
   const resetDiscountModal = () => {
-    setCaptureStep('front');
+    setCaptureStep('type');
     setIdFrontImage(null);
     setIdBackImage(null);
     setSelfieImage(null);
@@ -268,6 +278,42 @@ export default function ProfilePage() {
     await supabase.auth.signOut();
     Alert.alert("Logged out", "You have successfully logged out.");
     router.replace("/(auth)/login");
+  };
+
+  // ─── Save Display Name & Phone Number ────────────────────────────────────────
+  // Email stays read-only because it was verified via OTP during registration.
+
+  const handleSaveDetails = async () => {
+    if (!displayName.trim()) {
+      Alert.alert("Required", "Please enter a display name.");
+      return;
+    }
+    if (!/^\d{11}$/.test(phoneNumber.trim())) {
+      Alert.alert("Invalid Number", "Please enter a valid 11-digit mobile number.");
+      return;
+    }
+
+    try {
+      setSavingDetails(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: displayName.trim(),
+          phone_number: phoneNumber.trim(),
+        })
+        .eq("id", userProfile.id);
+
+      if (error) throw error;
+
+      setUserProfile((prev: any) => ({ ...prev, full_name: displayName.trim(), phone_number: phoneNumber.trim() }));
+      Alert.alert("Saved", "Display name and phone number updated.");
+      setAccountDetailsModalVisible(false);
+      fetchRealData();
+    } catch (error: any) {
+      Alert.alert("Update Failed", error.message || "Could not save changes.");
+    } finally {
+      setSavingDetails(false);
+    }
   };
 
   // ─── Loading ─────────────────────────────────────────────────────────────────
@@ -425,12 +471,12 @@ export default function ProfilePage() {
         </View>
 
         {/* DISCOUNT BANNER */}
-        {isNone && (
-          <TouchableOpacity 
-            onPress={() => setDiscountModalVisible(true)}
-            className="bg-sky-600 rounded-2xl p-4 flex-row items-center justify-between shadow-xs mb-4 border border-sky-500"
-          >
-            <View className="flex-row items-center gap-3 flex-1 mr-2">
+        {isNone && !discountBannerDismissed && (
+          <View className="bg-sky-600 rounded-2xl p-4 flex-row items-center justify-between shadow-xs mb-4 border border-sky-500">
+            <TouchableOpacity 
+              onPress={() => setDiscountModalVisible(true)}
+              className="flex-row items-center gap-3 flex-1 mr-2"
+            >
               <View className="w-10 h-10 bg-white/20 rounded-xl items-center justify-center shrink-0">
                 <BadgePercent size={22} color="white" />
               </View>
@@ -438,11 +484,22 @@ export default function ProfilePage() {
                 <Text className="text-white font-black text-sm">Apply PWD / Senior Discount</Text>
                 <Text className="text-sky-100 text-[11px]">Get 20% off on all parking reservations</Text>
               </View>
+            </TouchableOpacity>
+            <View className="flex-row items-center gap-2">
+              <TouchableOpacity 
+                onPress={() => setDiscountModalVisible(true)}
+                className="bg-white px-3 py-1.5 rounded-xl shadow-xs"
+              >
+                <Text className="text-sky-700 text-xs font-black">Apply Now</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => setDiscountBannerDismissed(true)}
+                className="bg-black/20 w-7 h-7 rounded-full items-center justify-center"
+              >
+                <X size={14} color="#fff" />
+              </TouchableOpacity>
             </View>
-            <View className="bg-white px-3 py-1.5 rounded-xl shadow-xs">
-              <Text className="text-sky-700 text-xs font-black">Apply Now</Text>
-            </View>
-          </TouchableOpacity>
+          </View>
         )}
 
         {isPending && (
@@ -478,7 +535,7 @@ export default function ProfilePage() {
           <ProfileMenuItem 
             icon={<Shield size={20} color="#0A1D37" />} 
             title="Account Details & Security" 
-            label="View registered identity & credentials" 
+            label="Update name, phone, password & apply discounts" 
             onClick={() => setAccountDetailsModalVisible(true)} 
           />
           <ProfileMenuItem 
@@ -529,60 +586,104 @@ export default function ProfilePage() {
 
             <Text className="text-sm font-bold text-slate-800">{userProfile?.full_name}</Text>
             <Text className="text-xs font-mono text-slate-400 mt-0.5">{userProfile?.phone_number}</Text>
+
+            {/* ── Discount status — permanently shown inside the Digital ID ── */}
+            <View className={`mt-4 mx-2 rounded-2xl border p-3.5 items-center ${isApproved ? 'border-emerald-200 bg-emerald-50' : isPending ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+              <View className="flex-row items-center gap-2 mb-1">
+                <BadgePercent size={16} color={isApproved ? '#059669' : isPending ? '#d97706' : '#64748b'} />
+                <Text className={`text-[11px] font-black uppercase tracking-wider ${isApproved ? 'text-emerald-700' : isPending ? 'text-amber-700' : 'text-slate-500'}`}>
+                  {isApproved ? `${userProfile?.discount_type === 'senior' ? 'Senior Citizen' : 'PWD'} Discount Active`
+                    : isPending ? 'Discount Under Review'
+                    : 'No Discount Applied'}
+                </Text>
+              </View>
+              <Text className="text-[10px] text-slate-500 text-center leading-4">
+                {isApproved ? '20% off applied to all parking reservations.'
+                  : isPending ? 'Admin is verifying your ID. You can still book at regular rates.'
+                  : 'Apply for a 20% PWD or Senior Citizen discount.'}
+              </Text>
+              {!isApproved && !isPending && (
+                <TouchableOpacity 
+                  onPress={() => { setQrModalVisible(false); setDiscountModalVisible(true); }}
+                  className="mt-3 bg-sky-600 px-5 py-2.5 rounded-xl items-center shadow-sm"
+                >
+                  <Text className="text-white font-bold text-xs">Apply Discount</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
 
       {/* ═══════════════════════════════════════════════════════════════════════ */}
-      {/* MODAL 2: READ-ONLY ACCOUNT DETAILS & SECURITY                          */}
+      {/* MODAL 2: ACCOUNT DETAILS & SECURITY                                     */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       <Modal visible={accountDetailsModalVisible} animationType="slide" transparent={true}>
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-3xl p-6">
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View className="flex-1 justify-end bg-black/50">
+            <View className="bg-white rounded-t-3xl p-6" style={{ maxHeight: '92%' }}>
             <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xl font-bold text-slate-800">Account Details</Text>
+              <Text className="text-xl font-bold text-slate-800">Account Details & Security</Text>
               <TouchableOpacity onPress={() => setAccountDetailsModalVisible(false)} className="p-1">
                 <X size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <View className="bg-slate-100 rounded-2xl p-3.5 mb-5 flex-row items-center gap-3 border border-slate-200">
-              <Lock size={18} color="#64748b" />
-              <Text className="text-xs text-slate-600 flex-1 leading-4">
-                Registered credentials are locked for identity verification and anti-fraud security.
-              </Text>
-            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-            <Text className="text-xs font-bold text-slate-500 uppercase mb-1.5">Registered Full Name</Text>
-            <View className="w-full border border-slate-200 rounded-xl p-3.5 mb-4 bg-slate-100 flex-row justify-between items-center">
-              <Text className="text-sm font-bold text-slate-700">{userProfile?.full_name}</Text>
-              <Lock size={16} color="#94a3b8" />
-            </View>
+              <View className="bg-slate-100 rounded-2xl p-3.5 mb-5 flex-row items-center gap-3 border border-slate-200">
+                <Lock size={18} color="#64748b" />
+                <Text className="text-xs text-slate-600 flex-1 leading-4">
+                  Display name and phone number can be updated here. Email is read-only because it was verified via OTP.
+                </Text>
+              </View>
 
-            <Text className="text-xs font-bold text-slate-500 uppercase mb-1.5">Mobile Phone Number</Text>
-            <View className="w-full border border-slate-200 rounded-xl p-3.5 mb-4 bg-slate-100 flex-row justify-between items-center">
-              <Text className="text-sm font-mono font-bold text-slate-700">{userProfile?.phone_number}</Text>
-              <Lock size={16} color="#94a3b8" />
-            </View>
+              <Text className="text-xs font-bold text-slate-500 uppercase mb-1.5">Display Name</Text>
+              <TextInput
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="How should we call you?"
+                className="w-full border border-slate-200 rounded-xl p-3.5 mb-4 text-sm font-medium text-slate-800 bg-slate-50"
+              />
 
-            <Text className="text-xs font-bold text-slate-500 uppercase mb-1.5">Email Address</Text>
-            <View className="w-full border border-slate-200 rounded-xl p-3.5 mb-6 bg-slate-100 flex-row justify-between items-center">
-              <Text className="text-sm font-bold text-slate-700">{userProfile?.email}</Text>
-              <Lock size={16} color="#94a3b8" />
-            </View>
+              <Text className="text-xs font-bold text-slate-500 uppercase mb-1.5">Mobile Phone Number</Text>
+              <TextInput
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                placeholder="09XXXXXXXXX"
+                keyboardType="phone-pad"
+                maxLength={11}
+                className="w-full border border-slate-200 rounded-xl p-3.5 mb-4 text-sm font-mono font-bold text-slate-800 bg-slate-50"
+              />
 
-            <TouchableOpacity 
-              onPress={() => {
-                setAccountDetailsModalVisible(false);
-                Linking.openURL('mailto:yourparkada@gmail.com?subject=Request%20Account%20Name/Phone%20Update');
-              }}
-              className="bg-[#0A1D37] py-4 rounded-xl flex-row items-center justify-center gap-2 mb-4 shadow-xs"
-            >
-              <Mail size={18} color="#fff" />
-              <Text className="text-white font-bold text-sm">Request Info Update via Support</Text>
-            </TouchableOpacity>
+              <Text className="text-xs font-bold text-slate-500 uppercase mb-1.5">Email Address</Text>
+              <View className="w-full border border-slate-200 rounded-xl p-3.5 mb-6 bg-slate-100 flex-row justify-between items-center">
+                <Text className="text-sm font-bold text-slate-700">{userProfile?.email}</Text>
+                <Lock size={16} color="#94a3b8" />
+              </View>
+
+              <TouchableOpacity 
+                onPress={handleSaveDetails}
+                disabled={savingDetails}
+                className="bg-[#0A1D37] py-4 rounded-xl flex-row items-center justify-center gap-2 mb-3 shadow-xs"
+              >
+                {savingDetails ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} color="#fff" />
+                    <Text className="text-white font-bold text-sm">Save Changes</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+            </ScrollView>
           </View>
         </View>
+      </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════════════════════════════════════ */}
@@ -661,8 +762,12 @@ export default function ProfilePage() {
       {/* MODAL 4: DISCOUNT APPLICATION — 4-STEP CAPTURE FLOW                   */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       <Modal visible={discountModalVisible} animationType="slide" transparent={true}>
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-3xl p-6" style={{ height: '92%' }}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View className="flex-1 justify-end bg-black/50">
+            <View className="bg-white rounded-t-3xl p-6" style={{ height: '92%' }}>
 
             {/* ── Header ── */}
             <View className="flex-row justify-between items-center mb-3">
@@ -707,7 +812,59 @@ export default function ProfilePage() {
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
               {/* ══════════════════════════════════════════════════════════════ */}
-              {/* STEP 1 — ID FRONT                                             */}
+              {/* STEP 1 — WHICH DISCOUNT ARE YOU APPLYING FOR?                 */}
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {captureStep === 'type' && (
+                <View>
+                  <View className="items-center mb-6">
+                    <View className="w-14 h-14 rounded-2xl bg-sky-500/10 items-center justify-center mb-3">
+                      <BadgePercent size={26} color="#0284c7" />
+                    </View>
+                    <Text className="text-lg font-black text-slate-800">Select Discount Type</Text>
+                    <Text className="text-xs text-slate-500 mt-1 text-center px-4">
+                      Choose the discount you are applying for. This is what the super admin will review.
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity 
+                    onPress={() => setDiscountType('pwd')}
+                    className={`flex-row items-center gap-3 p-4 rounded-2xl border mb-3 ${discountType === 'pwd' ? 'bg-emerald-50 border-emerald-500' : 'border-slate-200 bg-white'}`}
+                  >
+                    <View className="w-11 h-11 rounded-xl bg-emerald-100 items-center justify-center shrink-0">
+                      <Accessibility size={22} color="#059669" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className={`font-black text-sm ${discountType === 'pwd' ? 'text-emerald-800' : 'text-slate-800'}`}>PWD Discount</Text>
+                      <Text className="text-[11px] text-slate-500">Person with Disability — 20% off</Text>
+                    </View>
+                    {discountType === 'pwd' && <CheckCircle2 size={18} color="#059669" />}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onPress={() => setDiscountType('senior')}
+                    className={`flex-row items-center gap-3 p-4 rounded-2xl border mb-5 ${discountType === 'senior' ? 'bg-amber-50 border-amber-500' : 'border-slate-200 bg-white'}`}
+                  >
+                    <View className="w-11 h-11 rounded-xl bg-amber-100 items-center justify-center shrink-0">
+                      <Heart size={22} color="#d97706" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className={`font-black text-sm ${discountType === 'senior' ? 'text-amber-800' : 'text-slate-800'}`}>Senior Citizen</Text>
+                      <Text className="text-[11px] text-slate-500">Senior Citizen — 20% off</Text>
+                    </View>
+                    {discountType === 'senior' && <CheckCircle2 size={18} color="#d97706" />}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onPress={() => setCaptureStep('front')}
+                    className="bg-[#0A1D37] py-4 rounded-xl items-center shadow-sm"
+                  >
+                    <Text className="text-white font-bold text-base">Continue →</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {/* STEP 2 — ID FRONT                                             */}
               {/* ══════════════════════════════════════════════════════════════ */}
               {captureStep === 'front' && (
                 <View>
@@ -717,7 +874,7 @@ export default function ProfilePage() {
                     </View>
                     <Text className="text-lg font-black text-slate-800">Front of your ID</Text>
                     <Text className="text-xs text-slate-500 mt-1 text-center px-4">
-                      Take a clear photo of the front side of your PWD or Senior Citizen ID
+                      Take a clear photo of the front side of your {discountType === 'pwd' ? 'PWD' : 'Senior Citizen'} ID
                     </Text>
                   </View>
 
@@ -1025,6 +1182,7 @@ export default function ProfilePage() {
             </ScrollView>
           </View>
         </View>
+      </KeyboardAvoidingView>
       </Modal>
 
     </SafeAreaView>

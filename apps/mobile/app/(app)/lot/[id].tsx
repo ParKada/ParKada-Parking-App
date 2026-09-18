@@ -71,6 +71,7 @@ export default function ParkingLotPage() {
   const [lot, setLot] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Tapping the currently-selected slot again deselects it.
   const handleSelectSlot = (slot: any) => {
@@ -119,6 +120,7 @@ export default function ParkingLotPage() {
       setSlots(updatedSlots);
     } catch (error) {
       console.error("Fetch error:", error);
+      setFetchError("Could not load this parking lot. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -220,7 +222,21 @@ export default function ParkingLotPage() {
     );
   }
 
-  if (!lot) return null;
+  if (!lot) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center", padding: 24 }}>
+        <Text className="text-slate-500 font-bold text-center">
+          {fetchError || "This parking lot is no longer available."}
+        </Text>
+        <TouchableOpacity 
+          onPress={() => router.back()}
+          className="mt-4 bg-[#0A1D37] px-6 py-3 rounded-xl"
+        >
+          <Text className="text-white font-bold">Go Back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   const availableCount = slots.filter(s => s.status === 'available').length;
   const isSuspended = lot?.status === 'suspended';

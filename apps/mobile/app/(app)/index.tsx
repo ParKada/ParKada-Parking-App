@@ -10,7 +10,6 @@ import {
   Easing,
   StatusBar,
 } from "react-native";
-import { BlurView } from "expo-blur";
 import { useFonts, DancingScript_700Bold } from "@expo-google-fonts/dancing-script";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -24,16 +23,14 @@ import {
   WifiOff,
   Star,
   Heart,
-  BookOpen,
-  Map as MapIcon,
 } from "lucide-react-native";
 import { useNetInfo } from "@react-native-community/netinfo";
 import * as Location from "expo-location";
-import { Picker } from "@react-native-picker/picker";
 import MapView from "react-native-maps";
 import { supabase } from "../../lib/supabase";
-import ActiveReservationTimer from "../../components/ActiveReservationTimer";
+import ActiveBookingCarousel from "../../components/ActiveBookingCarousel";
 import { useFavorites } from "../../hooks/useFavorites";
+import type { ActiveBooking } from "../../lib/types";
 import {
   notifyReservationCompleted,
   notifyReservationEndingSoon,
@@ -148,54 +145,11 @@ const renderStars = (rating: number) => {
   );
 };
 
-function getVehicleDisplay(reservation: any, allReservations: any[]) {
-  const model = reservation.vehicleModel || reservation.vehiclePlate;
-  const duplicates = allReservations.filter(
-    (r) =>
-      r.vehicleModel === reservation.vehicleModel &&
-      r.vehiclePlate !== reservation.vehiclePlate,
-  );
-  if (duplicates.length > 0) {
-    return `${model} - ${reservation.vehiclePlate}`;
-  }
-  return model;
-}
-
-/** One of the three quick-action tiles inside the hero. */
-function HeroTile({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.75}
-      className="flex-1 rounded-2xl overflow-hidden border border-white/20"
-      style={{ minHeight: 76 }}
-    >
-      <BlurView
-        intensity={20}
-        tint="light"
-        style={[FILL, { backgroundColor: "rgba(255, 255, 255, 0.05)" }]}
-      />
-      <View className="flex-1 py-4 items-center justify-center gap-2">
-        {icon}
-        <Text className="text-white text-[11px] font-bold">{label}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 export default function DriverHome() {
   const router = useRouter();
   const netInfo = useNetInfo();
   const insets = useSafeAreaInsets();
-  const { isFavorite, toggleFavorite, refresh: refreshFavorites, favoriteCount } = useFavorites();
+  const { isFavorite, toggleFavorite, refresh: refreshFavorites } = useFavorites();
   
   const [fontsLoaded] = useFonts({
     DancingScript_700Bold,
@@ -205,8 +159,11 @@ export default function DriverHome() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [dbParkingLots, setDbParkingLots] = useState<any[]>([]);
   const [dbSlots, setDbSlots] = useState<any[]>([]);
-  const [activeReservations, setActiveReservations] = useState<any[]>([]);
+  const [activeReservations, setActiveReservations] = useState<ActiveBooking[]>([]);
   const [selectedReservationId, setSelectedReservationId] = useState<string | null>(null);
+  // Mirrors the selection so `fetchAllData` can read it without listing it as a
+  // dependency — otherwise every swipe would rebuild the callback and refetch.
+  const selectedReservationIdRef = useRef<string | null>(null);
   const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -471,9 +428,15 @@ export default function DriverHome() {
             (a, b) => new Date(a.end_time).getTime() - new Date(b.end_time).getTime(),
           );
           setActiveReservations(formatted);
-          if (!selectedReservationId || !formatted.some((r) => r.id === selectedReservationId)) {
-            setSelectedReservationId(formatted[0]?.id || null);
-          }
+          // Keep the driver on the booking they were looking at; fall back to
+          // the soonest-ending one when that booking is gone.
+          const previousSelection = selectedReservationIdRef.current;
+          const nextSelection =
+            previousSelection && formatted.some((r) => r.id === previousSelection)
+              ? previousSelection
+              : formatted[0]?.id ?? null;
+          selectedReservationIdRef.current = nextSelection;
+          setSelectedReservationId(nextSelection);
 
           // "Session ending soon" alerts. notify() dedupes per reservation, so
           // this is safe to run on every refresh and focus.
@@ -493,6 +456,7 @@ export default function DriverHome() {
           });
         } else {
           setActiveReservations([]);
+          selectedReservationIdRef.current = null;
           setSelectedReservationId(null);
         }
       } catch (error) {
@@ -502,7 +466,7 @@ export default function DriverHome() {
         setIsRefreshing(false);
       }
     },
-    [runCleanup, selectedReservationId],
+    [runCleanup],
   );
 
   useEffect(() => {
@@ -578,7 +542,23 @@ export default function DriverHome() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  const selectedReservation = activeReservations.find((r) => r.id === selectedReservationId);
+  /** Fired by the carousel when the driver swipes to another booking. */
+  const handleSelectBooking = useCallback((bookingId: string) => {
+    selectedReservationIdRef.current = bookingId;
+    setSelectedReservationId(bookingId);
+  }, []);
+
+  const handleOpenReceipt = useCallback(
+    (bookingId: string) => {
+      router.push(`/(app)/receipt/${bookingId}`);
+    },
+    [router],
+  );
+
+  /** A timer mutated a reservation — refresh quietly in the background. */
+  const handleBookingUpdate = useCallback(() => {
+    fetchAllData(true);
+  }, [fetchAllData]);
 
   const handleToggleFavorite = async (lotId: string) => {
     const result = await toggleFavorite(lotId);
@@ -702,10 +682,10 @@ export default function DriverHome() {
 
               <View className="mt-4 items-center px-4">
                 <Text className="text-amber-400 text-lg font-black text-center" style={{ textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }}>
-                  Ready for a roadtrip?
+                  Hit the road with a smile!
                 </Text>
                 <Text className="text-white/90 text-sm font-medium text-center mt-1" style={{ textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }}>
-                  We've got <Text className="font-black text-white">{totalAvailable}</Text> parking slots open nearby.
+                  We've got <Text className="font-black text-white">{totalAvailable}</Text> parking spots open nearby.
                 </Text>
               </View>
             </View>
@@ -731,24 +711,6 @@ export default function DriverHome() {
               </Animated.View>
             </View>
 
-            {/* Quick actions */}
-            <View className="flex-row gap-3 mt-7 mb-6">
-              <HeroTile
-                icon={<MapIcon size={20} color="#fbbf24" />}
-                label="Find parking"
-                onPress={goToMap}
-              />
-              <HeroTile
-                icon={<BookOpen size={20} color="#fbbf24" />}
-                label="My bookings"
-                onPress={() => router.push("/reservations")}
-              />
-              <HeroTile
-                icon={<Heart size={20} color="#fbbf24" />}
-                label={favoriteCount > 0 ? `Favourites (${favoriteCount})` : "Favourites"}
-                onPress={() => router.push("/favorites")}
-              />
-            </View>
           </View>
         </View>
         </View>
@@ -763,7 +725,9 @@ export default function DriverHome() {
             <View className="mx-4 mt-6">
               <View className="flex-row justify-between items-end mb-3">
                 <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  My Current Booking
+                  {activeReservations.length > 1
+                    ? `My Active Bookings (${activeReservations.length})`
+                    : "My Current Booking"}
                 </Text>
                 <TouchableOpacity
                   onPress={() => fetchAllData(false)}
@@ -775,70 +739,13 @@ export default function DriverHome() {
               </View>
 
               {activeReservations.length > 0 ? (
-                <View>
-                  {activeReservations.length > 1 && (
-                    <View className="mb-3 bg-blue-50 border border-blue-100 rounded-xl overflow-hidden justify-center h-12">
-                      <Picker
-                        selectedValue={selectedReservationId}
-                        onValueChange={(val) => setSelectedReservationId(val)}
-                        style={{ width: "100%", color: "#1e3a8a" }}
-                      >
-                        {activeReservations.map((res) => (
-                          <Picker.Item
-                            key={res.id}
-                            label={getVehicleDisplay(res, activeReservations)}
-                            value={res.id}
-                          />
-                        ))}
-                      </Picker>
-                    </View>
-                  )}
-                  {selectedReservation && (
-                    <TouchableOpacity 
-                      activeOpacity={0.9} 
-                      onPress={() => router.push(`/(app)/receipt/${selectedReservation.id}`)}
-                      className="bg-[#0f2648] rounded-3xl p-5 border border-[#1e3a68] shadow-lg"
-                    >
-                      <View className="flex-row justify-between items-start">
-                        <View className="flex-1 pr-3">
-                          <Text className="font-black text-white text-lg tracking-tight">
-                            {selectedReservation.lotName}
-                          </Text>
-                          <Text className="text-white/70 text-xs mt-1 font-medium">
-                            Slot {selectedReservation.slotLabel} •{" "}
-                            <Text className="uppercase text-amber-400 font-bold">
-                              {selectedReservation.vehiclePlate}
-                            </Text>
-                          </Text>
-                        </View>
-                        <View className="bg-emerald-500/20 px-2 py-1 rounded-md">
-                          <Text className="text-emerald-400 text-[9px] font-black tracking-widest">
-                            ACTIVE
-                          </Text>
-                        </View>
-                      </View>
-
-                      <ActiveReservationTimer
-                        reservation={{
-                          ...selectedReservation,
-                          slot_label: selectedReservation.slotLabel,
-                        }}
-                        onUpdate={() => fetchAllData()}
-                      />
-
-                      <View className="mt-4 items-end">
-                        <Text className="text-[10px] text-white/50 font-bold uppercase">
-                          Ends at:{" "}
-                          {new Date(selectedReservation.end_time).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                </View>
+                <ActiveBookingCarousel
+                  bookings={activeReservations}
+                  selectedId={selectedReservationId}
+                  onSelect={handleSelectBooking}
+                  onPressBooking={handleOpenReceipt}
+                  onUpdate={handleBookingUpdate}
+                />
               ) : (
                 <View className="bg-white border border-dashed border-slate-200 rounded-2xl p-6 items-center shadow-sm">
                   <Text className="text-sm text-slate-500 font-semibold">
