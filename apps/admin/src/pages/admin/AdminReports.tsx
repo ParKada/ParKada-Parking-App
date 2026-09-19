@@ -360,7 +360,7 @@ export default function AdminReports() {
     });
     const lotArray = Object.values(lotMap);
     setLotStats(lotArray);
-    setTopLots([...lotArray].sort((a: any, b: any) => b.onlineRevenue - a.onlineRevenue).slice(0, 5));
+    setTopLots([...lotArray].sort((a: any, b: any) => (b.onlineRevenue + b.walkinRevenue) - (a.onlineRevenue + a.walkinRevenue)).slice(0, 5));
   };
 
   // Fixed type: accept RefObject with possible null
@@ -720,8 +720,9 @@ export default function AdminReports() {
             <h3 className="text-lg font-black mb-4">Top 5 Parking Lots by Revenue</h3>
             <div className="space-y-3">
               {topLots.map((lot: any, i: number) => {
-                const maxRevenue = topLots[0]?.onlineRevenue || 1;
-                const percent = (lot.onlineRevenue / maxRevenue) * 100;
+                const maxRevenue = (topLots[0]?.onlineRevenue || 0) + (topLots[0]?.walkinRevenue || 0) || 1;
+                const totalLotRevenue = (lot.onlineRevenue || 0) + (lot.walkinRevenue || 0);
+                const percent = (totalLotRevenue / maxRevenue) * 100;
                 return (
                   <div key={lot.name} className="flex items-center gap-3">
                     <span className="w-6 text-sm font-bold text-primary">{i + 1}</span>
@@ -729,7 +730,7 @@ export default function AdminReports() {
                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${percent}%` }} />
                     </div>
-                    <span className="font-bold text-sm">₱{lot.onlineRevenue.toLocaleString()}</span>
+                    <span className="font-bold text-sm">₱{totalLotRevenue.toLocaleString()}</span>
                   </div>
                 );
               })}
