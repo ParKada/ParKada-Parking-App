@@ -60,13 +60,12 @@ TARGET_LOT_ID = "351da04b-3c82-4e1d-a761-73051163d683"
 CAMERAS = [
     {
         "label":      "Camera 1 (Right)",
-        "rtsp_url":   "rtsp://admincamnew:admincamnew@192.168.8.154:554/stream1",
+        "rtsp_url":   "rtsp://admincam:admincam@172.20.10.4:554/stream1",
         "camera_id":  "cam1_351da04b-3c82-4e1d-a761-73051163d683",
     },
-    # Camera 2 is currently OFFLINE — re-enable when camera is back online
     {
          "label":      "Camera 2 (Left)",
-         "rtsp_url":   "rtsp://admincam:admincam@192.168.8.159:554/stream1",
+         "rtsp_url":   "rtsp://admincam:admincam@172.20.10.5:554/stream1",
          "camera_id":  "cam2_351da04b-3c82-4e1d-a761-73051163d683",
     },
 ]
@@ -242,8 +241,23 @@ def run_ocr_validation(slot_id, is_reservable, camera_id, raw_frame, bbox, displ
                                         else:
                                             if is_reservable:
                                                 msg = f"{clean_text} parked at a reservable slot {slot_label} without reservation."
-                                                print(f"[OCR] ⚠️ {msg}")
-                                                send_admin_notifications(TARGET_LOT_ID, "Walk-In on Reservable Slot", msg)
+                                                print(f"[OCR] ❌ MISMATCH: {msg}")
+                                                send_admin_notifications(TARGET_LOT_ID, "Reservation Mismatch", msg)
+                                                
+                                                # Asynchronously PATCH the log to mismatched (delay slightly to let INSERT trigger finish)
+                                                def patch_mismatch():
+                                                    try:
+                                                        patch_url = f"{VITE_SUPABASE_URL}/rest/v1/plate_validation_logs?detected_plate=eq.{clean_text}&order=created_at.desc&limit=1"
+                                                        patch_req = urllib.request.Request(patch_url, data=json.dumps({"validation_status": "mismatched"}).encode("utf-8"), method="PATCH")
+                                                        patch_req.add_header("apikey", VITE_SUPABASE_SERVICE_KEY)
+                                                        patch_req.add_header("Authorization", f"Bearer {VITE_SUPABASE_SERVICE_KEY}")
+                                                        patch_req.add_header("Content-Type", "application/json")
+                                                        patch_req.add_header("Prefer", "return=minimal")
+                                                        urllib.request.urlopen(patch_req, timeout=5)
+                                                    except Exception as e:
+                                                        print(f"[OCR] [FAIL] Could not patch mismatch status: {e}")
+                                                
+                                                threading.Timer(2.0, patch_mismatch).start()
                                 except Exception as e:
                                     print(f"[OCR] DB Error checking reservation: {e}")
                                     

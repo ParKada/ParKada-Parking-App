@@ -27,6 +27,7 @@ interface OcrRecordItem {
   status: string;
   dateStr: string;
   date: Date;
+  slotLabel: string;
 }
 
 type TabType = "general" | "ocr";
@@ -128,7 +129,7 @@ export default function SuperAdminRecords() {
           .limit(5000),
         supabase
           .from("plate_validation_logs")
-          .select("id, created_at, detected_plate, confidence_score, validation_status")
+          .select("id, created_at, detected_plate, confidence_score, validation_status, reservations:linked_reservation_id(parking_slots(label)), walk_in_records:linked_walk_in_id(parking_slots(label))")
           .eq("lot_id", selectedLotId)
           .gte("created_at", startDate.toISOString())
           .lte("created_at", todayEnd.toISOString())
@@ -178,13 +179,21 @@ export default function SuperAdminRecords() {
       const ocrUnified: OcrRecordItem[] = [];
       (ocrRes.data || []).forEach((o: any) => {
         const d = new Date(o.created_at);
+        let assignedSlot = "Unassigned";
+        if (o.reservations?.parking_slots?.label) {
+          assignedSlot = o.reservations.parking_slots.label;
+        } else if (o.walk_in_records?.parking_slots?.label) {
+          assignedSlot = o.walk_in_records.parking_slots.label;
+        }
+
         ocrUnified.push({
           id: o.id,
           date: d,
           dateStr: d.toLocaleString(),
           detectedPlate: o.detected_plate || "UNREADABLE",
           confidence: o.confidence_score || 0,
-          status: o.validation_status || "pending"
+          status: o.validation_status || "pending",
+          slotLabel: assignedSlot
         });
       });
 
@@ -488,6 +497,7 @@ export default function SuperAdminRecords() {
                     <tr className="bg-slate-50 border-b border-slate-100">
                       <th className="text-left font-bold text-slate-600 px-6 py-4 uppercase text-xs tracking-wider">Date/Time</th>
                       <th className="text-left font-bold text-slate-600 px-6 py-4 uppercase text-xs tracking-wider">Detected Plate</th>
+                      <th className="text-center font-bold text-slate-600 px-6 py-4 uppercase text-xs tracking-wider">Slot</th>
                       <th className="text-center font-bold text-slate-600 px-6 py-4 uppercase text-xs tracking-wider">Confidence</th>
                       <th className="text-center font-bold text-slate-600 px-6 py-4 uppercase text-xs tracking-wider">Status</th>
                     </tr>
@@ -495,7 +505,7 @@ export default function SuperAdminRecords() {
                   <tbody className="divide-y divide-slate-50">
                     {paginatedOcrRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="text-center py-12 text-slate-500 font-medium">
+                        <td colSpan={5} className="text-center py-12 text-slate-500 font-medium">
                           No OCR validation data available.
                         </td>
                       </tr>
@@ -507,6 +517,9 @@ export default function SuperAdminRecords() {
                           </td>
                           <td className="px-6 py-4 font-bold text-slate-900 font-mono">
                             {log.detectedPlate}
+                          </td>
+                          <td className="px-6 py-4 text-center font-bold text-indigo-700">
+                            {log.slotLabel}
                           </td>
                           <td className="px-6 py-4 text-center">
                             <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded-md">
